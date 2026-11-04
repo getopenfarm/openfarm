@@ -15,9 +15,12 @@ internal sealed partial class BambuSessionManager
     private readonly Dictionary<string, Session> _sessions = [];
     private readonly Dictionary<string, Task> _closing = [];
 
+    private static string Key(PrinterConnectionDetails details, BambuTransportOptions options) =>
+        $"{details.IpAddress}:{options.MqttPort}/{details.SerialNumber}/{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(details.AccessCode)))}";
+
     internal Lease Acquire(PrinterConnectionDetails details, BambuTransportOptions options, ILogger logger)
     {
-        var key = $"{details.IpAddress}:{options.MqttPort}/{details.SerialNumber}/{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(details.AccessCode)))}";
+        var key = Key(details, options);
         lock (_gate)
         {
             if (!_sessions.TryGetValue(key, out var session))
@@ -29,6 +32,18 @@ internal sealed partial class BambuSessionManager
             session.Add(lease);
             session.Start();
             return lease;
+        }
+    }
+
+    /// <summary>
+    /// Tells the printer's open session that the printer was heard from outside MQTT. A P1S stops pushing reports while it
+    /// receives a file, and a slow upload would otherwise outlast the silence that marks it offline. No session, no effect.
+    /// </summary>
+    internal void ReportAlive(PrinterConnectionDetails details, BambuTransportOptions options)
+    {
+        lock (_gate)
+        {
+            if (_sessions.TryGetValue(Key(details, options), out var session)) session.Broadcast(new(Alive: true));
         }
     }
 
@@ -67,7 +82,7 @@ internal sealed partial class BambuSessionManager
     [LoggerMessage(Level = LogLevel.Debug, Message = "MQTT cleanup for {Serial} failed.")]
     private static partial void LogCleanup(ILogger logger, string serial, Exception exception);
 
-    internal sealed record Message(string? Payload = null, bool Started = false, bool Ended = false)
+    internal sealed record Message(string? Payload = null, bool Started = false, bool Ended = false, bool Alive = false)
     {
         internal DateTimeOffset ReceivedAtUtc { get; } = DateTimeOffset.UtcNow;
     }
@@ -108,7 +123,7 @@ internal sealed partial class BambuSessionManager
             lease.Messages.Writer.TryComplete();
         }
         internal void Start() => _loop ??= RunAsync();
-        private void Broadcast(Message message)
+        internal void Broadcast(Message message)
         {
             lock (_gate) foreach (var lease in _leases) lease.Messages.Writer.TryWrite(message);
         }

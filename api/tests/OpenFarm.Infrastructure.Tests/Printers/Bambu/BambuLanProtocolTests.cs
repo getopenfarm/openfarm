@@ -813,6 +813,38 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
+    public async Task Upload_Progress_KeepsASilentPrinterAlive()
+    {
+        // A P1S pushes no reports while it receives a file; the bytes it accepts are what show it is still there.
+        await using var harness = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var events = harness.CreateConnector().ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        (await events.MoveNextAsync()).Should().BeTrue();
+        events.Current.ConnectionStarted.Should().BeTrue();
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            UploadFileAsync = (_, _, _, progress, _) =>
+            {
+                progress!.Report(new FtpProgress(0, 0, 0, TimeSpan.Zero, "", "", null));
+                progress.Report(new FtpProgress(50, 100, 1, TimeSpan.Zero, "", "", null));
+                progress.Report(new FtpProgress(100, 200, 1, TimeSpan.Zero, "", "", null));
+                return Task.FromResult(FtpStatus.Success);
+            },
+        });
+        using var input = new MemoryStream("G28"u8.ToArray());
+
+        await connector.StartJobAsync(harness.Details, input, "alive.gcode", 1, null, cts.Token);
+
+        (await events.MoveNextAsync()).Should().BeTrue();
+        events.Current.Should().BeEquivalentTo(new PrinterConnectorEvent(events.Current.ReceivedAtUtc),
+            "accepted bytes count as hearing from the printer, once per interval, and carry no state");
+        var more = events.MoveNextAsync().AsTask();
+        (await Task.WhenAny(more, Task.Delay(300))).Should().NotBe(more, "nothing else was heard");
+        await cts.CancelAsync();
+        try { await more; } catch (OperationCanceledException) { }
+    }
+
+    [Fact]
     public async Task IndependentPrinters_ConnectWhileAnotherSubscriptionIsStalled()
     {
         await using var first = new BambuMqttHarness("FIRST") { WithholdFirstSuback = true };

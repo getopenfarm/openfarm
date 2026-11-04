@@ -25,6 +25,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 {
     private const string MqttUsername = "bblp";
     private const string FtpsCacheDirectory = "/cache";
+    // Well inside the 90 s silence that marks a printer offline.
+    private static readonly TimeSpan AliveInterval = TimeSpan.FromSeconds(10);
     private static readonly string[] CommandResponseFields = ["command", "sequence_id", "result", "reason", "errno"];
 
     private static readonly JsonSerializerOptions IgnoreNullOptions = new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
@@ -86,6 +88,11 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             if (message.Started || message.Ended)
             {
                 yield return new(message.ReceivedAtUtc, ConnectionStarted: message.Started, ConnectionEnded: message.Ended);
+                continue;
+            }
+            if (message.Alive)
+            {
+                yield return new(message.ReceivedAtUtc);
                 continue;
             }
             if (message.Payload is not { } payload) continue;
@@ -201,8 +208,18 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         if (string.IsNullOrEmpty(stem)) stem = "print";
         var remotePath = $"/openfarm-{stem}-{hash[..32]}.gcode.3mf";
         var started = Stopwatch.GetTimestamp();
-        var uploadProgress = progress is null ? null
-            : new InlineProgress<FtpProgress>(p => progress.Report(new PrintSendProgress(PrintSendStage.Uploading, (int)Math.Clamp(p.Progress, 0, 100))));
+        long lastBytes = 0, lastAlive = 0;
+        var uploadProgress = new InlineProgress<FtpProgress>(p =>
+        {
+            // Bytes the printer accepted are word from it, even while it pushes no reports (BambuSessionManager.ReportAlive).
+            if (p.TransferredBytes > 0 && p.TransferredBytes != lastBytes && Stopwatch.GetElapsedTime(lastAlive) >= AliveInterval)
+            {
+                lastAlive = Stopwatch.GetTimestamp();
+                BambuSessionManager.Shared.ReportAlive(details, _options);
+            }
+            lastBytes = p.TransferredBytes;
+            progress?.Report(new PrintSendProgress(PrintSendStage.Uploading, (int)Math.Clamp(p.Progress, 0, 100)));
+        });
         if (_options.UploadFileAsync is { } substitute)
         {
             // Test seam substitutes the complete verified transfer, not production's FTP client.
@@ -216,7 +233,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                     transferred = p.TransferredBytes;
                     idle.CancelAfter(_options.UploadInactivityTimeout);
                 }
-                uploadProgress?.Report(p);
+                uploadProgress.Report(p);
             });
             try
             {
