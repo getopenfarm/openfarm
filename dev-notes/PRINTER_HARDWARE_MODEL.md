@@ -10,7 +10,7 @@ catalog entry plus, at most, adapter work — never a change to business logic o
 | What is this model? | `PrinterModelCatalog` (`api/src/OpenFarm.Domain/Printers`) | driver, extruder labels, feed unit style, camera transport, plates, slicer model name |
 | How do we talk to it? | The driver's adapter (`api/src/OpenFarm.Infrastructure/Printers/<Driver>`) | MQTT topics, Bambu tray ids (`254`, `unit * 4 + slot`), `ams_mapping`, Moonraker objects and head numbers, `map_table`, URL schemes |
 
-This is the split Printago draws between *capabilities* and *bindings*, kept as typed C# rather than JSON documents.
+Hardware capabilities and protocol bindings are represented separately with typed C# models.
 
 Rules:
 

@@ -14,7 +14,7 @@ service runs. Warn only: an overdue task never blocks dispatch (yet).
 
 ## Default tasks
 
-- The `MaintenanceTracker` migration seeds 10 tasks after Printago's list (names in `DefaultMaintenance`, fixed ids
+- The `MaintenanceTracker` migration seeds 10 default tasks (names in `DefaultMaintenance`, fixed ids
   `6d1f0c3a-0000-4000-8000-0000000000NN`, `ON CONFLICT ("Name") DO NOTHING`), all warn at 80 %:
 
   | Task | Every |

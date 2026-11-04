@@ -15,6 +15,7 @@ using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Production;
+using OpenFarm.Infrastructure.Printers.Bambu;
 
 namespace OpenFarm.Infrastructure.Production;
 
@@ -128,7 +129,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var inFlight = await jobRepository.ListDispatchInFlightAsync(stoppingToken);
         foreach (var job in inFlight)
         {
-            if (job.ObjectExecution is { StartRequested: true })
+            if (job.ObjectExecution is { StartRequested: true } || job.LastBlockReason == StartUnconfirmedReason)
             {
                 // Left for the printer's own telemetry to settle (ProcessDispatchAttemptAsync); the first failure stays the anchor.
                 if (job.LastBlockReason is null) job.RecordBlock(StartUnconfirmedReason, DateTimeOffset.UtcNow);
@@ -653,6 +654,14 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
                 await progress.FlushAsync();
+                if (ex is BambuStartUnconfirmedException)
+                {
+                    job.RecordBlock(StartUnconfirmedReason, DateTimeOffset.UtcNow);
+                    await jobRepository.SaveChangesAsync(cancellationToken);
+                    await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
+                    LogStartJobFailed(_logger, job.Id, printer.Id, ex);
+                    return false;
+                }
                 if (job.ObjectExecution is { StartRequested: true } requested)
                 {
                     // A lost start acknowledgement must not resend an exact-quantity plate, even after restart: the printer's
@@ -674,7 +683,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 // printer is still idle: one that started meanwhile may have taken this very send, and it must not get it twice.
                 // ponytail: the pause holds the single dispatch loop (~40 s worst case), so other printers wait too; move retries
                 // onto a per-printer task if a farm ever feels it.
-                if (attempt <= _sendRetryDelays.Count)
+                if (attempt <= _sendRetryDelays.Count && ex is not BambuTransferException)
                 {
                     LogSendRetrying(_logger, job.Id, printer.Id, attempt, ex);
                     await eventPublisher.PrintJobSendProgressAsync(job.Id, printer.Id, PrintSendStage.Retrying, null, attempt + 1, Truncate(ex.Message), cancellationToken);

@@ -11,7 +11,7 @@ namespace OpenFarm.Infrastructure.Tests.Printers.Bambu;
 
 /// <summary>
 /// Deliberately small MQTT 3.1.1 wire peer, not a general broker or a firmware emulator.
-/// Supports CONNECT, QoS-0 PUBLISH, SUBSCRIBE, PING and DISCONNECT used by the LAN connector.
+/// Supports CONNECT, QoS-0/1 PUBLISH, SUBSCRIBE, PING and DISCONNECT used by the LAN connector.
 /// Scripted reports and forced socket closure exercise MQTTnet itself over real TLS sockets.
 /// </summary>
 internal sealed class BambuMqttHarness : IAsyncDisposable
@@ -22,6 +22,10 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
     private int _connectionCount;
     private int _subscriptionCount;
     private int _activeConnections;
+    private int _requestCount;
+    public int RequestCount => Volatile.Read(ref _requestCount);
+    public TimeSpan SubackDelay { get; init; }
+    public bool WithholdCommandAcknowledgement { get; init; }
 
     public BambuMqttHarness(string serialNumber = "TEST-P1S")
     {
@@ -36,6 +40,7 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
     public bool ReplyToPushStart { get; init; } = true;
     public bool WithholdFirstConnack { get; init; }
     public bool WithholdFirstSuback { get; init; }
+    public bool RefuseSubscription { get; init; }
     private int _subackWithheld;
     public string InitialReport { get; init; } = """{"print":{"gcode_state":"IDLE","nozzle_temper":25,"bed_temper":24,"mc_percent":0}}""";
     public int ConnectionCount => Volatile.Read(ref _connectionCount);
@@ -48,6 +53,8 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
     {
         MqttPort = _server.Port,
         ValidateCertificate = _server.TrustCertificate,
+        CheckCertificateSerial = false,
+        AllowCertificateFallback = false,
         VerifyTimeout = TimeSpan.FromSeconds(2),
         CommandTimeout = TimeSpan.FromSeconds(2),
         ReconnectDelay = TimeSpan.FromMilliseconds(30),
@@ -57,6 +64,14 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
         new(NullLogger<BambuLanConnector>.Instance, options ?? Options);
 
     public Task<Request> NextRequestAsync() => _requests.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
+
+    public async Task<Request> NextCommandAsync()
+    {
+        Request request;
+        do { request = await NextRequestAsync(); }
+        while (!request.Payload.Contains("\"print\":", StringComparison.Ordinal));
+        return request;
+    }
 
     public async Task PublishReportAsync(string payload, string? topic = null)
     {
@@ -122,15 +137,22 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
                         Subscriptions.Enqueue(topic);
                         if (WithholdFirstSuback && Interlocked.Exchange(ref _subackWithheld, 1) == 0)
                             break;
-                        session.Subscribed = topic == ReportTopic;
-                        await session.SendAsync(0x90, [body[0], body[1], 0], cancellationToken);
+                        if (SubackDelay > TimeSpan.Zero) await Task.Delay(SubackDelay, cancellationToken);
+                        session.Subscribed = !RefuseSubscription && topic == ReportTopic;
+                        await session.SendAsync(0x90, [body[0], body[1], RefuseSubscription ? (byte)0x80 : (byte)0], cancellationToken);
                         Interlocked.Increment(ref _subscriptionCount);
                         break;
                     case 3:
                         offset = 0;
                         var requestTopic = ReadString(body, ref offset);
+                        if (((header >> 1) & 3) == 1)
+                        {
+                            if (!WithholdCommandAcknowledgement) await session.SendAsync(0x40, [body[offset], body[offset + 1]], cancellationToken);
+                            offset += 2;
+                        }
                         var payload = Encoding.UTF8.GetString(body, offset, body.Length - offset);
-                        _requests.Writer.TryWrite(new Request(id, requestTopic, payload));
+                        Interlocked.Increment(ref _requestCount);
+                        _requests.Writer.TryWrite(new Request(id, requestTopic, payload, (header >> 1) & 3));
                         using (var document = JsonDocument.Parse(payload))
                         {
                             if (ReplyToVersion && document.RootElement.TryGetProperty("info", out _))
@@ -211,7 +233,7 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
         _requests.Writer.TryComplete();
     }
 
-    internal sealed record Request(int ConnectionId, string Topic, string Payload);
+    internal sealed record Request(int ConnectionId, string Topic, string Payload, int Qos);
 
     private sealed class Session(SslStream stream) : IDisposable
     {

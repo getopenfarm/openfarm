@@ -146,7 +146,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                   ON c.role_id = r."Id";
                 """);
 
-            // Default tasks (DefaultMaintenance.Names), after Printago's list. Ordinary rows: editable, deletable, never re-created.
+            // Default tasks (DefaultMaintenance.Names). Ordinary rows: editable, deletable, never re-created.
             migrationBuilder.Sql("""
                 INSERT INTO "MaintenanceTasks" ("Id", "Name", "Notes", "EveryPrintHours", "EveryDays", "EveryPrints", "WarnAtPercent", "CreatedAtUtc")
                 VALUES

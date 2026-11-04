@@ -43,11 +43,13 @@ public class DispatchReconciliationTests(ProductionTestFactory factory) : Produc
         finally { await worker.StopAsync(default); }
     }
 
-    [Fact]
-    public async Task Startup_LeavesAnUnconfirmedStartToThePrinter_ThenFailsItAndFreesThePrinter()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Startup_LeavesAnUnconfirmedStartToThePrinter_ThenFailsItAndFreesThePrinter(bool exactQuantity)
     {
         var client = await ClientAsync();
-        var part = await MappedPartAsync(1);
+        var part = exactQuantity ? await MappedPartAsync(1) : await PartAsync();
         var printer = await PrinterAsync();
         var run = await RunAsync(client, part.Id, 2, pinned: printer.Id);
         var stuck = (await JobsAsync(run.Id)).First();
@@ -55,7 +57,8 @@ public class DispatchReconciliationTests(ProductionTestFactory factory) : Produc
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var job = await db.PrintJobs.SingleAsync(j => j.Id == stuck.Id);
-            job.RecordObjectExecution(job.ObjectExecution! with { StartRequested = true });
+            if (exactQuantity) job.RecordObjectExecution(job.ObjectExecution! with { StartRequested = true });
+            else job.RecordBlock("Print start is unconfirmed. Waiting for the printer to report.", DateTimeOffset.UtcNow);
             job.Dispatch(printer.Id);
             await db.SaveChangesAsync();
         }

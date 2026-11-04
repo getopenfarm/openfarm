@@ -20,7 +20,8 @@ public class BambuLanConnectorTests
         var options = BambuLanConnector.BuildClientOptions(details);
 
         options.ProtocolVersion.Should().Be(MqttProtocolVersion.V311);
-        options.ClientId.Should().NotBeNullOrEmpty();
+        options.ClientId.Should().Be(BambuLanConnector.BuildClientOptions(details).ClientId);
+        options.ChannelOptions.Should().BeOfType<MQTTnet.MqttClientTcpOptions>().Which.TlsOptions.TargetHost.Should().Be(details.SerialNumber);
     }
 }
 

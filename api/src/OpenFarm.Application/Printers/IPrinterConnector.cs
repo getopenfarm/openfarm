@@ -60,8 +60,8 @@ public sealed record PrinterConnectorEvent(
 public interface IPrinterConnector
 {
     /// <summary>
-    /// Short-lived connect + authenticate check (research.md §7) — never persists anything and
-    /// always disconnects before returning, regardless of outcome.
+    /// Short-lived authenticate/report check (research.md §7). Never persists anything.
+    /// Releases its transport lease before returning; an existing monitoring session may remain open.
     /// </summary>
     Task<bool> VerifyAsync(PrinterConnectionDetails details, CancellationToken cancellationToken);
 

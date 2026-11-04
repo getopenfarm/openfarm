@@ -10,8 +10,7 @@ actually works, instead of failing with `The OrcaSlicer CLI exited with code 254
 `--slice 0 --load-filaments "<material>" --nozzle-diameter <n> --export-gcode "<out>" "<model>"` —
 lifted unchanged from the old single-engine `CliSlicerEngine`, on the assumption OrcaSlicer/Bambu Studio
 share PrusaSlicer's classic flag-per-value CLI. They don't: neither engine has `--nozzle-diameter` or
-`--export-gcode` at all (confirmed against the OrcaSlicer/Bambu Studio CLI flag reference at
-printago.io/slicer-cli — 54/55 flags each, neither flag present). Nozzle diameter and filament type are
+`--export-gcode` at all (the supported OrcaSlicer/Bambu Studio CLI flags do not include either option). Nozzle diameter and filament type are
 only settable via JSON files loaded through `--load-settings`/`--load-filaments`; the only export flag is
 `--export-3mf`, which writes a *gcode-bearing 3MF* (a zip archive with the real G-code at
 `Metadata/plate_1.gcode` inside it — confirmed via GitHub issues/Bambu forum threads on the

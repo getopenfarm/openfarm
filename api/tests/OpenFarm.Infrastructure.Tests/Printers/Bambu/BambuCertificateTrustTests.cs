@@ -44,6 +44,16 @@ public class BambuCertificateTrustTests
         BambuCertificateTrust.Validate(unrelated).Should().BeFalse();
     }
 
+    [Fact]
+    public void CompatibilityFailure_UntrustedChainQualifies_ButMissingCertificateDoesNot()
+    {
+        using var unrelated = CreateSelfSignedCertificate();
+        BambuCertificateTrust.CompatibilityFailure(unrelated, "expected").Should().NotBeNull();
+        BambuCertificateTrust.CompatibilityFailure(null, "expected").Should().BeNull();
+        BambuCertificateTrust.MatchesSerial(unrelated, "expected").Should().BeFalse();
+        BambuCertificateTrust.MatchesSerial(unrelated, "not-bambu").Should().BeTrue();
+    }
+
     private static X509Certificate2 CreateSelfSignedCertificate()
     {
         using var rsa = RSA.Create(2048);

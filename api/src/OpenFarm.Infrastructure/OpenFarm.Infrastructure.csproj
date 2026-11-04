@@ -45,6 +45,7 @@
     <!-- Lets Infrastructure.Tests fixture-test internal, pure/deterministic logic (e.g.
          BambuCertificateTrust) directly, same rationale as BambuCameraFrameCodec's extraction. -->
     <InternalsVisibleTo Include="OpenFarm.Infrastructure.Tests" />
+    <InternalsVisibleTo Include="OpenFarm.Api.IntegrationTests" />
   </ItemGroup>
 
 </Project>

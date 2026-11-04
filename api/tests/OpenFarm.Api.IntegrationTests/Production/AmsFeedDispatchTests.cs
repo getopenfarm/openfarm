@@ -1,3 +1,4 @@
+using OpenFarm.Infrastructure.Printers.Bambu;
 using System.Collections.Concurrent;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -335,6 +336,21 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
     }
 
     [Fact]
+    public async Task ExhaustedBambuTransfer_DoesNotMultiplyConnectorRetries()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var printer = await PrinterAsync();
+        var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
+        var job = await DispatchWithSendAsync(runId,
+            _ => throw new BambuTransferException(BambuTransferStage.Uploading, "Upload exhausted its three attempts."),
+            j => j.Status == PrintJobStatus.Failed);
+        job.Status.Should().Be(PrintJobStatus.Failed);
+        SendAttemptsTo(printer).Should().Be(1);
+        (await ActiveJobOnAsync(printer.Id)).Should().BeNull();
+    }
+
+    [Fact]
     public async Task SendFailingOnce_IsRetriedInPlaceAndSent()
     {
         var client = await ClientAsync();
@@ -409,14 +425,16 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         (await ActiveJobOnAsync(printer.Id)).Should().BeNull();
     }
 
-    [Fact]
-    public async Task ExactQuantityJob_StartUnconfirmed_IsNotResent_AndFailsOnceTheIdlePrinterShowsItNeverStarted()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task StartUnconfirmed_IsNotResent_AndFailsOnceTheIdlePrinterShowsItNeverStarted(bool exactQuantity)
     {
         var client = await ClientAsync();
-        var part = await MappedPartAsync(1);
+        var part = exactQuantity ? await MappedPartAsync(1) : await PartAsync();
         var printer = await PrinterAsync();
         var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
-        Recorder.AfterStart = _ => throw new IOException("Connection reset");
+        Recorder.AfterStart = _ => throw new BambuStartUnconfirmedException(new IOException("Connection reset"));
         using var worker = Worker(startConfirmGrace: TimeSpan.Zero);
         await worker.StartAsync(default);
         try
@@ -424,7 +442,7 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
             var job = await WaitForJobAsync(runId, j => j.LastBlockReason is not null);
             job.Status.Should().Be(PrintJobStatus.Queued);
             job.PrinterId.Should().Be(printer.Id);
-            job.ObjectExecution!.StartRequested.Should().BeTrue();
+            if (exactQuantity) job.ObjectExecution!.StartRequested.Should().BeTrue();
             SendAttemptsTo(printer).Should().Be(1, "a start that may have landed is never sent twice");
 
             await ReportIdleAsync(printer.Id);

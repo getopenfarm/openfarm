@@ -25,10 +25,10 @@ public class BambuLanProtocolTests
         var connector = mqtt.CreateConnector(mqtt.Options with { UploadFileAsync = (_, _, _, _, _) => Task.FromResult(FtpStatus.Success) });
         using var file = new MemoryStream("G28\n"u8.ToArray());
         await connector.StartSelectedJobAsync(mqtt.Details, file, "selected.gcode", 1, null, ["206"], CancellationToken.None);
-        using var start = JsonDocument.Parse((await mqtt.NextRequestAsync()).Payload);
+        using var start = JsonDocument.Parse((await mqtt.NextCommandAsync()).Payload);
         start.RootElement.GetProperty("print").GetProperty("skip_objects").EnumerateArray().Select(i => i.GetInt32()).Should().Equal(206);
         await connector.SkipObjectsAsync(mqtt.Details, ["206", "300"], CancellationToken.None);
-        using var skip = JsonDocument.Parse((await mqtt.NextRequestAsync()).Payload);
+        using var skip = JsonDocument.Parse((await mqtt.NextCommandAsync()).Payload);
         skip.RootElement.GetProperty("print").GetProperty("command").GetString().Should().Be("skip_objects");
         skip.RootElement.GetProperty("print").GetProperty("obj_list").EnumerateArray().Select(i => i.GetInt32()).Should().Equal(206, 300);
     }
@@ -88,13 +88,13 @@ public class BambuLanProtocolTests
             await plate.CopyToAsync(copy);
             copy.ToArray().Should().Equal(bytes);
         }
-        ftp.UploadedPath.Should().StartWith("/cache/").And.EndWith(".3mf");
-        ftp.UploadedPath.Should().MatchRegex(@"^/cache/new_part_\d{8}-\d{9}\.gcode\.3mf$");
+        ftp.UploadedPath.Should().StartWith("/openfarm-").And.EndWith(".3mf");
+        ftp.UploadedPath.Should().MatchRegex(@"^/openfarm-new part_gcode-[a-f0-9]{32}\.gcode\.3mf$");
         ftp.Commands.Should().NotContain(command => command.StartsWith("NLST", StringComparison.Ordinal));
         ftp.Commands.Should().NotContain(command => command.StartsWith("DELE", StringComparison.Ordinal));
-        using var document = JsonDocument.Parse((await mqtt.NextRequestAsync()).Payload);
+        using var document = JsonDocument.Parse((await mqtt.NextCommandAsync()).Payload);
         document.RootElement.GetProperty("print").GetProperty("url").GetString()
-            .Should().Be($"file:///sdcard{ftp.UploadedPath}");
+            .Should().Be($"ftp://{ftp.UploadedPath!.TrimStart('/')}");
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public class BambuLanProtocolTests
 
         harness.Handshakes.Should().ContainSingle().Which.Should().Be(("MQTT", (byte)4, "bblp"));
         harness.Subscriptions.Should().ContainSingle().Which.Should().Be("device/TEST-P1S/report");
-        var version = await harness.NextRequestAsync();
         var pushAll = await harness.NextRequestAsync();
+        var version = await harness.NextRequestAsync();
         version.Topic.Should().Be("device/TEST-P1S/request");
         version.Payload.Should().Be("""{"info":{"sequence_id":"0","command":"get_version"}}""");
         pushAll.Payload.Should().Be("""{"pushing":{"sequence_id":"0","command":"pushall"}}""");
@@ -127,6 +127,16 @@ public class BambuLanProtocolTests
         (await connector.VerifyAsync(harness.Details, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3)))
             .Should().BeFalse();
         await WaitUntilAsync(() => harness.ActiveConnections == 0);
+    }
+
+    [Fact]
+    public async Task Verify_DeniedSubscription_NeverInitializesOrPublishes()
+    {
+        await using var harness = new BambuMqttHarness { RefuseSubscription = true };
+        var connector = harness.CreateConnector(harness.Options with { VerifyTimeout = TimeSpan.FromMilliseconds(400) });
+        (await connector.VerifyAsync(harness.Details, CancellationToken.None)).Should().BeFalse();
+        harness.RequestCount.Should().Be(0);
+        harness.Subscriptions.Should().NotBeEmpty();
     }
 
     [Fact]
@@ -218,7 +228,6 @@ public class BambuLanProtocolTests
         var connector = harness.CreateConnector(harness.Options with
         {
             ConnectTimeout = TimeSpan.FromMilliseconds(200),
-            TelemetryTimeout = TimeSpan.FromMilliseconds(200),
         });
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
@@ -228,44 +237,64 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
-    public async Task Connect_SilentPrinter_IsNudgedOnTheSameSession()
+    public async Task Connect_SilentPrinter_KeepsSessionWithoutPolling()
     {
         await using var harness = new BambuMqttHarness();
-        var connector = harness.CreateConnector(harness.Options with
-        {
-            TelemetryTimeout = TimeSpan.FromMilliseconds(200),
-            PushAllMinInterval = TimeSpan.FromMilliseconds(400),
-            SilenceReconnectAfter = TimeSpan.FromSeconds(30),
-        });
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        await using var events = harness.CreateConnector().ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
         (await ReadNextAsync(events, cts)).Should().BeTrue();
-        (await harness.NextRequestAsync()).Payload.Should().Contain("get_version");
         (await harness.NextRequestAsync()).Payload.Should().Contain("pushall");
-
-        (await harness.NextRequestAsync()).Payload.Should().Contain("\"start\"");
-        (await ReadNextAsync(events, cts)).Should().BeTrue("the nudge's report arrives on the open session");
-        events.Current.GcodeState.Should().Be("IDLE");
+        (await harness.NextRequestAsync()).Payload.Should().Contain("get_version");
+        await Task.Delay(500, cts.Token);
         harness.ConnectionCount.Should().Be(1);
+        harness.RequestCount.Should().Be(2, "silence does not manufacture commands or reconnects");
     }
 
     [Fact]
-    public async Task Connect_SilenceOutlastingNudges_ReconnectsAfterTheLimit()
+    public async Task Verify_WhileMonitoring_ReusesTheSubscribedSession()
     {
-        await using var harness = new BambuMqttHarness { ReplyToPushStart = false };
-        var connector = harness.CreateConnector(harness.Options with
-        {
-            TelemetryTimeout = TimeSpan.FromMilliseconds(100),
-            PushAllMinInterval = TimeSpan.FromSeconds(30),
-            SilenceReconnectAfter = TimeSpan.FromMilliseconds(600),
-        });
+        await using var harness = new BambuMqttHarness();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
-        (await ReadNextAsync(events, cts)).Should().BeTrue();
-        await WaitUntilAsync(() => harness.Subscriptions.Count >= 2);
-        harness.ConnectionCount.Should().Be(2);
-        while (await ReadNextAsync(events, cts) && events.Current.GcodeState is null) { }
-        events.Current.GcodeState.Should().Be("IDLE", "the new session's pushall is answered");
+        await using var events = harness.CreateConnector().ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        await ReadNextAsync(events, cts);
+        (await harness.CreateConnector().VerifyAsync(harness.Details, cts.Token)).Should().BeTrue();
+        harness.ConnectionCount.Should().Be(1);
+        harness.ActiveConnections.Should().Be(1, "verification releases only its own lease");
+        await harness.CreateConnector().PauseJobAsync(harness.Details, cts.Token);
+        (await harness.NextCommandAsync()).Payload.Should().Contain("pause");
+    }
+
+    [Fact]
+    public async Task Monitoring_AttachingAfterInitialization_RequestsFreshSnapshot()
+    {
+        await using var harness = new BambuMqttHarness();
+        await using var existing = BambuSessionManager.Shared.Acquire(harness.Details, harness.Options, NullLogger.Instance);
+        using var ct = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await existing.ReadyAsync(ct.Token);
+        await harness.NextRequestAsync();
+        await harness.NextRequestAsync();
+        await using var events = harness.CreateConnector().ConnectAsync(harness.Details, ct.Token).GetAsyncEnumerator();
+        (await ReadNextAsync(events, ct)).Should().BeTrue();
+        events.Current.GcodeState.Should().Be("IDLE");
+        harness.ConnectionCount.Should().Be(1);
+        (await harness.NextRequestAsync()).Payload.Should().Contain("pushall");
+    }
+
+    [Fact]
+    public async Task Command_DuringSubscriptionSetup_WaitsForSubackAndSharesTheClient()
+    {
+        await using var harness = new BambuMqttHarness { SubackDelay = TimeSpan.FromMilliseconds(300) };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var events = harness.CreateConnector().ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        var first = ReadNextAsync(events, cts);
+        await WaitUntilAsync(() => harness.Subscriptions.Count == 1);
+        var command = harness.CreateConnector().PauseJobAsync(harness.Details, cts.Token);
+        command.IsCompleted.Should().BeFalse();
+        await first;
+        await command;
+        harness.ConnectionCount.Should().Be(1);
+        harness.Subscriptions.Should().ContainSingle();
+        (await harness.NextCommandAsync()).Qos.Should().Be(1);
     }
 
     [Fact]
@@ -357,14 +386,14 @@ public class BambuLanProtocolTests
             await plate.CopyToAsync(copy);
             copy.ToArray().Should().Equal(fileBytes);
         }
-        using var document = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
+        using var document = JsonDocument.Parse((await harness.NextCommandAsync()).Payload);
         var print = document.RootElement.GetProperty("print");
         print.GetProperty("subtask_name").GetString().Should().Be(jobName);
         print.GetProperty("command").GetString().Should().Be("project_file");
         print.GetProperty("param").GetString().Should().Be("Metadata/plate_1.gcode");
-        print.GetProperty("url").GetString().Should().Be($"file:///sdcard{uploadedPath}");
-        uploadedPath.Should().StartWith("/cache/").And.EndWith(".3mf");
-        uploadedPath.Should().MatchRegex(@"^/cache/part_quoted_folder_\d{8}-\d{9}\.gcode\.3mf$");
+        print.GetProperty("url").GetString().Should().Be($"ftp://{uploadedPath!.TrimStart('/')}");
+        uploadedPath.Should().StartWith("/openfarm-").And.EndWith(".3mf");
+        uploadedPath.Should().MatchRegex(@"^/openfarm-.*-[a-f0-9]{32}\.gcode\.3mf$");
 #pragma warning disable CA5351 // Verify the Bambu protocol integrity checksum against uploaded bytes.
         print.GetProperty("md5").GetString().Should().Be(Convert.ToHexStringLower(MD5.HashData(uploadedBytes!)));
 #pragma warning restore CA5351
@@ -373,10 +402,10 @@ public class BambuLanProtocolTests
     }
 
     [Theory]
-    [InlineData("P1P", "file:///sdcard")]
-    [InlineData("P1S", "file:///sdcard")]
-    [InlineData("A1", "file:///sdcard")]
-    [InlineData("A1MINI", "file:///sdcard")]
+    [InlineData("P1P", "ftp://")]
+    [InlineData("P1S", "ftp://")]
+    [InlineData("A1", "ftp://")]
+    [InlineData("A1MINI", "ftp://")]
     [InlineData("X1", "ftp://")]
     [InlineData("X1C", "ftp://")]
     [InlineData("X1E", "ftp://")]
@@ -402,9 +431,9 @@ public class BambuLanProtocolTests
         await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", 1, null, default);
 
         uploadedBytes.Should().Equal(project, "an existing project must retain settings, thumbnails and checksums");
-        uploadPath.Should().StartWith("/cache/");
-        using var request = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
-        request.RootElement.GetProperty("print").GetProperty("url").GetString().Should().Be(prefix + uploadPath);
+        uploadPath.Should().StartWith("/openfarm-");
+        using var request = JsonDocument.Parse((await harness.NextCommandAsync()).Payload);
+        request.RootElement.GetProperty("print").GetProperty("url").GetString().Should().Be(prefix + uploadPath!.TrimStart('/'));
     }
 
     private static async Task<JsonElement> StartWithMappingAsync(FilamentFeedMapping? mapping, string model = "P1S")
@@ -415,7 +444,7 @@ public class BambuLanProtocolTests
 
         await connector.StartJobAsync(harness.Details with { ModelCode = model }, file, "part.gcode.3mf", 1, mapping, default);
 
-        using var request = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
+        using var request = JsonDocument.Parse((await harness.NextCommandAsync()).Payload);
         return request.RootElement.GetProperty("print").Clone();
     }
 
@@ -529,7 +558,7 @@ public class BambuLanProtocolTests
         await connector.StartJobAsync(harness.Details, file, "part.gcode.3mf", 4, null, default);
 
         uploadedBytes.Should().Equal(projectBytes);
-        using var document = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
+        using var document = JsonDocument.Parse((await harness.NextCommandAsync()).Payload);
         document.RootElement.GetProperty("print").GetProperty("param").GetString().Should().Be("Metadata/plate_4.gcode");
     }
 
@@ -608,28 +637,41 @@ public class BambuLanProtocolTests
         await pendingStart.Should().ThrowAsync<OperationCanceledException>();
     }
 
-    [Fact]
-    public async Task StartJob_RetryAfterFailedStart_RepublishesWithoutUploadingAgain()
+    [Theory]
+    [InlineData("bad....filename.gcode")]
+    [InlineData("../bad\r\nfilename.gcode")]
+    public async Task StartJob_SanitizesRepeatedDotsAndCommandSeparators(string name)
     {
-        await using var harness = new BambuMqttHarness { WithholdFirstConnack = true };
+        await using var mqtt = new BambuMqttHarness();
+        await using var ftp = new BambuFtpsHarness();
+        var connector = mqtt.CreateConnector(mqtt.Options with { FtpsPort = ftp.Port });
+        using var input = new MemoryStream("G28"u8.ToArray());
+        using var ct = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await connector.StartJobAsync(mqtt.Details, input, name, 1, null, ct.Token);
+        ftp.UploadedPath.Should().StartWith("/openfarm-").And.NotContain("..").And.NotContain("\r").And.NotContain("\n");
+        ftp.TransferCount.Should().Be(1);
+        (await mqtt.NextCommandAsync()).Payload.Should().Contain("project_file");
+    }
+
+    [Fact]
+    public async Task StartJob_RepeatedArtifact_UsesStableRootFilename()
+    {
+        await using var harness = new BambuMqttHarness();
         var uploads = new List<string>();
         var connector = harness.CreateConnector(harness.Options with
         {
-            CommandTimeout = TimeSpan.FromMilliseconds(500),
             UploadFileAsync = (_, _, path, _, _) => { uploads.Add(path); return Task.FromResult(FtpStatus.Success); },
         });
         byte[] bytes = Encoding.UTF8.GetBytes("print payload");
-
-        var first = async () => await connector.StartJobAsync(harness.Details, new MemoryStream(bytes), "part.gcode", 1, null, CancellationToken.None);
-        await first.Should().ThrowAsync<Exception>("the first start never gets a CONNACK");
-        await connector.StartJobAsync(harness.Details, new MemoryStream(bytes), "part.gcode", 1, null, CancellationToken.None);
-
-        uploads.Should().ContainSingle();
-        using var document = JsonDocument.Parse((await harness.NextRequestAsync()).Payload);
-        document.RootElement.GetProperty("print").GetProperty("url").GetString().Should().Be($"file:///sdcard{uploads[0]}");
-
-        await connector.StartJobAsync(harness.Details, new MemoryStream(bytes), "part.gcode", 1, null, CancellationToken.None);
-        uploads.Should().HaveCount(2, "a start that went out clears the reuse: a new send uploads afresh");
+        for (var i = 0; i < 2; i++)
+        {
+            using var input = new MemoryStream(bytes);
+            await connector.StartJobAsync(harness.Details, input, "part.gcode", 1, null, CancellationToken.None);
+            using var document = JsonDocument.Parse((await harness.NextCommandAsync()).Payload);
+            document.RootElement.GetProperty("print").GetProperty("file").GetString().Should().Be(uploads[i].TrimStart('/'));
+        }
+        uploads.Should().HaveCount(2);
+        uploads[0].Should().Be(uploads[1]);
     }
 
     [Fact]
@@ -638,7 +680,7 @@ public class BambuLanProtocolTests
         await using var harness = new BambuMqttHarness();
         var connector = harness.CreateConnector(harness.Options with
         {
-            UploadTimeoutFloor = TimeSpan.FromMilliseconds(200),
+            UploadInactivityTimeout = TimeSpan.FromMilliseconds(200),
             UploadFileAsync = async (_, _, _, _, token) => { await Task.Delay(Timeout.InfiniteTimeSpan, token); return FtpStatus.Success; },
         });
 
@@ -669,6 +711,7 @@ public class BambuLanProtocolTests
         {
             MqttPort = server.Port,
             ValidateCertificate = server.TrustCertificate,
+            CheckCertificateSerial = false,
             CommandTimeout = TimeSpan.FromMilliseconds(500),
         });
         var command = connector.PauseJobAsync(TestDetails, CancellationToken.None);
@@ -676,7 +719,7 @@ public class BambuLanProtocolTests
 
         var pendingCommand = async () => await command.WaitAsync(TimeSpan.FromSeconds(3));
         // MQTTnet wraps cancellation while awaiting CONNACK as an authentication failure.
-        await pendingCommand.Should().ThrowAsync<MqttConnectingFailedException>();
+        await pendingCommand.Should().ThrowAsync<OperationCanceledException>();
         await closed.Task.WaitAsync(TimeSpan.FromSeconds(3));
     }
 
@@ -714,6 +757,74 @@ public class BambuLanProtocolTests
         await next.Should().ThrowAsync<OperationCanceledException>();
         await WaitUntilAsync(() => harness.ActiveConnections == 0);
         clients.Should().ContainSingle().Which.IsConnected.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task StartJob_MissingPublishAcknowledgement_IsUnconfirmedAndNotRetried()
+    {
+        await using var harness = new BambuMqttHarness { WithholdCommandAcknowledgement = true };
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            CommandTimeout = TimeSpan.FromMilliseconds(400),
+            UploadFileAsync = (_, _, _, _, _) => Task.FromResult(FtpStatus.Success),
+        });
+        using var input = new MemoryStream("G28"u8.ToArray());
+        var start = () => connector.StartJobAsync(harness.Details, input, "ack.gcode", 1, null, CancellationToken.None);
+        await start.Should().ThrowAsync<BambuStartUnconfirmedException>();
+        var request = await harness.NextCommandAsync();
+        request.Qos.Should().Be(1);
+        harness.RequestCount.Should().Be(3, "two initialization requests and one start, without a resend");
+    }
+
+    [Fact]
+    public async Task Verify_CertificateCompatibilityFallback_ReconnectsAfterStrictFailure()
+    {
+        await using var harness = new BambuMqttHarness();
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            ValidateCertificate = BambuCertificateTrust.Validate,
+            AllowCertificateFallback = true,
+            CheckCertificateSerial = true,
+        });
+        (await connector.VerifyAsync(harness.Details, CancellationToken.None)).Should().BeTrue();
+        harness.Handshakes.Should().ContainSingle("strict TLS fails before MQTT, then the fallback authenticates");
+    }
+
+    [Fact]
+    public async Task Upload_SlowButProgressing_OutlivesTheInactivityWindow()
+    {
+        await using var harness = new BambuMqttHarness();
+        var connector = harness.CreateConnector(harness.Options with
+        {
+            UploadInactivityTimeout = TimeSpan.FromMilliseconds(400),
+            UploadFileAsync = async (_, _, _, progress, ct) =>
+            {
+                for (var i = 1; i <= 6; i++)
+                {
+                    await Task.Delay(100, ct);
+                    progress!.Report(new FtpProgress(i * 10, i * 100, 1, TimeSpan.Zero, "", "", null));
+                }
+                return FtpStatus.Success;
+            },
+        });
+        using var input = new MemoryStream("G28"u8.ToArray());
+        await connector.StartJobAsync(harness.Details, input, "slow.gcode", 1, null, CancellationToken.None);
+        (await harness.NextCommandAsync()).Payload.Should().Contain("project_file");
+    }
+
+    [Fact]
+    public async Task IndependentPrinters_ConnectWhileAnotherSubscriptionIsStalled()
+    {
+        await using var first = new BambuMqttHarness("FIRST") { WithholdFirstSuback = true };
+        await using var second = new BambuMqttHarness("SECOND");
+        using var ct = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var events = first.CreateConnector().ConnectAsync(first.Details, ct.Token).GetAsyncEnumerator();
+        var next = events.MoveNextAsync().AsTask();
+        await WaitUntilAsync(() => !first.Subscriptions.IsEmpty);
+        await second.CreateConnector().PauseJobAsync(second.Details, ct.Token);
+        (await second.NextCommandAsync()).Payload.Should().Contain("pause");
+        await ct.CancelAsync();
+        try { await next; } catch (OperationCanceledException) { }
     }
 
     private static readonly PrinterConnectionDetails TestDetails = new("Bambu", "P1S", "127.0.0.1", "TEST-P1S", "test-code");

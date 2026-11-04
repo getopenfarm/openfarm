@@ -6,8 +6,7 @@ preserved. They remain engineering references and are not published by Docusauru
 
 ## Research and information architecture
 
-[Printago's documentation](https://docs.printago.io/docs) informed the reading
-flow: quick start first, orientation, connection/setup, task-oriented workflows,
+The documentation follows this reading order: quick start first, orientation, connection/setup, task-oriented workflows,
 administration, API, troubleshooting, and support. Its product claims, account
 model, cloud integrations, file restrictions, and screenshots were not reused.
 

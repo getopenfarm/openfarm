@@ -4,7 +4,7 @@ These are **not** captured from physical hardware by OpenFarm (no printer was re
 development sandbox this phase was built in — see `specs/002-printer-integration/tasks.md` T004's
 note). They are copied verbatim from `pybambu`'s own test corpus, vendored at
 `third_party/printers/bambulab/references/ha-bambulab/custom_components/bambu_lab/pybambu/tests/`
-(the reverse-engineered reference client this integration is built from) — genuine `report`/`get_version`
+(the community reference client used by this integration) — genuine `report`/`get_version`
 MQTT payloads recorded by that project's maintainers/contributors from real printers, not hand-invented
 JSON.
 

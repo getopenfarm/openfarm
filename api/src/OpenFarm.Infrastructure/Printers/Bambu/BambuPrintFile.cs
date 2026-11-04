@@ -30,11 +30,15 @@ internal static class BambuPrintFile
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
         {
-            using (var entry = archive.CreateEntry(platePath).Open()) entry.Write(content);
+            var plateEntry = archive.CreateEntry(platePath);
+            plateEntry.LastWriteTime = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            using (var entry = plateEntry.Open()) entry.Write(content);
 #pragma warning disable CA5351 // Bambu's per-plate integrity checksum, not a security primitive.
             var md5 = Convert.ToHexStringLower(MD5.HashData(content));
 #pragma warning restore CA5351
-            using var checksum = archive.CreateEntry($"{platePath}.md5").Open();
+            var checksumEntry = archive.CreateEntry($"{platePath}.md5");
+            checksumEntry.LastWriteTime = plateEntry.LastWriteTime;
+            using var checksum = checksumEntry.Open();
             checksum.Write(Encoding.ASCII.GetBytes(md5));
         }
         return output.ToArray();

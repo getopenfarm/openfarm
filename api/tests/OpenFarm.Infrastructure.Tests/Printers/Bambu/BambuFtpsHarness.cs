@@ -15,6 +15,17 @@ internal sealed class BambuFtpsHarness : IAsyncDisposable
 
     public BambuFtpsHarness() => _server = new LoopbackTlsServer(HandleSessionAsync);
 
+    private int _transfers;
+    private int _connections;
+    private readonly ConcurrentDictionary<string, byte[]> _files = new();
+    public int TransferCount => Volatile.Read(ref _transfers);
+    public int ConnectionCount => Volatile.Read(ref _connections);
+    public bool AdvertiseUnspecifiedAddress { get; init; }
+    public bool WithholdFinalReply { get; init; }
+    public bool StallData { get; init; }
+    public long ReportedSizeDelta { get; init; }
+    public string? RejectStoreCode { get; init; }
+    public ConcurrentQueue<string> TransferEvents { get; } = new();
     public int Port => _server.Port;
     public ConcurrentQueue<string> Commands { get; } = new();
     public byte[]? UploadedBytes { get; private set; }
@@ -22,6 +33,7 @@ internal sealed class BambuFtpsHarness : IAsyncDisposable
 
     private async Task HandleSessionAsync(SslStream control, CancellationToken token)
     {
+        Interlocked.Increment(ref _connections);
         using var reader = new StreamReader(control, Encoding.UTF8, leaveOpen: true);
         await using var writer = new StreamWriter(control, new UTF8Encoding(false), leaveOpen: true) { NewLine = "\r\n", AutoFlush = true };
         TcpListener? dataListener = null;
@@ -44,6 +56,11 @@ internal sealed class BambuFtpsHarness : IAsyncDisposable
                     case "FEAT":
                         // No SIZE/MDTM support, so FileExists falls back to NLST as in the report.
                         await writer.WriteLineAsync("211 No features".AsMemory(), token);
+                        break;
+                    case "SIZE":
+                        var path = line[5..];
+                        await writer.WriteLineAsync((_files.TryGetValue(path, out var stored)
+                            ? $"213 {stored.LongLength + ReportedSizeDelta}" : "550 File not found").AsMemory(), token);
                         break;
                     case "SYST":
                         await writer.WriteLineAsync("215 UNIX Type: L8".AsMemory(), token);
@@ -70,11 +87,17 @@ internal sealed class BambuFtpsHarness : IAsyncDisposable
                         var port = ((IPEndPoint)dataListener.LocalEndpoint).Port;
                         await writer.WriteLineAsync((command == "EPSV"
                             ? $"229 Entering Extended Passive Mode (|||{port}|)"
-                            : $"227 Entering Passive Mode (127,0,0,1,{port / 256},{port % 256})").AsMemory(), token);
+                            : $"227 Entering Passive Mode ({(AdvertiseUnspecifiedAddress ? "0,0,0,0" : "127,0,0,1")},{port / 256},{port % 256})").AsMemory(), token);
                         break;
                     case "NLST":
                     case "STOR":
                         if (dataListener is null) throw new InvalidDataException("No passive data listener.");
+                        if (command == "STOR" && RejectStoreCode is { } code)
+                        {
+                            await writer.WriteLineAsync($"{code} Storage failure".AsMemory(), token);
+                            break;
+                        }
+                        TransferEvents.Enqueue(command);
                         await writer.WriteLineAsync("150 Opening data connection".AsMemory(), token);
                         using (var client = await dataListener.AcceptTcpClientAsync(token))
                         {
@@ -87,6 +110,7 @@ internal sealed class BambuFtpsHarness : IAsyncDisposable
                                     ServerCertificate = _server.Certificate,
                                     EnabledSslProtocols = SslProtocols.Tls12,
                                 }, token);
+                                TransferEvents.Enqueue("data TLS ready");
                                 await TransferAsync(tls, line, command, token);
                             }
                             else
@@ -96,6 +120,8 @@ internal sealed class BambuFtpsHarness : IAsyncDisposable
                         }
                         dataListener.Stop();
                         dataListener = null;
+                        if (command == "STOR" && WithholdFinalReply)
+                            await Task.Delay(Timeout.InfiniteTimeSpan, token);
                         await writer.WriteLineAsync("226 Transfer complete".AsMemory(), token);
                         break;
                     case "QUIT":
@@ -122,10 +148,13 @@ internal sealed class BambuFtpsHarness : IAsyncDisposable
         }
         else
         {
+            Interlocked.Increment(ref _transfers);
+            if (StallData) await Task.Delay(Timeout.InfiniteTimeSpan, token);
             using var bytes = new MemoryStream();
             await data.CopyToAsync(bytes, token);
             UploadedBytes = bytes.ToArray();
             UploadedPath = line[5..];
+            _files[UploadedPath] = UploadedBytes;
         }
     }
 

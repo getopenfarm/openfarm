@@ -1,19 +1,14 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Channels;
 using FluentFTP;
 using FluentFTP.Exceptions;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Formatter;
 using OpenFarm.Application.Printers;
-using OpenFarm.Domain.Printers;
-using OpenFarm.Infrastructure.Production;
 
 namespace OpenFarm.Infrastructure.Printers.Bambu;
 
@@ -30,27 +25,12 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 {
     private const string MqttUsername = "bblp";
     private const string FtpsCacheDirectory = "/cache";
-
-    /// <summary>
-    /// The open telemetry session per printer. Commands go out on it: the printer's LAN broker accepts few clients, and a
-    /// second connection opened next to it often never gets a CONNACK ("MQTT connect canceled"). Static because
-    /// <see cref="PrinterConnectorFactory"/> creates a connector per call.
-    /// </summary>
-    private static readonly ConcurrentDictionary<string, IMqttClient> LiveClients = new();
+    private static readonly string[] CommandResponseFields = ["command", "sequence_id", "result", "reason", "errno"];
 
     private static readonly JsonSerializerOptions IgnoreNullOptions = new() { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
-    private const string PushStartRequest = """{"pushing":{"sequence_id":"0","command":"start"}}""";
-    private const string PushAllRequest = """{"pushing":{"sequence_id":"0","command":"pushall"}}""";
-
     private readonly ILogger<BambuLanConnector> _logger;
     private readonly BambuTransportOptions _options;
-
-    /// <summary>
-    /// The last file this connector uploaded whose start command then failed. Dispatch retries a send on the same connector, so
-    /// a retry of identical bytes republishes the start instead of uploading again.
-    /// </summary>
-    private (byte[] Input, string JobName, int Plate, string RemotePath, string Md5)? _uploadedUnstarted;
 
     public BambuLanConnector(ILogger<BambuLanConnector> logger)
         : this(logger, new BambuTransportOptions())
@@ -65,144 +45,84 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 
     public async Task<bool> VerifyAsync(PrinterConnectionDetails details, CancellationToken cancellationToken)
     {
-        using var client = _options.CreateMqttClient();
-        var receivedInfo = false;
-        var receivedPrint = false;
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        client.ApplicationMessageReceivedAsync += e =>
-        {
-            var payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-            if (BambuMqttMessageParser.IsGetVersionResponse(payload))
-            {
-                receivedInfo = true;
-            }
-
-            if (BambuMqttMessageParser.IsPrintReport(payload))
-            {
-                receivedPrint = true;
-            }
-
-            if (receivedInfo && receivedPrint)
-            {
-                completion.TrySetResult();
-            }
-
-            return Task.CompletedTask;
-        };
-
-        using var verifyCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        verifyCts.CancelAfter(_options.VerifyTimeout);
-
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_options.VerifyTimeout);
+        await using var session = BambuSessionManager.Shared.Acquire(details, _options, _logger);
         try
         {
-            await client.ConnectAsync(BuildClientOptions(details, _options), verifyCts.Token);
-            await SubscribeAndRequestAsync(client, details.SerialNumber, verifyCts.Token);
-
-            using (verifyCts.Token.Register(() => completion.TrySetCanceled()))
+            await session.ReadyAsync(timeout.Token);
+            if (session.RefreshRequired)
             {
-                await completion.Task;
+                await session.PublishAsync("""{"pushing":{"sequence_id":"0","command":"pushall"}}""", false, timeout.Token);
+                await session.PublishAsync("""{"info":{"sequence_id":"0","command":"get_version"}}""", false, timeout.Token);
             }
-
-            return true;
-        }
-        catch (OperationCanceledException)
-        {
-            LogVerifyTimedOut(_logger, details.IpAddress);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            LogVerifyFailed(_logger, details.IpAddress, ex);
-            return false;
-        }
-        finally
-        {
-            if (client.IsConnected)
+            bool info = false, print = false;
+            await foreach (var message in session.Messages.Reader.ReadAllAsync(timeout.Token))
             {
-                await client.DisconnectAsync(cancellationToken: CancellationToken.None);
+                if (message.Payload is not { } payload) continue;
+                info |= BambuMqttMessageParser.IsGetVersionResponse(payload);
+                print |= BambuMqttMessageParser.IsPrintReport(payload);
+                if (info && print) return true;
             }
         }
+        catch (Exception ex) { LogVerifyFailed(_logger, details.IpAddress, ex); }
+        return false;
     }
 
     public async IAsyncEnumerable<PrinterConnectorEvent> ConnectAsync(
-        PrinterConnectionDetails details,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+        PrinterConnectionDetails details, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var connectionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var connectionToken = connectionCts.Token;
-        var channel = Channel.CreateUnbounded<PrinterConnectorEvent>();
-        using var client = _options.CreateMqttClient();
-        var liveKey = LiveKey(details);
-        var lastReportTicks = DateTimeOffset.UtcNow.UtcTicks;
-        var lastMessageTicks = lastReportTicks;
-        string? wifiSignal = null;
-
-        client.ApplicationMessageReceivedAsync += e =>
+        await using var session = BambuSessionManager.Shared.Acquire(details, _options, _logger);
+        if (session.RefreshRequired)
         {
-            var payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-            var isReport = BambuMqttMessageParser.IsPrintReport(payload);
-            var nowTicks = DateTimeOffset.UtcNow.UtcTicks;
-            var gap = TimeSpan.FromTicks(nowTicks - Interlocked.Exchange(ref lastMessageTicks, nowTicks));
-            if (_logger.IsEnabled(LogLevel.Debug)) LogMessageReceived(_logger, details.SerialNumber, isReport ? "print" : "other", gap.TotalSeconds);
-            if (!isReport)
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(_options.CommandTimeout);
+            await session.ReadyAsync(timeout.Token);
+            await session.PublishAsync("""{"pushing":{"sequence_id":"0","command":"pushall"}}""", false, timeout.Token);
+            await session.PublishAsync("""{"info":{"sequence_id":"0","command":"get_version"}}""", false, timeout.Token);
+        }
+        await foreach (var message in session.Messages.Reader.ReadAllAsync(cancellationToken))
+        {
+            if (message.Started || message.Ended)
+            {
+                yield return new(message.ReceivedAtUtc, ConnectionStarted: message.Started, ConnectionEnded: message.Ended);
+                continue;
+            }
+            if (message.Payload is not { } payload) continue;
+            if (TryCommandResponse(payload) is { } commandResponse)
+            {
+                LogCommandResponse(_logger, details.SerialNumber, commandResponse);
+                continue;
+            }
+            if (!BambuMqttMessageParser.IsPrintReport(payload))
             {
                 if (BambuMqttMessageParser.TryParseFirmwareVersion(payload) is { } firmware) LogFirmware(_logger, details.SerialNumber, firmware);
-                return Task.CompletedTask;
+                continue;
             }
-
-            if (BambuMqttMessageParser.TryParseWifiSignal(payload) is { } signal) Volatile.Write(ref wifiSignal, signal);
-            var hasGcodeState = BambuMqttMessageParser.TryParseGcodeState(payload, out var gcodeState);
+            var state = BambuMqttMessageParser.TryParseGcodeState(payload, out var reported) ? reported : null;
             var telemetry = BambuMqttMessageParser.TryParseTelemetry(payload);
             var alerts = BambuAlertParser.Parse(payload, details.ModelCode);
+            yield return new(message.ReceivedAtUtc, GcodeState: state, Telemetry: telemetry, HmsAlerts: alerts.Hms, PrintErrors: alerts.PrintErrors);
+        }
+    }
 
-            if (hasGcodeState || telemetry is not null)
-            {
-                Interlocked.Exchange(ref lastReportTicks, DateTimeOffset.UtcNow.UtcTicks);
-                channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, GcodeState: gcodeState, Telemetry: telemetry, HmsAlerts: alerts.Hms, PrintErrors: alerts.PrintErrors));
-            }
-
-            return Task.CompletedTask;
-        };
-
-        // MQTTnet awaits this inside ConnectAsync, so it must not wait on the broker: subscribing here with no
-        // timeout froze the reconnect loop for good when a printer never sent SUBACK. MaintainConnectionAsync subscribes.
-        client.ConnectedAsync += _ =>
-        {
-            Interlocked.Exchange(ref lastReportTicks, DateTimeOffset.UtcNow.UtcTicks);
-            channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionStarted: true));
-            LogConnected(_logger, details.SerialNumber);
-            LiveClients[liveKey] = client;
-            return Task.CompletedTask;
-        };
-
-        // Not unregistered here: MQTTnet raises this on a background task, which can land after a fast reconnect and
-        // would drop the live session commands publish on. PublishCommandAsync checks IsConnected instead.
-        client.DisconnectedAsync += e =>
-        {
-            if (e.ClientWasConnected) LogDisconnected(_logger, details.SerialNumber, e.Reason, e.Exception);
-            channel.Writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionEnded: true));
-            return Task.CompletedTask;
-        };
-
-        var maintainTask = MaintainConnectionAsync(client, BuildClientOptions(details, _options), details.SerialNumber,
-            _logger, () => new DateTimeOffset(Interlocked.Read(ref lastReportTicks), TimeSpan.Zero), () => Volatile.Read(ref wifiSignal),
-            channel.Writer, connectionToken);
-
+    private static string? TryCommandResponse(string payload)
+    {
         try
         {
-            await foreach (var connectorEvent in channel.Reader.ReadAllAsync(cancellationToken))
-            {
-                yield return connectorEvent;
-            }
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("print", out var print)
+                && print.ValueKind == JsonValueKind.Object
+                && print.TryGetProperty("command", out var command)
+                && command.ValueKind == JsonValueKind.String
+                && command.GetString() is not (null or "push_status"))
+                return string.Join(", ", CommandResponseFields
+                    .Where(key => print.TryGetProperty(key, out _))
+                    .Select(key => $"{key}={print.GetProperty(key)}"));
         }
-        finally
-        {
-            LiveClients.TryRemove(new KeyValuePair<string, IMqttClient>(liveKey, client));
-            await connectionCts.CancelAsync();
-            channel.Writer.TryComplete();
-            await maintainTask;
-        }
+        catch (JsonException) { }
+        return null;
     }
 
     /// <summary>
@@ -230,18 +150,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         using var buffered = new MemoryStream();
         await fileContent.CopyToAsync(buffered, cancellationToken);
         var input = buffered.ToArray();
-        string remotePath, md5;
-        if (_uploadedUnstarted is { } previous && previous.JobName == jobName && previous.Plate == plate && previous.Input.AsSpan().SequenceEqual(input))
-        {
-            // A retry of a send whose upload worked but whose start command did not: the file is already on the printer.
-            (remotePath, md5) = (previous.RemotePath, previous.Md5);
-            LogReusingUpload(_logger, details.SerialNumber, remotePath);
-        }
-        else
-        {
-            (remotePath, md5) = await UploadProjectAsync(details, input, jobName, plate, progress, cancellationToken);
-            _uploadedUnstarted = (input, jobName, plate, remotePath, md5);
-        }
+        var (remotePath, md5) = await UploadProjectAsync(details, input, jobName, plate, progress, cancellationToken);
 
         // Spelled out even for the external spool alone, so the printer never falls back to a tray of its own choosing.
         (bool UseAms, int[] Trays, (int AmsId, int SlotId)[] Targets)? mapping = feedMapping is null ? null : EncodeAmsMapping(feedMapping);
@@ -258,9 +167,8 @@ public sealed partial class BambuLanConnector : IPrinterConnector
                 task_id = "0",
                 subtask_id = "0",
                 subtask_name = jobName,
-                url = details.ModelCode is "P1P" or "P1S" or "A1" or "A1MINI"
-                    ? $"file:///sdcard{remotePath}"
-                    : $"ftp://{remotePath}",
+                file = remotePath.TrimStart('/'),
+                url = $"ftp://{remotePath.TrimStart('/')}",
                 md5,
                 timelapse = false,
                 bed_type = "auto",
@@ -275,7 +183,6 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         }, IgnoreNullOptions);
         progress?.Report(new PrintSendProgress(PrintSendStage.Starting));
         await PublishCommandAsync(details, payload, cancellationToken);
-        _uploadedUnstarted = null;
     }
 
     private async Task<(string RemotePath, string Md5)> UploadProjectAsync(
@@ -288,27 +195,42 @@ public sealed partial class BambuLanConnector : IPrinterConnector
 #pragma warning restore CA5351
         project.Position = 0;
 
-        var remotePath = $"{FtpsCacheDirectory}/{PrintFileName.ForUpload(jobName)}";
+        var hash = Convert.ToHexStringLower(SHA256.HashData(project.ToArray()));
+        var stem = System.Text.RegularExpressions.Regex.Replace(jobName, "[^a-zA-Z0-9_() -]", "_").Trim(' ', '.');
+        if (stem.Length > 60) stem = stem[..60].Trim();
+        if (string.IsNullOrEmpty(stem)) stem = "print";
+        var remotePath = $"/openfarm-{stem}-{hash[..32]}.gcode.3mf";
+        var started = Stopwatch.GetTimestamp();
         var uploadProgress = progress is null ? null
             : new InlineProgress<FtpProgress>(p => progress.Report(new PrintSendProgress(PrintSendStage.Uploading, (int)Math.Clamp(p.Progress, 0, 100))));
-        // FluentFTP's async writes ignore its own WriteTimeout: without a deadline a printer that stops reading holds the dispatch loop.
-        var timeout = _options.UploadTimeoutFloor + TimeSpan.FromSeconds(project.Length / 25_000d);
-        using var uploadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        uploadCts.CancelAfter(timeout);
-        var started = Stopwatch.GetTimestamp();
-        FtpStatus uploadStatus;
-        try
+        if (_options.UploadFileAsync is { } substitute)
         {
-            uploadStatus = await (_options.UploadFileAsync ?? UploadFileAsync)(details, project, remotePath, uploadProgress, uploadCts.Token);
+            // Test seam substitutes the complete verified transfer, not production's FTP client.
+            using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            idle.CancelAfter(_options.UploadInactivityTimeout);
+            long transferred = 0;
+            var reported = new InlineProgress<FtpProgress>(p =>
+            {
+                if (p.TransferredBytes > transferred)
+                {
+                    transferred = p.TransferredBytes;
+                    idle.CancelAfter(_options.UploadInactivityTimeout);
+                }
+                uploadProgress?.Report(p);
+            });
+            try
+            {
+                if (await substitute(details, project, remotePath, reported, idle.Token) != FtpStatus.Success)
+                    throw new IOException("Printer file upload did not succeed.");
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("Printer file upload made no progress before the inactivity timeout.");
+            }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        else
         {
-            throw new TimeoutException($"Printer file upload timed out after {timeout.TotalSeconds:0} s.");
-        }
-
-        if (uploadStatus != FtpStatus.Success)
-        {
-            throw new IOException($"Printer file upload did not succeed ({uploadStatus}).");
+            await new BambuFtpTransfer(_options, _logger).EnsureAsync(details, project, remotePath, uploadProgress, cancellationToken);
         }
 
         var seconds = Stopwatch.GetElapsedTime(started).TotalSeconds;
@@ -344,24 +266,9 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         return (mapping.Tools.Any(t => t?.IsMultiMaterialUnit == true), trays, targets);
     }
 
-    private async Task<FtpStatus> UploadFileAsync(
-        PrinterConnectionDetails details, Stream content, string remotePath, IProgress<FtpProgress>? progress, CancellationToken cancellationToken)
-    {
-        await using var ftp = new AsyncFtpClient(details.IpAddress, MqttUsername, details.AccessCode, _options.FtpsPort);
-        ftp.Config.EncryptionMode = FtpEncryptionMode.Implicit;
-        // Preserve the existing FTPS trust behavior. MQTT and camera use bundled Bambu trust.
-        ftp.Config.ValidateAnyCertificate = true;
-        ftp.Config.ConnectTimeout = (int)_options.ConnectTimeout.TotalMilliseconds;
-        // Bambu's server is always implicit FTPS on 990: AutoConnect would first probe profiles it never accepts.
-        await ftp.Connect(cancellationToken);
-        return await UploadNewFileAsync(ftp, content, remotePath, cancellationToken, progress);
-    }
-
     internal static Task<FtpStatus> UploadNewFileAsync(
         AsyncFtpClient ftp, Stream content, string remotePath, CancellationToken cancellationToken, IProgress<FtpProgress>? progress = null) =>
-        // StartJobAsync generates a distinct timestamped path for every upload. An existence check is
-        // unnecessary and may reject unrelated printer filenames (e.g. slicer names containing
-        // "....") when FileExists falls back to NLST. NoCheck still sanitizes our destination.
+        // SIZE handles verification separately; avoid directory-listing existence checks.
         ftp.UploadStream(content, remotePath, existsMode: FtpRemoteExists.NoCheck, progress: progress, token: cancellationToken);
 
     /// <inheritdoc />
@@ -382,10 +289,7 @@ public sealed partial class BambuLanConnector : IPrinterConnector
         var candidates = CandidateFilePaths(jobName, gcodeFile).Distinct().ToList();
         if (candidates.Count == 0) return null;
 
-        await using var ftp = new AsyncFtpClient(details.IpAddress, MqttUsername, details.AccessCode, _options.FtpsPort);
-        ftp.Config.EncryptionMode = FtpEncryptionMode.Implicit;
-        ftp.Config.ValidateAnyCertificate = true;
-        ftp.Config.ConnectTimeout = (int)_options.ConnectTimeout.TotalMilliseconds;
+        await using var ftp = new BambuFtpTransfer(_options, _logger).CreateClient(details);
         await ftp.Connect(cancellationToken);
         foreach (var path in candidates)
         {
@@ -440,151 +344,17 @@ public sealed partial class BambuLanConnector : IPrinterConnector
     /// </summary>
     private async Task PublishCommandAsync(PrinterConnectionDetails details, string payload, CancellationToken cancellationToken)
     {
-        using var commandCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        commandCts.CancelAfter(_options.CommandTimeout);
-        if (LiveClients.TryGetValue(LiveKey(details), out var live))
-        {
-            // Reconnecting: wait for the session rather than open a second client, which the broker often never acknowledges.
-            while (!live.IsConnected) await Task.Delay(LiveReconnectPoll, commandCts.Token);
-            await PublishRequestAsync(live, details.SerialNumber, payload, commandCts.Token);
-            return;
-        }
-
-        using var client = _options.CreateMqttClient();
-        try
-        {
-            await client.ConnectAsync(BuildClientOptions(details, _options), commandCts.Token);
-            await PublishRequestAsync(client, details.SerialNumber, payload, commandCts.Token);
-        }
-        finally
-        {
-            if (client.IsConnected)
-            {
-                await client.DisconnectAsync(cancellationToken: CancellationToken.None);
-            }
-        }
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(_options.CommandTimeout);
+        await using var session = BambuSessionManager.Shared.Acquire(details, _options, _logger);
+        await session.PublishAsync(payload, true, timeout.Token);
     }
 
-    private static readonly TimeSpan LiveReconnectPoll = TimeSpan.FromMilliseconds(100);
-
-    /// <summary>
-    /// Keeps one session open. Silence is answered on that session — <c>pushing.start</c>, and now and then a pushall — like
-    /// Bambu Studio and pybambu: tearing it down every 30 s (what this did before) only made a quiet P1 flap. The session is
-    /// replaced only when MQTT keepalive loses it, or after <see cref="BambuTransportOptions.SilenceReconnectAfter"/>.
-    /// </summary>
-    private async Task MaintainConnectionAsync(
-        IMqttClient client,
-        MqttClientOptions options,
-        string serialNumber,
-        ILogger logger,
-        Func<DateTimeOffset> lastReportUtc,
-        Func<string?> wifiSignal,
-        ChannelWriter<PrinterConnectorEvent> writer,
-        CancellationToken cancellationToken)
-    {
-        var lastNudgeUtc = DateTimeOffset.MinValue;
-        var lastPushAllUtc = DateTimeOffset.MinValue;
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    var now = DateTimeOffset.UtcNow;
-                    var silence = now - lastReportUtc();
-                    using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    attemptCts.CancelAfter(_options.ConnectTimeout);
-                    if (!client.IsConnected)
-                    {
-                        await client.ConnectAsync(options, attemptCts.Token);
-                        // Bounded: a SUBACK that never comes fails this attempt, which drops the half-open session below.
-                        await SubscribeAndRequestAsync(client, serialNumber, attemptCts.Token);
-                        lastPushAllUtc = DateTimeOffset.UtcNow;
-                    }
-                    else if (silence > _options.SilenceReconnectAfter)
-                    {
-                        // Reconnects on the next pass, after ReconnectDelay.
-                        var signal = wifiSignal();
-                        LogTelemetryStalled(logger, serialNumber, silence.TotalSeconds, signal);
-                        await client.DisconnectAsync(cancellationToken: attemptCts.Token);
-                    }
-                    else if (silence > _options.TelemetryTimeout && now - lastNudgeUtc > _options.TelemetryTimeout)
-                    {
-                        var pushAll = now - lastPushAllUtc >= _options.PushAllMinInterval;
-                        var signal = wifiSignal();
-                        LogTelemetrySilent(logger, serialNumber, silence.TotalSeconds, pushAll, signal);
-                        await PublishRequestAsync(client, serialNumber, PushStartRequest, attemptCts.Token);
-                        if (pushAll)
-                        {
-                            await PublishRequestAsync(client, serialNumber, PushAllRequest, attemptCts.Token);
-                            lastPushAllUtc = now;
-                        }
-
-                        lastNudgeUtc = now;
-                    }
-                }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    // A per-attempt timeout is recoverable; only lifecycle cancellation ends retries.
-                    LogReconnectFailed(logger, serialNumber, ex);
-                    await DropSessionAsync(client, cancellationToken);
-                }
-
-                await Task.Delay(_options.ReconnectDelay, cancellationToken);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            // Expected on shutdown.
-        }
-        finally
-        {
-            writer.TryComplete();
-            if (client.IsConnected)
-            {
-                using var cleanupCts = new CancellationTokenSource(_options.ConnectTimeout);
-                await client.DisconnectAsync(cancellationToken: cleanupCts.Token);
-            }
-        }
-    }
-
-    /// <summary>A session that failed mid-setup or mid-request never delivers: close it so the next pass starts clean.</summary>
-    private async Task DropSessionAsync(IMqttClient client, CancellationToken cancellationToken)
-    {
-        if (!client.IsConnected) return;
-        using var disconnectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        disconnectCts.CancelAfter(_options.ConnectTimeout);
-        try { await client.DisconnectAsync(cancellationToken: disconnectCts.Token); }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested) { /* Already gone; the next pass reconnects. */ }
-    }
-
-    private static async Task SubscribeAndRequestAsync(IMqttClient client, string serialNumber, CancellationToken cancellationToken)
-    {
-        var subscribed = await client.SubscribeAsync(
-            new MqttClientSubscribeOptionsBuilder()
-                .WithTopicFilter(ReportTopic(serialNumber))
-                .Build(),
-            cancellationToken);
-        if (subscribed.Items.FirstOrDefault(i => i.ResultCode > MqttClientSubscribeResultCode.GrantedQoS2) is { } refused)
-            throw new InvalidOperationException($"Printer refused the report subscription ({refused.ResultCode}).");
-
-        await PublishRequestAsync(client, serialNumber, """{"info":{"sequence_id":"0","command":"get_version"}}""", cancellationToken);
-        await PublishRequestAsync(client, serialNumber, PushAllRequest, cancellationToken);
-    }
-
-    private static Task<MqttClientPublishResult> PublishRequestAsync(IMqttClient client, string serialNumber, string payload, CancellationToken cancellationToken) =>
-        client.PublishAsync(
-            new MqttApplicationMessageBuilder()
-                .WithTopic(RequestTopic(serialNumber))
-                .WithPayload(payload)
-                .Build(),
-            cancellationToken);
-
-    internal static MqttClientOptions BuildClientOptions(PrinterConnectionDetails details, BambuTransportOptions? options = null) =>
+    internal static MqttClientOptions BuildClientOptions(PrinterConnectionDetails details, BambuTransportOptions? options = null, Func<System.Security.Cryptography.X509Certificates.X509Certificate?, bool>? validate = null) =>
         new MqttClientOptionsBuilder()
             .WithTcpServer(details.IpAddress, options?.MqttPort ?? 8883)
             .WithCredentials(MqttUsername, details.AccessCode)
-            // Lenient so brief Wi-Fi blips don't drop the session; TelemetryTimeout catches dead ones.
+            // MQTT keepalive detects transport failure; telemetry silence alone never tears it down.
             .WithKeepAlivePeriod(TimeSpan.FromSeconds(30))
             .WithTimeout(options?.ConnectTimeout ?? TimeSpan.FromSeconds(10))
             .WithCleanSession()
@@ -594,49 +364,24 @@ public sealed partial class BambuLanConnector : IPrinterConnector
             // follows and silently closes the socket, surfacing as MqttClientNotConnectedException on
             // the very next call.
             .WithProtocolVersion(MqttProtocolVersion.V311)
-            .WithClientId($"openfarm-{Guid.NewGuid()}")
+            .WithClientId($"openfarm-{details.SerialNumber}")
             .WithTlsOptions(tls => tls
                 .UseTls()
-                // Bambu printers present a device-specific cert, not one from a public CA. Pin the
-                // bundled per-device cert set (vendored from pybambu/certs/) as a custom trust root,
-                // mirroring create_local_ssl_context()'s load_verify_locations() over every bundled
-                // *.cert file — never a blanket accept-all (research.md §1).
-                .WithCertificateValidationHandler(args => (options?.ValidateCertificate ?? BambuCertificateTrust.Validate)(args.Certificate))
+                .WithTargetHost(details.SerialNumber)
+                // Sessions first validate the bundled Bambu chain and expected serial. Only recognized
+                // chain failures enable the logged, instance-local certificate compatibility fallback.
+                .WithCertificateValidationHandler(args => (validate ?? options?.ValidateCertificate ?? BambuCertificateTrust.Validate)(args.Certificate))
                 .WithSslProtocols(System.Security.Authentication.SslProtocols.Tls12))
             .Build();
 
-    private string LiveKey(PrinterConnectionDetails details) => $"{details.IpAddress}:{_options.MqttPort}/{details.SerialNumber}";
-
-    private static string ReportTopic(string serialNumber) => $"device/{serialNumber}/report";
-
-    private static string RequestTopic(string serialNumber) => $"device/{serialNumber}/request";
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "MQTT connected to printer {SerialNumber}.")]
-    private static partial void LogConnected(ILogger logger, string serialNumber);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "MQTT disconnected from printer {SerialNumber} ({Reason}).")]
-    private static partial void LogDisconnected(ILogger logger, string serialNumber, MqttClientDisconnectReason reason, Exception? exception);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "MQTT reconnect attempt to printer {SerialNumber} failed.")]
-    private static partial void LogReconnectFailed(ILogger logger, string serialNumber, Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {SerialNumber} sent no report for {SilenceSeconds:0} s despite nudges (Wi-Fi {WifiSignal}); reconnecting.")]
-    private static partial void LogTelemetryStalled(ILogger logger, string serialNumber, double silenceSeconds, string? wifiSignal);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Printer {SerialNumber} sent no report for {SilenceSeconds:0} s (Wi-Fi {WifiSignal}); requesting reports (full report: {PushAll}).")]
-    private static partial void LogTelemetrySilent(ILogger logger, string serialNumber, double silenceSeconds, bool pushAll, string? wifiSignal);
-
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Printer {SerialNumber} {Kind} message after {GapSeconds:0.0} s.")]
-    private static partial void LogMessageReceived(ILogger logger, string serialNumber, string kind, double gapSeconds);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Printer {Serial} command response: {Response}")]
+    private static partial void LogCommandResponse(ILogger logger, string serial, string response);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Printer {SerialNumber} firmware {Firmware}.")]
     private static partial void LogFirmware(ILogger logger, string serialNumber, string firmware);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Uploaded {SizeKb:0} KB to printer {SerialNumber} in {Seconds:0.0} s ({KbPerSecond:0} KB/s).")]
     private static partial void LogUploaded(ILogger logger, string serialNumber, double sizeKb, double seconds, double kbPerSecond);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Printer {SerialNumber} already has {RemotePath} from the failed attempt; sending the start again without uploading.")]
-    private static partial void LogReusingUpload(ILogger logger, string serialNumber, string remotePath);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Verify connection to {IpAddress} failed.")]
     private static partial void LogVerifyFailed(ILogger logger, string ipAddress, Exception exception);

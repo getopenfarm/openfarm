@@ -30,12 +30,37 @@ internal static class BambuCertificateTrust
         // load_verify_locations() treats every loaded cert as usable for both roles).
         chain.ChainPolicy.ExtraStore.AddRange(intermediates);
         chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        chain.ChainPolicy.DisableCertificateDownloads = true;
         // Bambu's certs may lack a Key Usage extension — pybambu clears VERIFY_X509_STRICT for the
         // same reason (research.md §1); hostname is intentionally never checked (printers are
         // addressed by LAN IP, matching pybambu's check_hostname = False).
         chain.ChainPolicy.VerificationFlags = X509VerificationFlags.IgnoreInvalidBasicConstraints;
 
         return chain.Build(serverCertificate);
+    }
+
+    internal static bool MatchesSerial(X509Certificate? certificate, string serial) =>
+        certificate is X509Certificate2 cert
+        && (string.IsNullOrEmpty(cert.GetNameInfo(X509NameType.SimpleName, false))
+            || cert.GetNameInfo(X509NameType.SimpleName, false) == serial);
+
+    /// <summary>Only recognized certificate-chain failures qualify for compatibility mode.</summary>
+    internal static string? CompatibilityFailure(X509Certificate? certificate, string serial)
+    {
+        if (certificate is not X509Certificate2 cert) return null;
+        var (roots, intermediates) = BundledTrustedCertificates.Value;
+        using var chain = new X509Chain();
+        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+        chain.ChainPolicy.CustomTrustStore.AddRange(roots);
+        chain.ChainPolicy.ExtraStore.AddRange(intermediates);
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        chain.ChainPolicy.DisableCertificateDownloads = true;
+        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.IgnoreInvalidBasicConstraints;
+        if (chain.Build(cert)) return null; // A serial mismatch on a trusted certificate is not a chain failure.
+        const X509ChainStatusFlags allowed = X509ChainStatusFlags.UntrustedRoot | X509ChainStatusFlags.PartialChain
+            | X509ChainStatusFlags.NotSignatureValid | X509ChainStatusFlags.NotTimeValid;
+        var failures = chain.ChainStatus.Aggregate(X509ChainStatusFlags.NoError, (flags, entry) => flags | entry.Status);
+        return failures != 0 && (failures & ~allowed) == 0 ? failures.ToString() : null;
     }
 
     private static readonly Lazy<(X509Certificate2Collection Roots, X509Certificate2Collection Intermediates)> BundledTrustedCertificates =

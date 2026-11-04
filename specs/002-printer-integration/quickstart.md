@@ -43,15 +43,16 @@ The loopback protocol harness verifies OpenFarm behavior, not firmware compatibi
    frames on the detail page. Record observed camera startup latency.
 3. Dispatch a small, known-good pre-sliced single-plate 3MF through OpenFarm. Confirm the actual
    implicit-TLS FTPS upload succeeds and the printer starts the intended plate. This validates the
-   `/cache` upload path, `ftp:///` command URL, checksum, and `Metadata/plate_1.gcode` selection.
-   Automated tests substitute the uploader and do not validate the printer's FTPS server.
+   root `openfarm-*.gcode.3mf` upload path, `ftp://filename` command URL, checksum, and
+   `Metadata/plate_1.gcode` selection.
+   Automated tests exercise a loopback FTPS peer and do not validate the printer's FTPS server.
 4. While the long-lived telemetry connection is active, request pause, resume, and stop through
    OpenFarm. Confirm each action on the physical printer and in subsequently reported telemetry;
    a successful command publish alone does not confirm an action. Check that issuing commands does
    not disrupt telemetry. Also let a print finish, confirm `AwaitingClear`, then mark ready and
    confirm the printer remains `Idle`.
 5. Disconnect the printer from the network during a print. Confirm it becomes unreachable within
-   roughly 30–40 seconds while preserving its last-known print status. Restore the network and
+   roughly 90–95 seconds while preserving its last-known print status. Restore the network and
    confirm telemetry and camera recover without restarting OpenFarm.
 6. Save sanitized P1S report/version captures for idle, printing, pause, finish, and AMS configurations
    tested. Remove identifying fields and secrets; keep field shapes intact. Add fixture provenance

@@ -8,7 +8,6 @@ The reference sites' claims are their own; they are not evidence about OpenFarm.
 
 | Reference | Observed presentation | Application to OpenFarm |
 | --- | --- | --- |
-| [Printago homepage](https://printago.io/) | Explicit product category, early dashboard image, outcome-led introduction, deeper feature sections, compatibility links, FAQ, repeated signup action. | State the category in the H1. Explain production workflows before the supporting feature grid. Use installation as the primary action. |
 | [SimplyPrint print-farm page](https://simplyprint.io/print-farms) | Early views of printer management, queue, and maintenance; feature-specific links; customer evidence; compatibility and setup resources. | Make each section easy to scan and link to its guide. Prioritize real OpenFarm screen captures for the next visual pass. |
 | [3DQue homepage](https://www.3dque.com/) | Production outcomes followed by queue and dashboard explanations, software visuals, and repeated demo actions. | Explain how work moves through OpenFarm and show what its matching rules do. Use concrete mechanics rather than unsupported productivity numbers. |
 
