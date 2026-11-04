@@ -387,7 +387,8 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
         var wasReachable = printer.IsReachable;
         // Unreachable until now (silent, or OpenFarm restarting): what happened since the printer was last heard went unseen.
         var unseenSinceUtc = wasReachable ? null : printer.LastMessageUtc;
-        printer.MarkReachable(connectorEvent.ReceivedAtUtc);
+        if (printer.LastMessageUtc is null || connectorEvent.ReceivedAtUtc > printer.LastMessageUtc)
+            printer.MarkReachable(connectorEvent.ReceivedAtUtc);
 
         if (!wasReachable)
         {

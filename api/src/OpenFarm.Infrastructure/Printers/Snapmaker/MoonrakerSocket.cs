@@ -16,19 +16,18 @@ internal sealed record MoonrakerTransportOptions
 {
     // ponytail: fixed Moonraker port; add a printer field when someone runs it elsewhere.
     public int Port { get; init; } = 7125;
-    public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(5);
-    public TimeSpan CommandTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    public TimeSpan CommandTimeout { get; init; } = TimeSpan.FromSeconds(120);
+    public int CameraPort { get; init; } = 80;
+    public TimeSpan MaxReconnectDelay { get; init; } = TimeSpan.FromSeconds(300);
     public TimeSpan UploadTimeout { get; init; } = TimeSpan.FromMinutes(5);
-    // The firmware answers start_local_print once its pre-print checks pass.
-    public TimeSpan StartTimeout { get; init; } = TimeSpan.FromSeconds(60);
     public TimeSpan ReconnectDelay { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan KeepAlive { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan TelemetryInterval { get; init; } = TimeSpan.FromSeconds(1);
-    public TimeSpan TelemetryFloor { get; init; } = TimeSpan.FromSeconds(10);
     // ponytail: fixed 1 Hz camera poll; the U1's snapshot refreshes about that often.
     public TimeSpan CameraPollInterval { get; init; } = TimeSpan.FromSeconds(1);
     // The camera idles a few seconds after the last camera.start_monitor.
-    public TimeSpan CameraWakeInterval { get; init; } = TimeSpan.FromSeconds(8);
+    public TimeSpan CameraWakeInterval { get; init; } = TimeSpan.FromSeconds(2);
 }
 
 /// <summary>A JSON-RPC error answer from Moonraker (unknown method, Klippy not ready, a refused command).</summary>
@@ -39,8 +38,8 @@ internal sealed class MoonrakerRpcException(int code, string message) : Exceptio
 
 /// <summary>
 /// One Moonraker websocket: JSON-RPC 2.0 requests matched to their answers by id, and server notifications
-/// (<c>notify_status_update</c>, ...) queued for the reader. Authenticates after connecting with
-/// <c>server.connection.identify</c>, Moonraker's documented way for a non-browser client to pass its API key.
+/// (<c>notify_status_update</c>, ...) queued for the reader. Authenticates with query-token authentication
+/// and identifies OpenFarm with server.connection.identify.
 /// </summary>
 internal sealed class MoonrakerSocket : IAsyncDisposable
 {
@@ -69,7 +68,7 @@ internal sealed class MoonrakerSocket : IAsyncDisposable
         // PING/PONG with a deadline, so a printer that vanishes closes the socket instead of leaving it silently open.
         socket.Options.KeepAliveInterval = options.KeepAlive;
         socket.Options.KeepAliveTimeout = options.KeepAlive;
-        var uri = new UriBuilder(baseUri) { Scheme = "ws", Path = "/websocket" }.Uri;
+        var uri = new UriBuilder(baseUri) { Scheme = "ws", Path = "/websocket", Query = string.IsNullOrWhiteSpace(apiKey) ? "" : "token=" + Uri.EscapeDataString(apiKey) }.Uri;
         using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         connectCts.CancelAfter(options.RequestTimeout);
         try
@@ -91,7 +90,7 @@ internal sealed class MoonrakerSocket : IAsyncDisposable
                 version = "1.0.0",
                 type = "other",
                 url = "https://github.com/getopenfarm/openfarm",
-                api_key = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey,
+
             }, options.RequestTimeout, cancellationToken);
             return connection;
         }
@@ -128,6 +127,36 @@ internal sealed class MoonrakerSocket : IAsyncDisposable
         {
             _pending.TryRemove(id, out _);
         }
+    }
+
+    private static readonly string[] PrintStateFields = ["state"];
+    private event Action<string>? PrintStateObserved;
+    private string? _printState;
+
+    internal async Task CallWithStateAckAsync(string method, TimeSpan timeout, bool subscribe, CancellationToken ct)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(timeout);
+        var observed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool Matches(string? state) => method switch
+        {
+            "printer.print.pause" => state == "paused",
+            "printer.print.resume" => state == "printing",
+            _ => state is "cancelled" or "standby" or "complete",
+        };
+        void Observe(string state) { if (Matches(state)) observed.TrySetResult(); }
+        PrintStateObserved += Observe;
+        try
+        {
+            if (_printState is null && subscribe)
+                await CallAsync("printer.objects.subscribe", new { objects = new { print_stats = PrintStateFields } }, timeout, deadline.Token);
+            if (Matches(_printState)) observed.TrySetResult();
+            var rpc = CallAsync(method, null, timeout, deadline.Token);
+            _ = rpc.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+            var completed = await Task.WhenAny(rpc, observed.Task).WaitAsync(deadline.Token);
+            await completed;
+        }
+        finally { PrintStateObserved -= Observe; }
     }
 
     private async Task ReceiveLoopAsync()
@@ -172,6 +201,14 @@ internal sealed class MoonrakerSocket : IAsyncDisposable
         }
 
         if (frame is null) return;
+        if (frame["method"]?.ToString() is "notify_klippy_disconnected" or "notify_klippy_shutdown") _printState = null;
+        var status = frame["result"] is JsonObject resultObject ? resultObject["status"] : null;
+        if (frame["method"]?.ToString() == "notify_status_update" && frame["params"] is JsonArray { Count: > 0 } parameters) status = parameters[0];
+        if (status is JsonObject statusObject && statusObject["print_stats"] is JsonObject stats && stats["state"] is JsonValue state && state.TryGetValue<string>(out var word))
+        {
+            _printState = word;
+            PrintStateObserved?.Invoke(word);
+        }
         if (frame["id"] is JsonValue idValue && idValue.TryGetValue<int>(out var id))
         {
             if (!_pending.TryGetValue(id, out var answer)) return;

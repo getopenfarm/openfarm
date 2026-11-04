@@ -8,8 +8,6 @@ using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using OpenFarm.Application.Printers;
-using OpenFarm.Domain.Production;
-using OpenFarm.Infrastructure.Production;
 
 namespace OpenFarm.Infrastructure.Printers.Snapmaker;
 
@@ -23,11 +21,8 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
 {
     private const string U1MachineType = "Snapmaker U1";
 
-    /// <summary>The folder under the gcodes root OpenFarm's uploads go to, apart from files people put there.</summary>
-    internal const string UploadFolder = "openfarm";
-
     // One pooled client for every printer (and their cameras); each call carries its own deadline.
-    internal static readonly HttpClient Http = new(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) })
+    internal static readonly HttpClient Http = new(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5), ConnectTimeout = TimeSpan.FromSeconds(30) })
     {
         Timeout = Timeout.InfiniteTimeSpan,
     };
@@ -51,6 +46,11 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     {
         try
         {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(_options.RequestTimeout);
+            using var infoRequest = Request(HttpMethod.Get, details, "/printer/info");
+            using var infoResponse = await Http.SendAsync(infoRequest, timeout.Token);
+            infoResponse.EnsureSuccessStatusCode();
             var product = await ReadProductInfoAsync(details, cancellationToken);
             if (!string.Equals(product.MachineType, U1MachineType, StringComparison.OrdinalIgnoreCase))
             {
@@ -103,8 +103,7 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     }
 
     /// <summary>
-    /// Uploads the plate's G-code to the gcodes root, then starts it with <c>server.files.start_local_print</c> (firmware
-    /// 1.3+, websocket only), whose <c>map_table</c> routes each of the file's tools to the head its spool is loaded in.
+    /// Sends firmware tool-routing macros, uploads missing G-code, then calls printer.print.start.
     /// A sliced project is unwrapped first: the U1 prints plain G-code, and its own 3MF handling expects Snapmaker's slicer.
     /// </summary>
     public Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping, CancellationToken cancellationToken) =>
@@ -114,38 +113,62 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     public async Task StartJobAsync(PrinterConnectionDetails details, Stream fileContent, string jobName, int plate, FilamentFeedMapping? feedMapping,
         IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken)
     {
-        var gcode = await PlateGCodeAsync(fileContent, plate, cancellationToken);
-        var fileName = PrintFileName.ForUpload(jobName, ".gcode");
-        await UploadAsync(details, gcode, fileName, progress, cancellationToken);
-        progress?.Report(new PrintSendProgress(PrintSendStage.Starting));
-
-        var path = $"{UploadFolder}/{fileName}";
-        // No mapping keeps the firmware's identity map (tool n on head n).
-        object parameters = MapTable(feedMapping) is { Length: > 0 } mapTable
-            ? new { path, options = new { map_table = mapTable } }
-            : new { path };
-        await using var socket = await MoonrakerSocket.ConnectAsync(BaseUri(details), details.AccessCode, _options, cancellationToken);
-        var result = await socket.CallAsync("server.files.start_local_print", parameters, _options.StartTimeout, cancellationToken);
-        if (result?["state"]?.ToString() != "success")
-            throw new IOException($"The printer did not start the print: {result?["message"]?.ToString() ?? "no answer"}");
+        var gate = U1SessionRegistry.DispatchGate(details, _options);
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            var map = MapTable(feedMapping);
+            var gcode = await PlateGCodeAsync(fileContent, plate, cancellationToken);
+            var hash = Convert.ToHexStringLower(SHA256.HashData(gcode));
+            var stem = System.Text.RegularExpressions.Regex.Replace(jobName, "[^a-zA-Z0-9_-]", "_");
+            if (stem.Length > 100) stem = stem[..100];
+            var fileName = $"openfarm-{stem}-{hash}.gcode";
+            await using var lease = await U1SessionRegistry.BorrowAsync(details, _options, cancellationToken);
+            var socket = lease.Socket;
+            if (map.Length > 0)
+            {
+                var script = string.Join("\n", map.Select(p => $"SET_PRINT_EXTRUDER_MAP CONFIG_EXTRUDER={p[0]} MAP_EXTRUDER={p[1]}"))
+                    + "\nSET_PRINT_USED_EXTRUDERS EXTRUDERS=" + string.Join(',', map.Select(p => p[1]));
+                await socket.CallAsync("printer.gcode.script", new { script }, _options.RequestTimeout, cancellationToken);
+            }
+            var exists = false;
+            try
+            {
+                await socket.CallAsync("server.files.metadata", new { filename = fileName }, _options.RequestTimeout, cancellationToken);
+                exists = true;
+            }
+            catch (MoonrakerRpcException) { }
+            if (!exists) await UploadAsync(details, gcode, fileName, progress, cancellationToken);
+            progress?.Report(new PrintSendProgress(PrintSendStage.Starting));
+            try
+            {
+                await socket.CallAsync("printer.print.start", new { filename = fileName }, _options.RequestTimeout, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not MoonrakerRpcException && !cancellationToken.IsCancellationRequested)
+            {
+                throw new PrinterStartUnconfirmedException(ex);
+            }
+        }
+        finally { gate.Release(); }
     }
 
     public async Task SkipObjectsAsync(PrinterConnectionDetails details, IReadOnlyList<string> objectIds, CancellationToken ct)
     {
         if (objectIds.Any(id => id.Length == 0 || id.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '_' and not '.' and not '-')))
             throw new InvalidOperationException("Invalid object name.");
-        await using var socket = await MoonrakerSocket.ConnectAsync(BaseUri(details), details.AccessCode, _options, ct);
+        await using var lease = await U1SessionRegistry.BorrowAsync(details, _options, ct);
+        var socket = lease.Socket;
         await socket.CallAsync("printer.gcode.script", new { script = string.Join("\n", objectIds.Select(id => "EXCLUDE_OBJECT NAME=" + id)) }, _options.RequestTimeout, ct);
     }
 
     public Task PauseJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
-        PostAsync(details, "/printer/print/pause", cancellationToken);
+        PostAsync(details, "printer.print.pause", cancellationToken);
 
     public Task ResumeJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
-        PostAsync(details, "/printer/print/resume", cancellationToken);
+        PostAsync(details, "printer.print.resume", cancellationToken);
 
     public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
-        PostAsync(details, "/printer/print/cancel", cancellationToken);
+        PostAsync(details, "printer.print.cancel", cancellationToken);
 
     /// <summary>
     /// <c>[tool, head]</c> pairs for the firmware's tool→head map. The toolheads are one unit whose slot n is the spool on
@@ -154,7 +177,7 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     internal static int[][] MapTable(FilamentFeedMapping? feedMapping)
     {
         var pairs = (feedMapping?.Tools ?? []).Select((slot, tool) => (tool, slot)).Where(p => p.slot is not null).ToList();
-        if (pairs.FirstOrDefault(p => p.slot is not { IsMultiMaterialUnit: true, UnitIndex: 0, SlotPosition: < MoonrakerStatusMapper.HeadCount })
+        if (pairs.FirstOrDefault(p => p.slot is not { IsMultiMaterialUnit: true, UnitIndex: 0, SlotPosition: >= 0 and < MoonrakerStatusMapper.HeadCount })
             is { slot: { } unknown })
             throw new InvalidOperationException($"A Snapmaker U1 feeds from its {MoonrakerStatusMapper.HeadCount} heads; the feed mapping names {unknown}.");
         return pairs.Select(p => new[] { p.tool, p.slot!.Value.SlotPosition }).ToArray();
@@ -180,17 +203,12 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     private async Task UploadAsync(PrinterConnectionDetails details, byte[] gcode, string fileName, IProgress<PrintSendProgress>? progress, CancellationToken cancellationToken)
     {
         using var form = new MultipartFormDataContent();
-        // Arguments before the file, so they are read before the upload completes.
-        form.Add(new StringContent("gcodes"), "root");
-        form.Add(new StringContent(UploadFolder), "path");
-        // Moonraker compares this against its own digest and rejects a corrupted transfer.
-        form.Add(new StringContent(Convert.ToHexStringLower(SHA256.HashData(gcode))), "checksum");
-        var file = new UploadContent(gcode, progress);
+        using var uploadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        uploadCts.CancelAfter(_options.UploadTimeout);
+        var file = new UploadContent(gcode, progress, () => uploadCts.CancelAfter(_options.UploadTimeout));
         file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         form.Add(file, "file", fileName);
 
-        using var uploadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        uploadCts.CancelAfter(_options.UploadTimeout);
         using var request = Request(HttpMethod.Post, details, "/server/files/upload");
         request.Content = form;
         using var response = await Http.SendAsync(request, uploadCts.Token);
@@ -199,11 +217,9 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
 
     private async Task PostAsync(PrinterConnectionDetails details, string path, CancellationToken cancellationToken)
     {
-        using var commandCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        commandCts.CancelAfter(_options.CommandTimeout);
-        using var request = Request(HttpMethod.Post, details, path);
-        using var response = await Http.SendAsync(request, commandCts.Token);
-        response.EnsureSuccessStatusCode();
+        await using var lease = await U1SessionRegistry.BorrowAsync(details, _options, cancellationToken);
+        var socket = lease.Socket;
+        await socket.CallWithStateAckAsync(path, _options.CommandTimeout, lease.Owned, cancellationToken);
     }
 
     /// <summary><paramref name="gcodeFile"/> is <c>print_stats.filename</c>: a path under the printer's gcodes root.</summary>
@@ -218,169 +234,6 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
         response.EnsureSuccessStatusCode();
         var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         return bytes.Length > 0 ? bytes : null;
-    }
-
-    /// <summary>
-    /// Reconnects for as long as the connection is wanted. The state tracker outlives each websocket, so a Wi-Fi blip
-    /// never re-sends a state the printer already reported — re-sending FINISH would undo an operator's Mark ready.
-    /// </summary>
-    private async Task RunSessionsAsync(PrinterConnectionDetails details, ChannelWriter<PrinterConnectorEvent> writer, CancellationToken cancellationToken)
-    {
-        var tracker = new StateTracker();
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await using var socket = await MoonrakerSocket.ConnectAsync(BaseUri(details), details.AccessCode, _options, cancellationToken);
-                    // Moonraker messages carry no serial, so a DHCP swap would book another printer's telemetry here.
-                    if (await IsSamePrinterAsync(details, cancellationToken))
-                        await RunSessionAsync(socket, tracker, writer, cancellationToken);
-                    else
-                        LogSerialMismatch(_logger, details.IpAddress, details.SerialNumber);
-                }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    LogSessionFailed(_logger, details.IpAddress, ex);
-                }
-
-                await Task.Delay(_options.ReconnectDelay, cancellationToken);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            // Expected on shutdown.
-        }
-        finally
-        {
-            writer.TryComplete();
-        }
-    }
-
-    private async Task RunSessionAsync(MoonrakerSocket socket, StateTracker tracker, ChannelWriter<PrinterConnectorEvent> writer, CancellationToken cancellationToken)
-    {
-        var status = await SubscribeAsync(socket, cancellationToken);
-        var exceptions = await QueryExceptionsAsync(socket, cancellationToken);
-        writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionStarted: true));
-        try
-        {
-            var lastEmitUtc = Emit(writer, status, exceptions, tracker.Observe(status), tracker.Current);
-            var dirty = false;
-            while (true)
-            {
-                if (!await WaitForNotificationsAsync(socket, cancellationToken)) return;
-
-                while (socket.Notifications.TryRead(out var notification))
-                {
-                    var method = notification["method"]?.ToString();
-                    var payload = notification["params"] is JsonArray { Count: > 0 } parameters ? parameters[0] : null;
-                    var alertsChanged = false;
-                    switch (method)
-                    {
-                        case "notify_status_update":
-                            Merge(status, payload);
-                            break;
-                        case "notify_klippy_ready":
-                            status = await SubscribeAsync(socket, cancellationToken);
-                            break;
-                        case "notify_klippy_shutdown" or "notify_klippy_disconnected":
-                            // Klippy no longer answers; a print in progress is lost (StateTracker reports it as failed).
-                            status["webhooks"] = new JsonObject { ["state"] = "shutdown" };
-                            break;
-                        case { } name when name.EndsWith("exception_status", StringComparison.Ordinal):
-                            exceptions = payload?["exceptions"]?.DeepClone();
-                            alertsChanged = true;
-                            break;
-                        default:
-                            continue;
-                    }
-
-                    // A state change goes out at once and in order, never folded into the next telemetry tick.
-                    dirty = true;
-                    if (tracker.Observe(status) is { } state)
-                        lastEmitUtc = Emit(writer, status, exceptions, state, state);
-                    else if (alertsChanged)
-                        lastEmitUtc = Emit(writer, status, exceptions, null, tracker.Current);
-                }
-
-                var sinceEmit = DateTimeOffset.UtcNow - lastEmitUtc;
-                if ((dirty && sinceEmit >= _options.TelemetryInterval) || sinceEmit >= _options.TelemetryFloor)
-                {
-                    lastEmitUtc = Emit(writer, status, exceptions, null, tracker.Current);
-                    dirty = false;
-                }
-            }
-        }
-        finally
-        {
-            writer.TryWrite(new PrinterConnectorEvent(DateTimeOffset.UtcNow, ConnectionEnded: true));
-        }
-    }
-
-    /// <summary>True once a notification is waiting or a telemetry interval passed; false when the socket closed.</summary>
-    private async Task<bool> WaitForNotificationsAsync(MoonrakerSocket socket, CancellationToken cancellationToken)
-    {
-        using var tickCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        tickCts.CancelAfter(_options.TelemetryInterval);
-        try
-        {
-            return await socket.Notifications.WaitToReadAsync(tickCts.Token);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            return true;
-        }
-    }
-
-    private static DateTimeOffset Emit(ChannelWriter<PrinterConnectorEvent> writer, JsonObject status, JsonNode? exceptions, string? state, string? currentState)
-    {
-        var now = DateTimeOffset.UtcNow;
-        writer.TryWrite(new PrinterConnectorEvent(now,
-            GcodeState: state,
-            Telemetry: MoonrakerStatusMapper.Telemetry(status, currentState),
-            HmsAlerts: MoonrakerStatusMapper.Alerts(exceptions)));
-        return now;
-    }
-
-    private async Task<JsonObject> SubscribeAsync(MoonrakerSocket socket, CancellationToken cancellationToken)
-    {
-        var result = await socket.CallAsync("printer.objects.subscribe", new { objects = MoonrakerStatusMapper.Subscription },
-            _options.RequestTimeout, cancellationToken);
-        return result?["status"]?.DeepClone() as JsonObject
-            ?? throw new InvalidOperationException("Moonraker answered printer.objects.subscribe without a status.");
-    }
-
-    private async Task<JsonNode?> QueryExceptionsAsync(MoonrakerSocket socket, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await socket.CallAsync("server.exception.query", null, _options.RequestTimeout, cancellationToken);
-            return result?["exceptions"]?.DeepClone();
-        }
-        catch (MoonrakerRpcException)
-        {
-            // Firmware without Snapmaker's exception manager: no alerts, the rest still works.
-            return null;
-        }
-    }
-
-    /// <summary>Folds a <c>notify_status_update</c> delta into the merged status: changed fields replace, others stay.</summary>
-    internal static void Merge(JsonObject status, JsonNode? delta)
-    {
-        if (delta is not JsonObject objects) return;
-        foreach (var (name, fields) in objects)
-        {
-            if (fields is not JsonObject changed) continue;
-            if (status[name] is not JsonObject current)
-            {
-                status[name] = changed.DeepClone();
-                continue;
-            }
-
-            foreach (var (field, value) in changed)
-                current[field] = value?.DeepClone();
-        }
     }
 
     private async Task<bool> IsSamePrinterAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
@@ -418,37 +271,6 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     private static bool IsTransportFailure(Exception ex) =>
         ex is HttpRequestException or OperationCanceledException or JsonException or InvalidOperationException;
 
-    /// <summary>
-    /// Which state word each snapshot carries: the first one of a connection, then only changes. A print that ends by
-    /// dropping straight back to standby still reports how it ended, because job tracking has no "idle" outcome.
-    /// </summary>
-    internal sealed class StateTracker
-    {
-        private bool _reported;
-        private int? _lastProgress;
-
-        public string? Current { get; private set; }
-
-        public string? Observe(JsonObject status)
-        {
-            var state = MoonrakerStatusMapper.State(status);
-            var wasPrinting = Current is "RUNNING" or "PAUSE";
-            if (wasPrinting && MoonrakerStatusMapper.KlippyDown(status))
-                state = "FAILED";
-            else if (wasPrinting && state == "IDLE")
-                // ponytail: judged by the last progress seen; read server.history.list for the real outcome if this misjudges.
-                state = _lastProgress >= PrintEnd.FinishedPercent ? "FINISH" : "FAILED";
-
-            if (state is "RUNNING" or "PAUSE")
-                _lastProgress = MoonrakerStatusMapper.ProgressPercent(status) ?? _lastProgress;
-
-            if (state is null || (_reported && state == Current)) return null;
-            _reported = true;
-            Current = state;
-            return state;
-        }
-    }
-
     [LoggerMessage(Level = LogLevel.Warning, Message = "Verify connection to Snapmaker {IpAddress} failed.")]
     private static partial void LogVerifyFailed(ILogger logger, string ipAddress, Exception exception);
 
@@ -462,7 +284,7 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
     private static partial void LogSessionFailed(ILogger logger, string ipAddress, Exception exception);
 
     /// <summary>The file part of an upload, reporting the share of it written to the printer.</summary>
-    internal sealed class UploadContent(byte[] bytes, IProgress<PrintSendProgress>? progress) : HttpContent
+    internal sealed class UploadContent(byte[] bytes, IProgress<PrintSendProgress>? progress, Action? activity = null) : HttpContent
     {
         private const int ChunkSize = 64 * 1024;
 
@@ -473,6 +295,7 @@ public sealed partial class SnapmakerU1Connector : IPrinterConnector
                 var count = Math.Min(ChunkSize, bytes.Length - sent);
                 await stream.WriteAsync(bytes.AsMemory(sent, count), cancellationToken);
                 sent += count;
+                activity?.Invoke();
                 progress?.Report(new PrintSendProgress(PrintSendStage.Uploading, (int)(100L * sent / bytes.Length)));
             }
         }

@@ -77,7 +77,7 @@ public class SnapmakerU1ConnectorTests
         snapshot.GcodeState.Should().Be("IDLE");
         snapshot.Telemetry!.FeedReadings.Single().Slots.Should().HaveCount(4);
         var identify = await harness.NextRequestAsync("server.connection.identify");
-        identify.Params!["api_key"]!.GetValue<string>().Should().Be("moonraker-key");
+        identify.Params!["api_key"].Should().BeNull();
     }
 
     [Fact]
@@ -105,14 +105,16 @@ public class SnapmakerU1ConnectorTests
     }
 
     [Fact]
-    public async Task Connect_TelemetryKeepsFlowingWithoutChanges()
+    public async Task Connect_CachedTelemetryPreservesObservationTime()
     {
-        await using var harness = new MoonrakerHarness();
+        await using var harness = new MoonrakerHarness { PrintTask = new System.Text.Json.Nodes.JsonObject() };
         await using var stream = Stream(harness, harness.Details());
-        await stream.NextMatchingAsync(e => e.GcodeState == "IDLE");
+        var initial = await stream.NextMatchingAsync(e => e.GcodeState == "IDLE");
 
         var keepalive = await stream.NextMatchingAsync(e => e.Telemetry is not null);
 
+        keepalive.ReceivedAtUtc.Should().Be(initial.ReceivedAtUtc);
+        keepalive.Telemetry!.NozzleDiametersMm.Should().BeNull();
         keepalive.GcodeState.Should().BeNull();
         keepalive.HmsAlerts.Should().BeEmpty();
     }
@@ -128,7 +130,7 @@ public class SnapmakerU1ConnectorTests
             """[{"exceptions":[{"id":2,"index":1,"code":523,"level":3,"message":"Filament runout","timestamp":1.0}]}]""");
 
         var alerted = await stream.NextMatchingAsync(e => e.HmsAlerts is { Count: > 0 });
-        alerted.HmsAlerts!.Single().Code.Should().Be("2:1:523");
+        alerted.HmsAlerts!.Single().Code.Should().Be("U1-0002-0001-0523");
     }
 
     [Fact]
@@ -171,15 +173,11 @@ public class SnapmakerU1ConnectorTests
 
         var upload = harness.Uploads.Should().ContainSingle().Subject;
         upload.Should().Contain(gcode).And.NotContain("Metadata/plate_1.gcode");
-        upload.Should().MatchRegex("""name=root\s+gcodes""").And.MatchRegex("""name=path\s+openfarm""");
         upload.Should().Contain(Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(gcode))));
-        var fileName = Regex.Match(upload, """filename=(?<name>Bracket_PLA_2h_\d{8}-\d{9}\.gcode)""").Groups["name"].Value;
-        fileName.Should().NotBeEmpty();
-
-        var start = await harness.NextRequestAsync("server.files.start_local_print");
-        start.Params!["path"]!.GetValue<string>().Should().Be($"openfarm/{fileName}");
-        // Tool 0 prints on head 2 (T3), tool 2 on head 0; tool 1 is unused.
-        start.Params["options"]!["map_table"]!.ToJsonString().Should().Be("[[0,2],[2,0]]");
+        var routing = await harness.NextRequestAsync("printer.gcode.script");
+        routing.Params!["script"]!.ToString().Should().Be("SET_PRINT_EXTRUDER_MAP CONFIG_EXTRUDER=0 MAP_EXTRUDER=2\nSET_PRINT_EXTRUDER_MAP CONFIG_EXTRUDER=2 MAP_EXTRUDER=0\nSET_PRINT_USED_EXTRUDERS EXTRUDERS=2,0");
+        var start = await harness.NextRequestAsync("printer.print.start");
+        start.Params!["filename"]!.ToString().Should().StartWith("openfarm-Bracket_PLA_2h-").And.EndWith(".gcode");
     }
 
     [Fact]
@@ -201,7 +199,7 @@ public class SnapmakerU1ConnectorTests
         await harness.CreateConnector().StartJobAsync(harness.Details(), new MemoryStream("G28\n"u8.ToArray()), "Part", 1, null, CancellationToken.None);
 
         harness.Uploads.Should().ContainSingle().Which.Should().Contain("G28");
-        var start = await harness.NextRequestAsync("server.files.start_local_print");
+        var start = await harness.NextRequestAsync("printer.print.start");
         start.Params!["options"].Should().BeNull();
     }
 
@@ -215,7 +213,7 @@ public class SnapmakerU1ConnectorTests
 
         var act = () => harness.CreateConnector().StartJobAsync(harness.Details(), new MemoryStream("G28\n"u8.ToArray()), "Part", 1, null, CancellationToken.None);
 
-        (await act.Should().ThrowAsync<IOException>()).Which.Message.Should().Contain("Printer is busy");
+        (await act.Should().ThrowAsync<MoonrakerRpcException>()).Which.Message.Should().Contain("Printer is busy");
     }
 
     [Fact]
@@ -229,6 +227,16 @@ public class SnapmakerU1ConnectorTests
     }
 
     [Fact]
+    public async Task StartJob_LostReply_IsUnconfirmed()
+    {
+        await using var harness = new MoonrakerHarness { WithholdStartReply = true };
+        var connector = harness.CreateConnector(harness.Options with { RequestTimeout = TimeSpan.FromMilliseconds(150) });
+        var act = () => connector.StartJobAsync(harness.Details(), new MemoryStream("G28\n"u8.ToArray()), "Part", 1, null, CancellationToken.None);
+        await act.Should().ThrowAsync<PrinterStartUnconfirmedException>();
+        harness.Uploads.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task Controls_PostThePrintCommands()
     {
         await using var harness = new MoonrakerHarness();
@@ -238,7 +246,136 @@ public class SnapmakerU1ConnectorTests
         await connector.ResumeJobAsync(harness.Details(), CancellationToken.None);
         await connector.StopJobAsync(harness.Details(), CancellationToken.None);
 
-        harness.Commands.Should().Equal("/printer/print/pause", "/printer/print/resume", "/printer/print/cancel");
+        harness.Commands.Should().Equal("printer.print.pause", "printer.print.resume", "printer.print.cancel");
+    }
+
+    [Fact]
+    public async Task RepeatedArtifact_SkipsUploadAndUsesTheSameFilename()
+    {
+        await using var harness = new MoonrakerHarness();
+        var connector = harness.CreateConnector();
+        for (var i = 0; i < 2; i++)
+            await connector.StartJobAsync(harness.Details(), new MemoryStream("G28\n"u8.ToArray()), "SamePart", 1, null, CancellationToken.None);
+        harness.Uploads.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task CommandsShareMonitoringSocket_AndStateCanAcknowledgePause()
+    {
+        await using var harness = new MoonrakerHarness();
+        harness.WithheldReplies.Add("printer.print.pause");
+        await using var stream = Stream(harness, harness.Details());
+        await stream.NextMatchingAsync(e => e.GcodeState == "IDLE");
+        var command = harness.CreateConnector().PauseJobAsync(harness.Details(), CancellationToken.None);
+        await harness.NextRequestAsync("printer.print.pause");
+        harness.ActiveSockets.Should().Be(1);
+        command.IsCompleted.Should().BeFalse();
+        await harness.PushStatusAsync("""{"print_stats":{"state":"paused"}}""");
+        await command.WaitAsync(TimeSpan.FromSeconds(2));
+        (await stream.NextMatchingAsync(e => e.GcodeState == "PAUSE")).Telemetry.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ApiKeyWithReservedCharacters_AuthenticatesInQuery()
+    {
+        const string key = "key +/#?&=";
+        await using var harness = new MoonrakerHarness { RequiredApiKey = key };
+        await using var stream = Stream(harness, harness.Details(apiKey: key));
+        (await stream.NextMatchingAsync(e => e.ConnectionStarted)).ConnectionStarted.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SubscriptionsFilterAbsentObjects_AndCameraWakesWithoutViewer()
+    {
+        await using var harness = new MoonrakerHarness();
+        harness.Status.Remove("extruder3");
+        await using var stream = Stream(harness, harness.Details());
+        await stream.NextMatchingAsync(e => e.ConnectionStarted);
+        var subscription = await harness.NextRequestAsync("printer.objects.subscribe");
+        subscription.Params!["objects"]!.AsObject().ContainsKey("extruder3").Should().BeFalse();
+        var wake = await harness.NextRequestAsync("camera.start_monitor");
+        wake.Params!["interval"]!.GetValue<int>().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task HistoryIgnoresOtherFiles_AndReportsCurrentCompletion()
+    {
+        await using var harness = new MoonrakerHarness();
+        harness.Status["print_stats"]!["filename"] = "current.gcode";
+        harness.Status["print_stats"]!["state"] = "printing";
+        await using var stream = Stream(harness, harness.Details());
+        await stream.NextMatchingAsync(e => e.GcodeState == "RUNNING");
+        await harness.NotifyAsync("notify_history_changed", """[{"action":"finished","job":{"filename":"other.gcode","status":"error"}}]""");
+        await harness.NotifyAsync("notify_history_changed", """[{"action":"finished","job":{"filename":"current.gcode","status":"completed"}}]""");
+        (await stream.NextMatchingAsync(e => e.GcodeState is "FAILED" or "FINISH")).GcodeState.Should().Be("FINISH");
+    }
+
+    [Fact]
+    public async Task StalledCameraWake_DoesNotBlockStatusOrCommands()
+    {
+        await using var harness = new MoonrakerHarness();
+        harness.WithheldReplies.Add("camera.start_monitor");
+        await using var stream = Stream(harness, harness.Details());
+        await stream.NextMatchingAsync(e => e.GcodeState == "IDLE");
+        await harness.NextRequestAsync("camera.start_monitor");
+        await harness.PushStatusAsync("""{"print_stats":{"state":"printing"}}""");
+        (await stream.NextMatchingAsync(e => e.GcodeState == "RUNNING")).GcodeState.Should().Be("RUNNING");
+        await harness.CreateConnector().PauseJobAsync(harness.Details(), CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task FilamentPoller_ConditionalResponsesAndFailuresRetainOrClearOverrides()
+    {
+        await using var harness = new MoonrakerHarness { PrintTask = System.Text.Json.Nodes.JsonNode.Parse("""{"filament_type":["PLA"]}""") };
+        await using var poller = new U1FilamentPoller(harness.Details(), harness.Options, NullLogger.Instance, CancellationToken.None);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var first = await poller.Updates.ReadAsync(timeout.Token);
+        first!["filament_type"]![0]!.ToString().Should().Be("PLA");
+        harness.PrintTaskStatus = 304;
+        poller.Refresh();
+        await WaitForConditionAsync(() => harness.OverrideConditions.Count >= 2);
+        poller.Updates.TryRead(out _).Should().BeFalse();
+        harness.OverrideConditions.Last().Should().NotBeNull();
+        harness.PrintTaskStatus = 500;
+        poller.Refresh();
+        await WaitForConditionAsync(() => harness.OverrideConditions.Count >= 3);
+        poller.Updates.TryRead(out _).Should().BeFalse();
+        harness.PrintTaskStatus = 404;
+        poller.Refresh();
+        (await poller.Updates.ReadAsync(timeout.Token)).Should().BeNull();
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        while (!condition()) await Task.Delay(10, timeout.Token);
+    }
+
+    [Fact]
+    public async Task CommandDuringReconnect_WaitsForMonitoringInsteadOfOpeningAnotherSocket()
+    {
+        await using var harness = new MoonrakerHarness();
+        var connector = harness.CreateConnector(harness.Options with { ReconnectDelay = TimeSpan.FromMilliseconds(300) });
+        await using var stream = new EventStream(connector, harness.Details());
+        await stream.NextMatchingAsync(e => e.GcodeState == "IDLE");
+        harness.DropConnections();
+        await stream.NextMatchingAsync(e => e.ConnectionEnded);
+        await connector.PauseJobAsync(harness.Details(), CancellationToken.None);
+        harness.SubscribeCount.Should().Be(2);
+        harness.ActiveSockets.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task IndependentPrinterCommandsProceedWhileAnotherSessionInitializes()
+    {
+        await using var first = new MoonrakerHarness();
+        first.WithheldReplies.Add("server.connection.identify");
+        await using var stream = Stream(first, first.Details());
+        await first.NextRequestAsync("server.connection.identify");
+        await using var second = new MoonrakerHarness();
+        await second.CreateConnector().PauseJobAsync(second.Details(), CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(1));
+        first.SubscribeCount.Should().Be(0);
+        second.Commands.Should().ContainSingle().Which.Should().Be("printer.print.pause");
     }
 
     // The toolheads are one unit whose slot n is the spool on head n.

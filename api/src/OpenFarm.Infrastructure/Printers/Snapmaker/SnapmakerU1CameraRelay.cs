@@ -8,7 +8,7 @@ namespace OpenFarm.Infrastructure.Printers.Snapmaker;
 /// <summary>
 /// Snapmaker U1 camera on stock firmware: the printer keeps a JPEG at <c>/server/files/camera/monitor.jpg</c> fresh only
 /// while a client keeps it awake with <c>camera.start_monitor</c> (it idles a few seconds after the last one). This
-/// wakes it, polls the snapshot, and yields a frame only when it changed. Any failure ends the stream; the connection
+/// polls the snapshot on port 80 and yields a frame only when it changed. Monitoring owns the wake requests. Any failure ends the stream; the connection
 /// service's camera loop starts a new one.
 /// </summary>
 public sealed partial class SnapmakerU1CameraRelay : IPrinterCameraRelay
@@ -33,18 +33,9 @@ public sealed partial class SnapmakerU1CameraRelay : IPrinterCameraRelay
         PrinterConnectionDetails details,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await using var socket = await MoonrakerSocket.ConnectAsync(
-            SnapmakerU1Connector.BaseUri(details, _options.Port), details.AccessCode, _options, cancellationToken);
-        var wokeAtUtc = DateTimeOffset.MinValue;
         byte[]? last = null;
         while (!cancellationToken.IsCancellationRequested)
         {
-            if (DateTimeOffset.UtcNow - wokeAtUtc >= _options.CameraWakeInterval)
-            {
-                await socket.CallAsync("camera.start_monitor", new { domain = "lan", interval = 0 }, _options.RequestTimeout, cancellationToken);
-                wokeAtUtc = DateTimeOffset.UtcNow;
-            }
-
             var frame = await FetchSnapshotAsync(details, cancellationToken);
             if (frame is not null && (last is null || !frame.AsSpan().SequenceEqual(last)))
             {
@@ -61,7 +52,7 @@ public sealed partial class SnapmakerU1CameraRelay : IPrinterCameraRelay
     {
         using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         requestCts.CancelAfter(_options.RequestTimeout);
-        using var request = SnapmakerU1Connector.Request(HttpMethod.Get, details, _options.Port, SnapshotPath);
+        using var request = SnapmakerU1Connector.Request(HttpMethod.Get, details, _options.CameraPort, SnapshotPath);
         using var response = await SnapmakerU1Connector.Http.SendAsync(request, requestCts.Token);
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();

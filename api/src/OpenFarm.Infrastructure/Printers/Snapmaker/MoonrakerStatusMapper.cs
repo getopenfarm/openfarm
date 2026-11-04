@@ -23,11 +23,11 @@ internal static class MoonrakerStatusMapper
     private static readonly string[] ExtruderFields = ["temperature", "nozzle_diameter", "state"];
 
     /// <summary>The objects and fields <c>printer.objects.subscribe</c> asks for.</summary>
-    public static IReadOnlyDictionary<string, string[]> Subscription { get; } = new Dictionary<string, string[]>
+    public static IReadOnlyDictionary<string, string[]?> Subscription { get; } = new Dictionary<string, string[]?>
     {
         ["exclude_object"] = ["excluded_objects", "objects", "current_object"],
         ["print_stats"] = ["state", "filename", "print_duration", "info"],
-        ["virtual_sdcard"] = ["progress"],
+        ["virtual_sdcard"] = ["progress", "file_position"],
         ["display_status"] = ["progress"],
         ["heater_bed"] = ["temperature"],
         ["extruder"] = ExtruderFields,
@@ -36,7 +36,9 @@ internal static class MoonrakerStatusMapper
         ["extruder3"] = ExtruderFields,
         ["toolhead"] = ["extruder"],
         ["webhooks"] = ["state"],
-        ["print_task_config"] = ["filament_type", "filament_sub_type", "filament_color_rgba", "filament_exist"],
+        ["filament_detect"] = null,
+        ["filament_feed left"] = null,
+        ["filament_feed right"] = null,
     };
 
     /// <summary>OpenFarm's state word for <c>print_stats.state</c>; null for anything unrecognized.</summary>
@@ -56,7 +58,12 @@ internal static class MoonrakerStatusMapper
     /// <summary>M73 progress when the file reports it, else the file position; 0–100.</summary>
     public static int? ProgressPercent(JsonObject status)
     {
-        var progress = Number(status["display_status"], "progress") is > 0 and var m73 ? m73 : Number(status["virtual_sdcard"], "progress");
+        var metadata = status["_openfarm_metadata"];
+        var start = Number(metadata, "gcode_start_byte");
+        var end = Number(metadata, "gcode_end_byte");
+        var position = Number(status["virtual_sdcard"], "file_position");
+        var byteProgress = start is { } a && end is { } b && b > a && position is { } c ? Math.Clamp((c - a) / (b - a), 0m, 1m) : (decimal?)null;
+        var progress = Number(status["display_status"], "progress") is > 0 and var m73 ? m73 : byteProgress is > 0 ? byteProgress : Number(status["virtual_sdcard"], "progress");
         return progress is { } p ? (int)Math.Round(Math.Clamp(p, 0m, 1m) * 100, MidpointRounding.AwayFromZero) : null;
     }
 
@@ -80,9 +87,11 @@ internal static class MoonrakerStatusMapper
             progress,
             CurrentStageLabel: null,
             // Null would keep the last print's countdown forever; nothing remains once the printer isn't printing.
-            printing ? RemainingMinutes(Number(status["print_stats"], "print_duration"), progress) : 0,
+            printing ? Number(status["_openfarm_metadata"], "estimated_time") is > 0 and var estimate
+                ? (int)Math.Ceiling(Math.Max(0, estimate - (Number(status["print_stats"], "print_duration") ?? 0)) / 60)
+                : RemainingMinutes(Number(status["print_stats"], "print_duration"), progress) : 0,
             file is null ? null : Path.GetFileNameWithoutExtension(file),
-            Toolheads(status["print_task_config"], active),
+            Toolheads(status, active),
             ExcludedObjectIds: status["exclude_object"]?["excluded_objects"] is JsonArray excluded ? excluded.Select(x => x!.ToString().ToUpperInvariant()).ToArray() : null,
             CurrentLayer: Integer(info, "current_layer"),
             TotalLayers: Integer(info, "total_layer"),
@@ -98,15 +107,12 @@ internal static class MoonrakerStatusMapper
     public static FeedSlotRef HeadSlot(int head) => new(FeedUnitKindCatalog.MultiMaterialUnit, 0, head);
 
     /// <summary>Alerts for the exception list Moonraker caches (<c>server.exception.query</c> / <c>notify_exception_status</c>).</summary>
-    public static IReadOnlyList<PrinterAlert> Alerts(JsonNode? exceptions) =>
-        exceptions is JsonArray list
-            ? list.OfType<JsonObject>()
-                // id:index:code — two heads raising the same code are two alerts.
-                .Select(e => new PrinterAlert(AlertSource, $"{e["id"]}:{e["index"]}:{e["code"]}", Severity(e["level"]),
-                    Text(e, "message") is { Length: > 0 } message ? message : "Printer exception."))
-                .Distinct()
-                .ToList()
-            : [];
+    public static IReadOnlyList<PrinterAlert> Alerts(JsonNode? exceptions)
+    {
+        var tracker = new U1ExceptionTracker();
+        tracker.SetActive(exceptions);
+        return tracker.Alerts;
+    }
 
     private static string ExtruderName(int head) => head == 0 ? "extruder" : $"extruder{head}";
 
@@ -126,46 +132,17 @@ internal static class MoonrakerStatusMapper
         return heads.All(h => h?["state"] is null) && Text(status["toolhead"], "extruder") is { } name ? HeadIndex(name) : null;
     }
 
-    private static IReadOnlyList<FeedUnitReading> Toolheads(JsonNode? config, int? active)
+    private static IReadOnlyList<FeedUnitReading> Toolheads(JsonObject status, int? active)
     {
-        // An empty list means "unchanged" to Printer.RecordTelemetry, which is right until print_task_config arrives.
-        if (config is not JsonObject) return [];
-
-        var slots = Enumerable.Range(0, HeadCount).Select(head =>
-        {
-            var empty = Element(config["filament_exist"], head)?.GetValueKind() != JsonValueKind.True;
-            var type = empty ? null : Known(Element(config["filament_type"], head));
-            var subType = Known(Element(config["filament_sub_type"], head));
-            var color = Element(config["filament_color_rgba"], head)?.ToString();
-            return new FeedSlotReading(head, empty, type,
-                type is null || string.IsNullOrWhiteSpace(color) ? null : color.ToUpperInvariant(),
-                // Bambu's "PLA Basic" shape, which RfidVariantMatch.SameLine compares against a spool's line.
-                type is null || subType is null ? null : $"{type} {subType}",
-                RemainPercent: null,
-                Active: active == head,
-                ExtruderIndex: head);
-        }).ToList();
-        return [new FeedUnitReading(FeedUnitKindCatalog.MultiMaterialUnit, 0, slots)];
+        var filament = new U1FilamentState();
+        filament.Merge(status);
+        return filament.Read(active);
     }
-
-    // ponytail: the level scale is unpublished (raised exceptions default to 3); confirm against real captures.
-    private static string Severity(JsonNode? level) =>
-        level is JsonValue value && value.TryGetValue<int>(out var number)
-            ? number switch { >= 3 => "Error", 2 => "Warning", 1 => "Information", _ => "Unknown" }
-            : "Unknown";
 
     private static int? RemainingMinutes(decimal? printDurationSeconds, int? progressPercent) =>
         printDurationSeconds is > 0 and var elapsed && progressPercent is > 0 and var percent
             ? (int)Math.Ceiling(elapsed * (100 - percent) / percent / 60)
             : null;
-
-    private static string? Known(JsonNode? value) =>
-        value?.ToString() is { } text && !string.IsNullOrWhiteSpace(text) && !text.Equals("NONE", StringComparison.OrdinalIgnoreCase)
-            ? text
-            : null;
-
-    private static JsonNode? Element(JsonNode? array, int index) =>
-        array is JsonArray items && index < items.Count ? items[index] : null;
 
     private static string? Text(JsonNode? node, string property) =>
         node is JsonObject obj && obj[property] is JsonValue value && value.GetValueKind() == JsonValueKind.String

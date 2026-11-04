@@ -11,4 +11,4 @@ internal sealed class BambuTransferException(BambuTransferStage stage, string me
 
 /// <summary>Publication may have reached the printer. Only subsequent telemetry can settle the start.</summary>
 internal sealed class BambuStartUnconfirmedException(Exception inner)
-    : IOException("The print start is unconfirmed. Await printer telemetry before retrying.", inner);
+    : PrinterStartUnconfirmedException(inner);

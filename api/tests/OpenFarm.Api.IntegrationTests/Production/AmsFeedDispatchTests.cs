@@ -426,15 +426,17 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task StartUnconfirmed_IsNotResent_AndFailsOnceTheIdlePrinterShowsItNeverStarted(bool exactQuantity)
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    public async Task StartUnconfirmed_IsNotResent_AndFailsOnceTheIdlePrinterShowsItNeverStarted(bool exactQuantity, bool bambu)
     {
         var client = await ClientAsync();
         var part = exactQuantity ? await MappedPartAsync(1) : await PartAsync();
         var printer = await PrinterAsync();
         var runId = (await RunAsync(client, part.Id, pinned: printer.Id)).Id;
-        Recorder.AfterStart = _ => throw new BambuStartUnconfirmedException(new IOException("Connection reset"));
+        Recorder.AfterStart = _ => throw (bambu ? new BambuStartUnconfirmedException(new IOException("Connection reset")) : new OpenFarm.Infrastructure.Printers.PrinterStartUnconfirmedException(new IOException("Connection reset")));
         using var worker = Worker(startConfirmGrace: TimeSpan.Zero);
         await worker.StartAsync(default);
         try

@@ -30,6 +30,9 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
     {
         Port = FreeLoopbackPort();
         SerialNumber = serialNumber;
+        Status["filament_detect"] = JsonNode.Parse("""{"info":[{"MAIN_TYPE":"PLA"},{"MAIN_TYPE":"PETG"},{"MAIN_TYPE":"NONE"},{"MAIN_TYPE":"PLA"}]}""");
+        Status["filament_feed left"] = JsonNode.Parse("""{"extruder0":{"filament_detected":true},"extruder1":{"filament_detected":true}}""");
+        Status["filament_feed right"] = JsonNode.Parse("""{"extruder2":{"filament_detected":false},"extruder3":{"filament_detected":true}}""");
         _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
         _listener.Start();
         _acceptLoop = AcceptLoopAsync();
@@ -48,6 +51,10 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
     /// <summary>The <c>status</c> answered to <c>printer.objects.subscribe</c>.</summary>
     public JsonObject Status { get; set; } = MoonrakerStatusMapperTests.Fixture("snapmaker-u1-idle.json");
 
+    public JsonNode? PrintTask { get; set; }
+    public int PrintTaskStatus { get; set; } = 200;
+    public ConcurrentQueue<string?> OverrideConditions { get; } = new();
+
     public JsonArray Exceptions { get; set; } = [];
 
     /// <summary>Files under the gcodes root, by path.</summary>
@@ -65,6 +72,10 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
     /// <summary>What <c>server.files.start_local_print</c> answers; null answers "method not found", like firmware before 1.3.</summary>
     public JsonObject? StartResult { get; set; } = new() { ["state"] = "success", ["message"] = "Print started" };
 
+    public HashSet<string> WithheldReplies { get; } = [];
+
+    public bool WithholdStartReply { get; init; }
+
     public int SubscribeCount => Volatile.Read(ref _subscribeCount);
 
     public int ActiveSockets => _peers.Count;
@@ -75,12 +86,12 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
     public MoonrakerTransportOptions Options => new()
     {
         Port = Port,
+        CameraPort = Port,
         RequestTimeout = TimeSpan.FromSeconds(2),
         CommandTimeout = TimeSpan.FromSeconds(2),
         ReconnectDelay = TimeSpan.FromMilliseconds(30),
         KeepAlive = TimeSpan.FromSeconds(1),
         TelemetryInterval = TimeSpan.FromMilliseconds(40),
-        TelemetryFloor = TimeSpan.FromMilliseconds(200),
     };
 
     public SnapmakerU1Connector CreateConnector(MoonrakerTransportOptions? options = null) =>
@@ -158,7 +169,10 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
             if (path == "/server/files/upload")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
-                Uploads.Enqueue(await reader.ReadToEndAsync());
+                var body = await reader.ReadToEndAsync();
+                Uploads.Enqueue(body);
+                var match = System.Text.RegularExpressions.Regex.Match(body, "filename=\"?(?<name>[^\";\r\n]+)");
+                if (match.Success) Files[match.Groups["name"].Value] = Encoding.UTF8.GetBytes(body);
             }
             else
             {
@@ -171,6 +185,15 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
         {
             await WriteAsync(response, frame);
         }
+        else if (path == "/server/files/config/snapmaker/print_task.json")
+        {
+            OverrideConditions.Enqueue(request.Headers["If-Modified-Since"]);
+            response.StatusCode = PrintTask is null && PrintTaskStatus == 200 ? 404 : PrintTaskStatus;
+            response.Headers["Last-Modified"] = "Mon, 02 Nov 2026 00:00:00 GMT";
+            if (response.StatusCode == 200 && PrintTask is { } task) await WriteAsync(response, Encoding.UTF8.GetBytes(task.ToJsonString()));
+        }
+        else if (path == "/printer/info")
+            await WriteAsync(response, """{"result":{"state":"ready"}}"""u8.ToArray());
         else if (path == "/machine/system_info")
         {
             var productInfo = new JsonObject
@@ -192,7 +215,7 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
     {
         var webSocket = (await context.AcceptWebSocketAsync(subProtocol: null)).WebSocket;
         var id = Interlocked.Increment(ref _nextPeer);
-        var peer = new Peer(context, webSocket) { Identified = RequiredApiKey is null };
+        var peer = new Peer(context, webSocket) { Identified = RequiredApiKey is null || context.Request.QueryString["token"] == RequiredApiKey };
         _peers[id] = peer;
         try
         {
@@ -202,6 +225,7 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
                 var method = frame["method"]!.GetValue<string>();
                 var parameters = frame["params"]?.DeepClone();
                 _requests.Writer.TryWrite((method, parameters));
+                if (WithheldReplies.Contains(method) || (WithholdStartReply && method == "printer.print.start")) continue;
                 var (result, error) = Answer(peer, method, parameters);
                 var reply = new JsonObject { ["jsonrpc"] = "2.0", ["id"] = frame["id"]?.DeepClone() };
                 if (error is null) reply["result"] = result;
@@ -224,7 +248,7 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
     {
         if (method == "server.connection.identify")
         {
-            if (RequiredApiKey is not null && parameters?["api_key"]?.GetValue<string>() != RequiredApiKey)
+            if (!peer.Identified)
                 return (null, new JsonObject { ["code"] = 401, ["message"] = "Unauthorized" });
             peer.Identified = true;
             return (new JsonObject { ["connection_id"] = 1 }, null);
@@ -239,8 +263,18 @@ internal sealed class MoonrakerHarness : IAsyncDisposable
                 return (new JsonObject { ["eventtime"] = 1.0, ["status"] = Status.DeepClone() }, null);
             case "server.exception.query":
                 return (new JsonObject { ["state"] = "success", ["exceptions"] = Exceptions.DeepClone() }, null);
-            case "server.files.start_local_print" when StartResult is not null:
-                return (StartResult.DeepClone(), null);
+            case "printer.objects.list":
+                return (new JsonObject { ["objects"] = new JsonArray(Status.Select(p => (JsonNode?)JsonValue.Create(p.Key)).ToArray()) }, null);
+            case "server.files.metadata":
+                if (parameters?["filename"] is { } name && Files.TryGetValue(name.ToString(), out var bytes))
+                    return (new JsonObject { ["size"] = bytes.Length }, null);
+                return (null, new JsonObject { ["code"] = 404, ["message"] = "File not found" });
+            case "printer.print.start" when StartResult is not null:
+                return StartResult["state"]?.ToString() == "success" ? (JsonValue.Create("ok"), null)
+                    : (null, new JsonObject { ["code"] = 400, ["message"] = StartResult["message"]?.DeepClone() });
+            case "printer.print.pause" or "printer.print.resume" or "printer.print.cancel":
+                Commands.Enqueue(method);
+                return (JsonValue.Create("ok"), null);
             case "printer.gcode.script":
                 return (JsonValue.Create("ok"), null);
             case "camera.start_monitor":

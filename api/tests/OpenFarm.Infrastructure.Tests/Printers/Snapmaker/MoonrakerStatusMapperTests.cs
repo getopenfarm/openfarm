@@ -87,10 +87,10 @@ public class MoonrakerStatusMapperTests
     }
 
     [Fact]
-    public void Telemetry_WithoutPrintTaskConfig_LeavesTheToolheadsUnchanged()
+    public void Telemetry_WithoutFilamentDetection_LeavesTheToolheadsUnchanged()
     {
         var status = Fixture("snapmaker-u1-idle.json");
-        status.Remove("print_task_config");
+        status.Remove("filament_detect");
 
         MoonrakerStatusMapper.Telemetry(status, "IDLE").FeedReadings.Should().BeEmpty();
     }
@@ -109,8 +109,8 @@ public class MoonrakerStatusMapperTests
         var alerts = MoonrakerStatusMapper.Alerts(exceptions);
 
         alerts.Select(a => (a.Source, a.Code, a.Severity)).Should().Equal(
-            ("Exception", "2:1:523", "Error"), ("Exception", "2:3:523", "Warning"), ("Exception", "7:0:1", "Information"));
-        alerts[2].Message.Should().Be("Printer exception.");
+            ("Exception", "U1-0002-0001-0523", "Error"), ("Exception", "U1-0002-0003-0523", "Error"), ("Exception", "U1-0007-0000-0001", "Warning"));
+        alerts[2].Message.Should().StartWith("Module 7:");
         MoonrakerStatusMapper.Alerts(null).Should().BeEmpty();
     }
 
@@ -140,7 +140,7 @@ public class MoonrakerStatusMapperTests
     }
 
     [Theory]
-    [InlineData(1.0, "FINISH")]
+    [InlineData(1.0, "FAILED")]
     [InlineData(0.4, "FAILED")]
     public void StateTracker_PrintDroppingStraightToStandby_StillReportsHowItEnded(double lastProgress, string expected)
     {

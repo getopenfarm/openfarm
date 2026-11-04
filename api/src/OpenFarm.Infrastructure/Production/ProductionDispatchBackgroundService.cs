@@ -654,7 +654,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
                 await progress.FlushAsync();
-                if (ex is BambuStartUnconfirmedException)
+                if (ex is OpenFarm.Infrastructure.Printers.PrinterStartUnconfirmedException)
                 {
                     job.RecordBlock(StartUnconfirmedReason, DateTimeOffset.UtcNow);
                     await jobRepository.SaveChangesAsync(cancellationToken);

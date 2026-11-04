@@ -24,7 +24,11 @@ Use **OrcaSlicer** for U1 production; Bambu Studio does not provide U1 presets. 
 
 The U1 appears with four toolhead slots **T1–T4**. Load tracked spools into their actual slots. Each required filament must be on a head with the nozzle size the part needs. Heads can have different nozzle sizes; a preset at one diameter does not make every head compatible.
 
-OpenFarm uploads G-code and starts the print through Moonraker's local-print method. This requires **firmware 1.3 or later**. A successful connection check does not confirm that every print operation works on that firmware version.
+OpenFarm uploads G-code, configures the tool-to-head mapping, and starts the print through Moonraker. A successful connection check does not confirm that every print operation works on your firmware version.
+
+The chamber camera requires HTTP access to the printer on port **80**. OpenFarm keeps the camera awake while it monitors the printer.
+
+If a start request loses its response, OpenFarm waits for printer telemetry instead of sending the start again. Check the printer before you retry an unconfirmed print.
 
 ## Confirm physical behavior
 

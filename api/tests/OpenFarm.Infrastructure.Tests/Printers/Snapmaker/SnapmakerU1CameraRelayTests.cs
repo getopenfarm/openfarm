@@ -11,7 +11,7 @@ public class SnapmakerU1CameraRelayTests
     private static readonly byte[] SecondFrame = [0xFF, 0xD8, 0xFF, 0xDB, 0x02, 0xFF, 0xD9];
 
     [Fact]
-    public async Task StreamFrames_WakesTheCameraAndYieldsOnlyChangedSnapshots()
+    public async Task StreamFrames_YieldsOnlyChangedSnapshots()
     {
         await using var harness = new MoonrakerHarness { CameraFrame = FirstFrame };
         await using var pump = new FramePump(harness);
@@ -23,8 +23,7 @@ public class SnapmakerU1CameraRelayTests
         harness.CameraFrame = SecondFrame;
         await pump.WaitForAsync(2);
         pump.Frames.Should().BeEquivalentTo([FirstFrame, SecondFrame], o => o.WithStrictOrdering());
-        var wake = await harness.NextRequestAsync("camera.start_monitor");
-        wake.Params!["domain"]!.GetValue<string>().Should().Be("lan");
+
     }
 
     [Fact]
