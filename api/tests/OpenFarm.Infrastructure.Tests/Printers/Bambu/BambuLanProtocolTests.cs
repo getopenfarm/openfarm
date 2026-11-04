@@ -21,7 +21,7 @@ public class BambuLanProtocolTests
     [Fact]
     public async Task StartAndLiveExclusions_UseNativeObjectIds()
     {
-        await using var mqtt = new BambuMqttHarness();
+        await using var mqtt = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false };
         var connector = mqtt.CreateConnector(mqtt.Options with { UploadFileAsync = (_, _, _, _, _) => Task.FromResult(FtpStatus.Success) });
         using var file = new MemoryStream("G28\n"u8.ToArray());
         await connector.StartSelectedJobAsync(mqtt.Details, file, "selected.gcode", 1, null, ["206"], CancellationToken.None);
@@ -48,7 +48,7 @@ public class BambuLanProtocolTests
     [Fact]
     public async Task StartJob_ExistingPrinterFilenameWithRepeatedDots_DoesNotBlockUpload()
     {
-        await using var mqtt = new BambuMqttHarness();
+        await using var mqtt = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false };
         await using var ftp = new BambuFtpsHarness();
         var connector = mqtt.CreateConnector(mqtt.Options with
         {
@@ -354,7 +354,7 @@ public class BambuLanProtocolTests
     [Fact]
     public async Task StartJob_UploadsExactBytesBeforePublishingEscapedNameAndChecksum()
     {
-        await using var harness = new BambuMqttHarness();
+        await using var harness = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false };
         byte[] fileBytes = Encoding.UTF8.GetBytes("; test G-code\nG28\n");
         byte[]? uploadedBytes = null;
         string? uploadedPath = null;
@@ -411,7 +411,7 @@ public class BambuLanProtocolTests
     [InlineData("X1E", "ftp://")]
     public async Task StartJob_ProjectUrlPointsToExactUploadPath(string model, string prefix)
     {
-        await using var harness = new BambuMqttHarness();
+        await using var harness = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false };
         string? uploadPath = null;
         byte[]? uploadedBytes = null;
         var connector = harness.CreateConnector(harness.Options with
@@ -538,7 +538,7 @@ public class BambuLanProtocolTests
     public async Task StartJob_ExportedSinglePlate_UploadsItUnchangedAndPrintsThatPlate()
     {
         byte[]? uploadedBytes = null;
-        await using var harness = new BambuMqttHarness();
+        await using var harness = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false };
         var connector = harness.CreateConnector(harness.Options with
         {
             UploadFileAsync = async (_, content, _, _, token) =>
@@ -642,7 +642,7 @@ public class BambuLanProtocolTests
     [InlineData("../bad\r\nfilename.gcode")]
     public async Task StartJob_SanitizesRepeatedDotsAndCommandSeparators(string name)
     {
-        await using var mqtt = new BambuMqttHarness();
+        await using var mqtt = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false };
         await using var ftp = new BambuFtpsHarness();
         var connector = mqtt.CreateConnector(mqtt.Options with { FtpsPort = ftp.Port });
         using var input = new MemoryStream("G28"u8.ToArray());
@@ -656,7 +656,7 @@ public class BambuLanProtocolTests
     [Fact]
     public async Task StartJob_RepeatedArtifact_UsesStableRootFilename()
     {
-        await using var harness = new BambuMqttHarness();
+        await using var harness = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false };
         var uploads = new List<string>();
         var connector = harness.CreateConnector(harness.Options with
         {
@@ -763,7 +763,7 @@ public class BambuLanProtocolTests
     public async Task StartJob_PrinterNeverAcknowledgesPublish_StillStarts()
     {
         // A P1S runs a QoS 1 command but sends no PUBACK; the start must not wait for one.
-        await using var harness = new BambuMqttHarness { WithholdCommandAcknowledgement = true };
+        await using var harness = new BambuMqttHarness { WithholdCommandAcknowledgement = true, ReplyToPushAll = false, ReplyToVersion = false };
         var connector = harness.CreateConnector(harness.Options with
         {
             CommandTimeout = TimeSpan.FromMilliseconds(400),
@@ -793,7 +793,7 @@ public class BambuLanProtocolTests
     [Fact]
     public async Task Upload_SlowButProgressing_OutlivesTheInactivityWindow()
     {
-        await using var harness = new BambuMqttHarness();
+        await using var harness = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false };
         var connector = harness.CreateConnector(harness.Options with
         {
             UploadInactivityTimeout = TimeSpan.FromMilliseconds(400),
@@ -816,7 +816,7 @@ public class BambuLanProtocolTests
     public async Task IndependentPrinters_ConnectWhileAnotherSubscriptionIsStalled()
     {
         await using var first = new BambuMqttHarness("FIRST") { WithholdFirstSuback = true };
-        await using var second = new BambuMqttHarness("SECOND");
+        await using var second = new BambuMqttHarness("SECOND") { ReplyToPushAll = false, ReplyToVersion = false };
         using var ct = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await using var events = first.CreateConnector().ConnectAsync(first.Details, ct.Token).GetAsyncEnumerator();
         var next = events.MoveNextAsync().AsTask();

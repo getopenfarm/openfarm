@@ -42,7 +42,16 @@ internal sealed class LoopbackTlsServer : IAsyncDisposable
             while (!_stopping.IsCancellationRequested)
             {
                 var client = await _listener.AcceptTcpClientAsync(_stopping.Token);
-                client.NoDelay = true;
+                try
+                {
+                    client.NoDelay = true;
+                }
+                catch (SocketException)
+                {
+                    // macOS rejects the option (EINVAL) on a connection its client already closed, as rejection tests do.
+                    client.Dispose();
+                    continue;
+                }
                 _clients.Add(client);
                 _sessions.Add(HandleAsync(client));
             }

@@ -34,6 +34,10 @@ internal sealed class BambuMqttHarness : IAsyncDisposable
     }
 
     public PrinterConnectionDetails Details { get; }
+    /// <remarks>
+    /// Tests that read a command sent on a one-shot session turn both replies off. That session closes right after its
+    /// QoS 0 publish; a reply still unread at the close resets the socket, which can discard the publish before it is read.
+    /// </remarks>
     public bool ReplyToVersion { get; init; } = true;
     public bool ReplyToPushAll { get; init; } = true;
     /// <summary>Whether a <c>pushing.start</c> nudge brings a report, as it does on firmware that honours it.</summary>

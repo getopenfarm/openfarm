@@ -82,7 +82,9 @@ public class BambuFtpTransferTests
     public async Task StalledData_TimesOutAfterThreeAttempts()
     {
         await using var server = new BambuFtpsHarness { StallData = true };
-        using var bytes = new MemoryStream(new byte[1024 * 1024]);
+        // Fits the loopback socket buffers on every OS. A larger file blocks the write on macOS (buffers ~512 KB), and
+        // FluentFTP's TLS close_notify on that full socket then waits ~5 s per attempt, outlasting this test's deadline.
+        using var bytes = new MemoryStream(new byte[64 * 1024]);
         using var ct = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         var upload = () => Transfer(server, TimeSpan.FromMilliseconds(400))
             .EnsureAsync(Details, bytes, "/openfarm-stall.3mf", null, ct.Token);
@@ -95,7 +97,7 @@ public class BambuFtpTransferTests
     {
         await using var server = new BambuFtpsHarness { StallData = true };
         var transfer = Transfer(server);
-        using var first = new MemoryStream(new byte[1024 * 1024]);
+        using var first = new MemoryStream(new byte[64 * 1024]); // See StalledData: keeps the socket buffer from filling.
         using var ct = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
         var upload = () => transfer.EnsureAsync(Details, first, "/openfarm-cancel.3mf", null, ct.Token);
         await upload.Should().ThrowAsync<OperationCanceledException>();
