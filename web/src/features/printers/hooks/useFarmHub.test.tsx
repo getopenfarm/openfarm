@@ -292,6 +292,33 @@ describe('Feed units live updates', () => {
     expect(invalidate).toHaveBeenCalledTimes(1);
     unmount();
   });
+  it('keeps a send shown while the printer stays Idle, until it starts', () => {
+    const client = new QueryClient();
+    const key = ['printer-send-progress', 'p1'];
+    client.setQueryData(key, {
+      printJobId: 'j1',
+      printerId: 'p1',
+      stage: 'Starting',
+    });
+    const { unmount } = renderHook(useFarmHub, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    const status = (s: string) =>
+      act(() =>
+        hub.handlers.get('PrinterStatusChanged')?.({
+          printerId: 'p1',
+          status: s,
+          isReachable: true,
+        }),
+      );
+    status('Idle');
+    expect(client.getQueryData(key)).toMatchObject({ stage: 'Starting' });
+    status('Printing');
+    expect(client.getQueryData(key)).toBeUndefined();
+    unmount();
+  });
 });
 
 describe('Notifications live updates', () => {

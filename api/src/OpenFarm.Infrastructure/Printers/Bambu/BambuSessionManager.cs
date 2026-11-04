@@ -58,8 +58,6 @@ internal sealed partial class BambuSessionManager
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Printer {Serial} acknowledged MQTT publication; awaiting telemetry for state confirmation.")]
-    private static partial void LogAcknowledged(ILogger logger, string serial);
     [LoggerMessage(Level = LogLevel.Information, Message = "MQTT report subscription ready for printer {Serial}.")]
     private static partial void LogReady(ILogger logger, string serial);
     [LoggerMessage(Level = LogLevel.Warning, Message = "Printer {Serial} certificate validation failed ({Reason}); using unverified TLS compatibility mode for this session.")]
@@ -127,12 +125,10 @@ internal sealed partial class BambuSessionManager
             var client = await ready.WaitAsync(ct);
             try
             {
-                var result = await client.PublishAsync(new MqttApplicationMessageBuilder()
-                    .WithTopic($"device/{details.SerialNumber}/request").WithPayload(payload)
-                    .WithQualityOfServiceLevel(command ? MqttQualityOfServiceLevel.AtLeastOnce : MqttQualityOfServiceLevel.AtMostOnce)
-                    .Build(), ct);
-                if (!result.IsSuccess) throw new IOException($"Printer rejected MQTT publication ({result.ReasonCode}).");
-                if (command) LogAcknowledged(logger, details.SerialNumber);
+                // QoS 0: a P1S (fw 01.10) runs a QoS 1 command at once but sends no PUBACK, so waiting for one failed every
+                // start and cancel. The printer's reply on the report topic is the acknowledgement; telemetry settles a start.
+                await client.PublishAsync(new MqttApplicationMessageBuilder()
+                    .WithTopic($"device/{details.SerialNumber}/request").WithPayload(payload).Build(), ct);
             }
             catch (Exception ex) when (command && payload.Contains("\"command\":\"project_file\"", StringComparison.Ordinal))
             {

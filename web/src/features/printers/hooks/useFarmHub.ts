@@ -131,10 +131,12 @@ export function useFarmHub(): HubConnection | null {
     connection.on(
       'PrinterStatusChanged',
       (payload: PrinterStatusChangedPayload) => {
-        // The printer's own state takes over from any send shown on it.
-        queryClient.resetQueries({
-          queryKey: printerSendProgressKey(payload.printerId),
-        });
+        // The printer's own state takes over from any send shown on it. An Idle printer coming back online
+        // keeps the send: it is still being uploaded to or preparing the file.
+        if (payload.status !== 'Idle')
+          queryClient.resetQueries({
+            queryKey: printerSendProgressKey(payload.printerId),
+          });
         // RFID items in Action required list only reachable printers.
         invalidateNotificationQueries(queryClient);
         // Stats split each printer's time by its status.

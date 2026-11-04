@@ -294,7 +294,7 @@ public class BambuLanProtocolTests
         await command;
         harness.ConnectionCount.Should().Be(1);
         harness.Subscriptions.Should().ContainSingle();
-        (await harness.NextCommandAsync()).Qos.Should().Be(1);
+        (await harness.NextCommandAsync()).Qos.Should().Be(0);
     }
 
     [Fact]
@@ -760,8 +760,9 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
-    public async Task StartJob_MissingPublishAcknowledgement_IsUnconfirmedAndNotRetried()
+    public async Task StartJob_PrinterNeverAcknowledgesPublish_StillStarts()
     {
+        // A P1S runs a QoS 1 command but sends no PUBACK; the start must not wait for one.
         await using var harness = new BambuMqttHarness { WithholdCommandAcknowledgement = true };
         var connector = harness.CreateConnector(harness.Options with
         {
@@ -769,10 +770,9 @@ public class BambuLanProtocolTests
             UploadFileAsync = (_, _, _, _, _) => Task.FromResult(FtpStatus.Success),
         });
         using var input = new MemoryStream("G28"u8.ToArray());
-        var start = () => connector.StartJobAsync(harness.Details, input, "ack.gcode", 1, null, CancellationToken.None);
-        await start.Should().ThrowAsync<BambuStartUnconfirmedException>();
+        await connector.StartJobAsync(harness.Details, input, "ack.gcode", 1, null, CancellationToken.None);
         var request = await harness.NextCommandAsync();
-        request.Qos.Should().Be(1);
+        request.Qos.Should().Be(0);
         harness.RequestCount.Should().Be(3, "two initialization requests and one start, without a resend");
     }
 
