@@ -58,18 +58,22 @@ public class PrinterActivityTests
     }
 
     [Fact]
-    public void AwaitingClear_HoldsWhileThePrinterIsUnreachable()
+    public void AnUnreachablePrinter_IsOfflineEvenWhileAwaitingClear()
     {
-        // OpenFarm's own state: only Mark ready or a new print ends it, so a dropped connection doesn't cut the wait short.
+        // A printer switched off with a finished plate is off, not waiting: the wait resumes when it is heard again.
         var printer = Reachable();
         Report(printer, "FINISH", T0.AddMinutes(1));
+        printer.MarkReachable(T0.AddMinutes(30));
 
         printer.MarkUnreachable();
-        printer.MarkReachable(T0.AddHours(2));
+        printer.MarkReachable(T0.AddDays(4));
 
+        printer.Status.Should().Be(PrinterStatus.AwaitingClear);
         printer.Activity.Should().Be(PrinterActivity.AwaitingClear);
-        printer.ActivitySinceUtc.Should().Be(T0.AddMinutes(1));
-        Spans(printer).Should().NotContain(s => s.Item1 == PrinterActivity.Offline);
+        printer.ActivitySinceUtc.Should().Be(T0.AddDays(4));
+        Spans(printer).TakeLast(2).Should().Equal(
+            (PrinterActivity.AwaitingClear, T0.AddMinutes(1), T0.AddMinutes(30)),
+            (PrinterActivity.Offline, T0.AddMinutes(30), T0.AddDays(4)));
     }
 
     [Fact]
@@ -105,20 +109,32 @@ public class PrinterActivityTests
     }
 
     [Fact]
-    public void MarkUnwatched_KeepsAwaitingClearAndAnOfflineStretch()
+    public void MarkUnwatched_RecordsUnknownWhileAwaitingClear()
     {
-        var awaiting = Reachable();
-        Report(awaiting, "FINISH", T0.AddMinutes(1));
+        var printer = Reachable();
+        Report(printer, "FINISH", T0.AddMinutes(1));
+        printer.MarkReachable(T0.AddMinutes(30));
+        var startup = T0.AddHours(5);
+
+        printer.MarkUnwatched(startup);
+
+        printer.Status.Should().Be(PrinterStatus.AwaitingClear);
+        printer.Activity.Should().Be(PrinterActivity.Offline);
+        printer.ActivitySinceUtc.Should().Be(startup);
+        Spans(printer).TakeLast(2).Should().Equal(
+            (PrinterActivity.AwaitingClear, T0.AddMinutes(1), T0.AddMinutes(30)),
+            (PrinterActivity.Unknown, T0.AddMinutes(30), startup));
+    }
+
+    [Fact]
+    public void MarkUnwatched_KeepsAnOfflineStretch()
+    {
         var offline = Reachable();
         offline.MarkUnreachable();
-        var awaitingSpans = awaiting.ClosedActivitySpans.Count;
         var offlineSpans = offline.ClosedActivitySpans.Count;
 
-        awaiting.MarkUnwatched(T0.AddHours(5));
         offline.MarkUnwatched(T0.AddHours(5));
 
-        awaiting.Activity.Should().Be(PrinterActivity.AwaitingClear);
-        awaiting.ClosedActivitySpans.Should().HaveCount(awaitingSpans);
         offline.Activity.Should().Be(PrinterActivity.Offline);
         offline.ClosedActivitySpans.Should().HaveCount(offlineSpans);
     }

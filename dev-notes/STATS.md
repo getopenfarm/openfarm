@@ -36,10 +36,12 @@ Add an index on `Prints.EndedAtUtc` past ~100k prints, and an hourly rollup only
 
 `Printer.Activity` since `ActivitySinceUtc` is the open stretch; each change appends a closed `PrinterActivitySpan`.
 
-- Derived, in order: Awaiting clear (OpenFarm's own state, kept while the printer is unreachable) → Offline → Paused (reported
-  PAUSE) → Printing → Idle.
+- Derived, in order: Offline → Awaiting clear → Paused (reported PAUSE) → Printing → Idle. A printer switched off with a plate
+  awaiting clear is Offline; the status stays Awaiting clear, and its stretch resumes when the printer is heard again. So
+  *Plate clear* measures only the time the printer was on.
 - Offline starts when the printer was last heard, not when the 90 s sweep noticed.
-- On startup each printer heard before the restart records Unknown from its last message: OpenFarm saw nothing then.
+- On startup each printer heard before the restart records Unknown from its last message, Awaiting clear included: OpenFarm
+  saw nothing then.
 - Times earlier than the open stretch are clamped; empty stretches are dropped.
 
 ## Print ends the printer did not report live

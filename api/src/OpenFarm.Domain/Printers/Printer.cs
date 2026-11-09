@@ -66,10 +66,10 @@ public sealed class Printer
     /// <summary>Stretches this instance closed, for saving with it; never loaded back.</summary>
     public IReadOnlyList<PrinterActivitySpan> ClosedActivitySpans => _closedActivitySpans;
 
-    // Awaiting clear is OpenFarm's own state: only Mark ready or a new print ends it, so it holds while the printer is unreachable.
+    // A printer that is off is Offline, even with a plate awaiting clear: that wait resumes when the printer is heard again.
     private PrinterActivity DerivedActivity =>
-        Status == PrinterStatus.AwaitingClear ? PrinterActivity.AwaitingClear
-        : !IsReachable ? PrinterActivity.Offline
+        !IsReachable ? PrinterActivity.Offline
+        : Status == PrinterStatus.AwaitingClear ? PrinterActivity.AwaitingClear
         : Status != PrinterStatus.Printing ? PrinterActivity.Idle
         : string.Equals(ReportedState, "PAUSE", StringComparison.OrdinalIgnoreCase) ? PrinterActivity.Paused
         : PrinterActivity.Printing;
@@ -275,11 +275,11 @@ public sealed class Printer
     /// <summary>
     /// OpenFarm is starting, so nothing was observed since the printer was last heard: that stretch is
     /// <see cref="PrinterActivity.Unknown"/>, and the printer is unreachable until its first message. A printer already offline
-    /// stays offline, and Awaiting clear carries through.
+    /// stays offline.
     /// </summary>
     public void MarkUnwatched(DateTimeOffset nowUtc)
     {
-        if (IsReachable && Status != PrinterStatus.AwaitingClear)
+        if (IsReachable)
             SwitchActivity(PrinterActivity.Unknown, LastMessageUtc ?? nowUtc);
         IsReachable = false;
         BeginConnection();
