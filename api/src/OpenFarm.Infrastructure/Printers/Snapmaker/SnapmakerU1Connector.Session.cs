@@ -44,9 +44,9 @@ public sealed partial class SnapmakerU1Connector
                 await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(_options.MaxReconnectDelay.TotalMilliseconds, _options.ReconnectDelay.TotalMilliseconds * Math.Pow(2, Math.Min(failures++, 16)))), cancellationToken);
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
-            // Expected on shutdown.
+            // Expected on shutdown; whatever a request was answering by then (a late error included) no longer matters.
         }
         finally
         {
