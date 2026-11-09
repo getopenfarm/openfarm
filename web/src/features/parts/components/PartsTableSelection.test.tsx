@@ -96,9 +96,14 @@ function success() {
   return new Response(null, { status: 204 });
 }
 
-afterEach(() => {
+afterEach(async () => {
   localStorage.clear();
   toast.dismiss();
+  // Sonner unmounts a dismissed toast after rAF + 200 ms; wait for it, so the timer
+  // cannot fire after jsdom is torn down.
+  await waitFor(() =>
+    expect(document.querySelector('[data-sonner-toast]')).toBeNull(),
+  );
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });

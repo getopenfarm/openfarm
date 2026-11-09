@@ -93,11 +93,11 @@ async function confirm() {
 }
 afterEach(async () => {
   toast.dismiss();
-  // Sonner dismisses via rAF + setTimeout; let them settle so they cannot
-  // leak into the next test's Toaster.
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  });
+  // Sonner unmounts a dismissed toast after rAF + 200 ms; wait for it, so the timer
+  // neither leaks into the next test nor fires after jsdom is torn down.
+  await waitFor(() =>
+    expect(document.querySelector('[data-sonner-toast]')).toBeNull(),
+  );
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
