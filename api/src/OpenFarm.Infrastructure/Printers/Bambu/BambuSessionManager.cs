@@ -11,6 +11,8 @@ namespace OpenFarm.Infrastructure.Printers.Bambu;
 internal sealed partial class BambuSessionManager
 {
     internal static BambuSessionManager Shared { get; } = new();
+    private const string PushAll = """{"pushing":{"sequence_id":"0","command":"pushall"}}""";
+    private const string PushStart = """{"pushing":{"sequence_id":"0","command":"start"}}""";
     private readonly object _gate = new();
     private readonly Dictionary<string, Session> _sessions = [];
     private readonly Dictionary<string, Task> _closing = [];
@@ -79,6 +81,8 @@ internal sealed partial class BambuSessionManager
     private static partial void LogFallback(ILogger logger, string serial, string reason);
     [LoggerMessage(Level = LogLevel.Warning, Message = "MQTT session for printer {Serial} failed.")]
     private static partial void LogFailed(ILogger logger, string serial, Exception exception);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Printer {Serial} sent no report for a while; requesting one.")]
+    private static partial void LogSilent(ILogger logger, string serial);
     [LoggerMessage(Level = LogLevel.Debug, Message = "MQTT cleanup for {Serial} failed.")]
     private static partial void LogCleanup(ILogger logger, string serial, Exception exception);
 
@@ -162,10 +166,14 @@ internal sealed partial class BambuSessionManager
                     using var client = options.CreateMqttClient();
                     var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                     string? certificateFailure = null;
+                    var lastReportTicks = DateTimeOffset.UtcNow.UtcTicks;
                     client.ApplicationMessageReceivedAsync += e =>
                     {
                         if (e.ApplicationMessage.Topic == $"device/{details.SerialNumber}/report")
+                        {
+                            Interlocked.Exchange(ref lastReportTicks, DateTimeOffset.UtcNow.UtcTicks);
                             Broadcast(new(Encoding.UTF8.GetString(e.ApplicationMessage.Payload)));
+                        }
                         return Task.CompletedTask;
                     };
                     client.DisconnectedAsync += _ =>
@@ -198,11 +206,11 @@ internal sealed partial class BambuSessionManager
                         Broadcast(new(Started: true));
                         failures = 0;
                         LogReady(logger, details.SerialNumber);
-                        foreach (var payload in new[] { """{"pushing":{"sequence_id":"0","command":"pushall"}}""", """{"info":{"sequence_id":"0","command":"get_version"}}""" })
+                        foreach (var payload in new[] { PushAll, """{"info":{"sequence_id":"0","command":"get_version"}}""" })
                             await client.PublishAsync(new MqttApplicationMessageBuilder().WithTopic($"device/{details.SerialNumber}/request").WithPayload(payload).Build(), attempt.Token);
                         if (!client.IsConnected) throw new IOException("Printer disconnected during initialization.");
                         lock (_gate) _ready.TrySetResult(client);
-                        await closed.Task.WaitAsync(_stop.Token);
+                        await NudgeWhileSilentAsync(client, closed.Task, () => Interlocked.Read(ref lastReportTicks));
                     }
                     catch (Exception ex) when (!_stop.IsCancellationRequested)
                     {
@@ -235,6 +243,33 @@ internal sealed partial class BambuSessionManager
             finally
             {
                 lock (_gate) _ready.TrySetCanceled(_stop.Token);
+            }
+        }
+
+        /// <summary>
+        /// Waits for the session to close, asking for reports after each <see cref="BambuTransportOptions.ReportSilenceNudge"/>
+        /// of silence. A booting P1S accepts the connection before it answers requests, so the connect-time pushall can be lost,
+        /// and an idle P1S then pushes nothing while keepalive stays healthy: without asking again it stays offline. A failed
+        /// nudge throws, which replaces the session.
+        /// </summary>
+        private async Task NudgeWhileSilentAsync(IMqttClient client, Task closed, Func<long> lastReportTicks)
+        {
+            var lastNudgeTicks = 0L;
+            while (!closed.IsCompleted)
+            {
+                var wait = TimeSpan.FromTicks(Math.Max(lastReportTicks(), lastNudgeTicks) + options.ReportSilenceNudge.Ticks - DateTimeOffset.UtcNow.UtcTicks);
+                if (wait > TimeSpan.Zero)
+                {
+                    await Task.WhenAny(closed, Task.Delay(wait, _stop.Token));
+                    _stop.Token.ThrowIfCancellationRequested();
+                    continue;
+                }
+                LogSilent(logger, details.SerialNumber);
+                using var nudge = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
+                nudge.CancelAfter(options.ConnectTimeout);
+                foreach (var payload in new[] { PushStart, PushAll })
+                    await client.PublishAsync(new MqttApplicationMessageBuilder().WithTopic($"device/{details.SerialNumber}/request").WithPayload(payload).Build(), nudge.Token);
+                lastNudgeTicks = DateTimeOffset.UtcNow.UtcTicks;
             }
         }
 

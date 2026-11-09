@@ -237,7 +237,7 @@ public class BambuLanProtocolTests
     }
 
     [Fact]
-    public async Task Connect_SilentPrinter_KeepsSessionWithoutPolling()
+    public async Task Connect_SilentPrinter_KeepsSessionWithoutReconnecting()
     {
         await using var harness = new BambuMqttHarness();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -247,7 +247,41 @@ public class BambuLanProtocolTests
         (await harness.NextRequestAsync()).Payload.Should().Contain("get_version");
         await Task.Delay(500, cts.Token);
         harness.ConnectionCount.Should().Be(1);
-        harness.RequestCount.Should().Be(2, "silence does not manufacture commands or reconnects");
+        harness.RequestCount.Should().Be(2, "silence shorter than the nudge interval sends nothing and never reconnects");
+    }
+
+    [Fact]
+    public async Task Connect_PrinterIgnoringThePushAll_IsAskedAgainOnTheSameSession()
+    {
+        // A booting P1S accepts the connection before it answers: the connect-time pushall is lost and nothing follows.
+        await using var harness = new BambuMqttHarness { ReplyToPushAll = false, ReplyToVersion = false, ReplyToPushStart = false };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var session = BambuSessionManager.Shared.Acquire(harness.Details,
+            harness.Options with { ReportSilenceNudge = TimeSpan.FromMilliseconds(200) }, NullLogger.Instance);
+        await session.ReadyAsync(cts.Token);
+        (await harness.NextRequestAsync()).Payload.Should().Contain("pushall");
+        (await harness.NextRequestAsync()).Payload.Should().Contain("get_version");
+
+        (await harness.NextRequestAsync()).Payload.Should().Be("""{"pushing":{"sequence_id":"0","command":"start"}}""");
+        (await harness.NextRequestAsync()).Payload.Should().Be("""{"pushing":{"sequence_id":"0","command":"pushall"}}""");
+        harness.ConnectionCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Connect_ReportingPrinter_IsNotNudged()
+    {
+        await using var harness = new BambuMqttHarness();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var connector = harness.CreateConnector(harness.Options with { ReportSilenceNudge = TimeSpan.FromMilliseconds(300) });
+        await using var events = connector.ConnectAsync(harness.Details, cts.Token).GetAsyncEnumerator();
+        (await ReadNextAsync(events, cts)).Should().BeTrue();
+        for (var i = 0; i < 10; i++)
+        {
+            await harness.PublishReportAsync("""{"print":{"nozzle_temper":25}}""");
+            await Task.Delay(100, cts.Token);
+        }
+
+        harness.RequestCount.Should().Be(2, "a printer that keeps reporting is never asked again");
     }
 
     [Fact]
