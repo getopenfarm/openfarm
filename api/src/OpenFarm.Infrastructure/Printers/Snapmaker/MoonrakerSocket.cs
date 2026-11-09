@@ -107,7 +107,7 @@ internal sealed class MoonrakerSocket : IAsyncDisposable
         }
     }
 
-    public async Task<JsonNode?> CallAsync(string method, object? parameters, TimeSpan timeout, CancellationToken cancellationToken)
+    public async Task<JsonNode?> CallAsync(string method, object? parameters, TimeSpan timeout, CancellationToken cancellationToken, Action? sent = null)
     {
         var id = Interlocked.Increment(ref _nextId);
         var answer = new TaskCompletionSource<JsonNode?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -121,6 +121,7 @@ internal sealed class MoonrakerSocket : IAsyncDisposable
             try
             {
                 await _socket.SendAsync(request, WebSocketMessageType.Text, endOfMessage: true, callCts.Token);
+                sent?.Invoke();
             }
             finally
             {
@@ -157,9 +158,11 @@ internal sealed class MoonrakerSocket : IAsyncDisposable
             if (_printState is null && subscribe)
                 await CallAsync("printer.objects.subscribe", new { objects = new { print_stats = PrintStateFields } }, timeout, deadline.Token);
             if (Matches(_printState)) observed.TrySetResult();
-            var rpc = CallAsync(method, null, timeout, deadline.Token);
+            var sent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var rpc = CallAsync(method, null, timeout, deadline.Token, () => sent.TrySetResult());
             _ = rpc.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
-            var completed = await Task.WhenAny(rpc, observed.Task).WaitAsync(deadline.Token);
+            // A state already reached still waits for the command to go out, so the caller never closes the socket on it.
+            var completed = await Task.WhenAny(rpc, Task.WhenAll(sent.Task, observed.Task)).WaitAsync(deadline.Token);
             await completed;
         }
         finally { PrintStateObserved -= Observe; }
