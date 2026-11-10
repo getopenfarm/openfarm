@@ -108,31 +108,11 @@ public sealed class PrinterDetailResponse
 
     /// <summary>Always non-empty for a registered printer — derived purely from Brand/ModelCode, independent of MachineProfileId.</summary>
     public IReadOnlyList<BuildPlateTypeOptionResponse> CompatibleBuildPlateTypes { get; set; } = [];
-}
 
-[Permission("printers:get-detail")]
-public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery, PrinterDetail?> handler)
-    : EndpointWithoutRequest<PrinterDetailResponse>
-{
-    public override void Configure()
+    public static PrinterDetailResponse From(PrinterDetail detail)
     {
-        Get("/api/v1/printers/{id}");
-        Policies("Permission");
-    }
-
-    public override async Task HandleAsync(CancellationToken ct)
-    {
-        var id = Route<Guid>("id");
-        var detail = await handler.HandleAsync(new GetPrinterDetailQuery(id), ct);
-
-        if (detail is null)
-        {
-            await HttpContext.Response.SendNotFoundAsync(ct);
-            return;
-        }
-
         var model = PrinterModelCatalog.Find(detail.Brand, detail.ModelCode);
-        Response = new PrinterDetailResponse
+        return new PrinterDetailResponse
         {
             Id = detail.Id,
             Name = detail.Name,
@@ -171,5 +151,30 @@ public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery
                 .Select(option => new BuildPlateTypeOptionResponse { Value = option.Value.ToString(), Label = option.Label })
                 .ToList(),
         };
+    }
+}
+
+[Permission("printers:get-detail")]
+public sealed class GetPrinterDetailEndpoint(IQueryHandler<GetPrinterDetailQuery, PrinterDetail?> handler)
+    : EndpointWithoutRequest<PrinterDetailResponse>
+{
+    public override void Configure()
+    {
+        Get("/api/v1/printers/{id}");
+        Policies("Permission");
+    }
+
+    public override async Task HandleAsync(CancellationToken ct)
+    {
+        var id = Route<Guid>("id");
+        var detail = await handler.HandleAsync(new GetPrinterDetailQuery(id), ct);
+
+        if (detail is null)
+        {
+            await HttpContext.Response.SendNotFoundAsync(ct);
+            return;
+        }
+
+        Response = PrinterDetailResponse.From(detail);
     }
 }

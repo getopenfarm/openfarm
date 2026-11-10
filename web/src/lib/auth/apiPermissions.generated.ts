@@ -149,6 +149,10 @@ export const apiQueryPermissions = [
     permissions: ['assemblies:view'],
   },
   {
+    pattern: '^/api/v1/auth/apps$',
+    permissions: [],
+  },
+  {
     pattern: '^/api/v1/filaments$',
     permissions: ['filaments:list'],
   },

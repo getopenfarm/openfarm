@@ -34,6 +34,8 @@ Do not put credentials in URLs, logs, or source files. Each request requires per
 
 **Revoke** and **Revoke all** take effect on subsequent requests. Administrators can revoke another user's tokens. They cannot create or regenerate credentials for that user.
 
+The same token also works with the MCP server at `/mcp`, for AI assistants: see [AI assistants](../administration/ai-assistants.md).
+
 Password changes and resets revoke personal tokens. Disabling the owner's account revokes tokens and sessions. Personal tokens cannot manage accounts, browser sessions, or other tokens. They also cannot connect to SignalR live events. These operations require a browser session.
 
 ## Read the contract

@@ -35,6 +35,12 @@ public sealed class ListSpoolsResponse
 
     /// <summary>Spools matching the filters across all pages.</summary>
     public int TotalCount { get; set; }
+
+    public static ListSpoolsResponse From(SpoolSummaryPage page) => new()
+    {
+        Spools = page.Spools.Select(SpoolResponse.FromSummary).ToList(),
+        TotalCount = page.TotalCount,
+    };
 }
 
 /// <summary>FR-015 — filters by state, filament, color (variant), and vendor, free-text search, and opt-in paging; all applied in SQL.</summary>
@@ -59,10 +65,6 @@ public sealed class ListSpoolsEndpoint(IQueryHandler<GetSpoolsQuery, SpoolSummar
                 req.State, req.FilamentId, req.FilamentVariantId, req.VendorId, req.Search, Page: page, PageSize: pageSize,
                 NewestFirst: req.NewestFirst ?? false), ct);
 
-        Response = new ListSpoolsResponse
-        {
-            Spools = result.Spools.Select(SpoolResponse.FromSummary).ToList(),
-            TotalCount = result.TotalCount,
-        };
+        Response = ListSpoolsResponse.From(result);
     }
 }

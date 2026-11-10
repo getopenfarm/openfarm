@@ -20,6 +20,15 @@ public sealed class DomainExceptionHandler : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
+        if (ToProblem(exception) is not { } problem) return false;
+        httpContext.Response.StatusCode = problem.Status!.Value;
+        await httpContext.Response.WriteAsJsonAsync(problem, cancellationToken);
+        return true;
+    }
+
+    /// <summary>The ProblemDetails for a known domain exception, or null. Shared with MCP tool errors.</summary>
+    public static ProblemDetails? ToProblem(Exception exception)
+    {
         var (statusCode, title) = exception switch
         {
             Microsoft.EntityFrameworkCore.DbUpdateException { InnerException: Npgsql.PostgresException { SqlState: "23503", ConstraintName: "FK_Parts_LibraryFolders_FolderId" or "FK_Assemblies_LibraryFolders_FolderId" } } => (StatusCodes.Status409Conflict, "Folder changed"),
@@ -132,7 +141,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
 
         if (statusCode == 0)
         {
-            return false;
+            return null;
         }
 
         var extensions = new Dictionary<string, object?>();
@@ -151,18 +160,13 @@ public sealed class DomainExceptionHandler : IExceptionHandler
         else if (exception is OpenFarm.Application.Maintenance.MaintenanceCompletionFailedException completion)
             extensions["failures"] = completion.Failures.ToDictionary(f => f.Key.ToString(), f => f.Value);
         else if (exception is SlicingProfileUnconfiguredException { Code: { } profileCode }) extensions["code"] = profileCode;
-        httpContext.Response.StatusCode = statusCode;
-        await httpContext.Response.WriteAsJsonAsync(
-            new ProblemDetails
-            {
-                Type = $"https://httpstatuses.io/{statusCode}",
-                Title = title,
-                Status = statusCode,
-                Detail = exception.Message,
-                Extensions = extensions,
-            },
-            cancellationToken);
-
-        return true;
+        return new ProblemDetails
+        {
+            Type = $"https://httpstatuses.io/{statusCode}",
+            Title = title,
+            Status = statusCode,
+            Detail = exception.Message,
+            Extensions = extensions,
+        };
     }
 }

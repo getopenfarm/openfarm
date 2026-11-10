@@ -7967,6 +7967,37 @@
         ]
       }
     },
+    "/api/v1/auth/apps": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthListConnectedAppsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectedAppsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/display-preferences": {
       "get": {
         "tags": [
@@ -16326,6 +16357,19 @@
           },
           "username": {
             "type": "string"
+          }
+        }
+      },
+      "ConnectedAppsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mcpUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "signInEnabled": {
+            "type": "boolean"
           }
         }
       },

@@ -1,5 +1,16 @@
 <!--
 Sync Impact Report
+- Version change: 2.0.0 → 2.1.0
+- Rationale: MINOR bump. AI assistants reach OpenFarm over MCP at `/mcp`, a JSON-RPC protocol endpoint
+  served by the official MCP SDK. Principles II and III name the protocol endpoints (`/mcp`, and later
+  `/oauth/*` and `/.well-known/*`) as the only exceptions to REPR and ProblemDetails; they keep the same
+  Application handlers, permission checks and activity log.
+- Modified principles: II (REPR exception), III (error-shape exception)
+- Added principles / sections: none
+- Templates requiring updates: none
+- Follow-up TODOs: none
+
+Prior report (2.0.0, retained for history):
 - Version change: 1.1.0 → 2.0.0
 - Rationale: MAJOR bump. OpenFarm is now a real single-tenant, self-hosted app; the multi-tenancy
   groundwork (Finbuckle, `organization_id` on every table, tenant-scoped hub groups, `org` JWT claim)
@@ -54,7 +65,8 @@ concerns anywhere in those two projects. `Infrastructure` is the only swappable 
 connectivity, encryption, background jobs), reached exclusively through contracts like
 `IPrinterConnector` so a transport can be replaced without touching business logic. `Api` is a thin
 FastEndpoints adapter over `Application` commands/queries — one class per endpoint (REPR pattern),
-nothing else. Nullable reference types are enabled and warnings are errors in Release builds; TypeScript
+nothing else. The only exceptions are protocol endpoints whose shape a standard fixes (`/mcp`,
+`/oauth/*`, `/.well-known/*`); they call the same `Application` handlers and permission checks. Nullable reference types are enabled and warnings are errors in Release builds; TypeScript
 runs under `strict: true`. `dotnet format --verify-no-changes` and Biome (`lint`/`format`) are enforced
 in CI as merge gates, not left as local-only convention.
 
@@ -89,7 +101,8 @@ rule produces the same visibility decision on both sides of the stack. Domain st
 the UI — the same label, the same available actions. Forms use react-hook-form + zod and primitives come
 from shadcn/ui in `src/components/ui/` uniformly; no feature invents its own form-handling or component
 pattern. All API errors surface as RFC 7807 `ProblemDetails`, giving the frontend exactly one error shape
-to render rather than one per endpoint.
+to render rather than one per endpoint. Protocol endpoints answer in their standard's error shape (MCP
+tool errors, OAuth `{"error"}` bodies), mapped from the same domain exceptions.
 
 ### IV. Build for Expansion, Not Speculation
 
@@ -192,4 +205,4 @@ checked against these principles during review. Any deliberate deviation MUST be
 description, mirroring the `Complexity Tracking` table already present in `plan-template.md` for
 feature-plan-level violations.
 
-**Version**: 2.0.0 | **Ratified**: 2026-07-12 | **Last Amended**: 2026-10-18
+**Version**: 2.1.0 | **Ratified**: 2026-07-12 | **Last Amended**: 2026-11-10

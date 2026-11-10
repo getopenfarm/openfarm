@@ -1,7 +1,8 @@
-import { CheckIcon, CopyIcon, KeyRoundIcon } from 'lucide-react';
+import { KeyRoundIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { CopyButton } from './CopyButton';
 
 /** Mounted only for the immediate create/regenerate response. */
 export function TokenCredential({
@@ -11,17 +12,7 @@ export function TokenCredential({
   credential: string;
   onDone: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(credential);
-      setCopied(true);
-      setError('');
-    } catch {
-      setError('Could not copy. Select the credential and copy it manually.');
-    }
-  }
   return (
     <section
       className="flex flex-col gap-3 rounded-lg border border-primary bg-card p-4"
@@ -38,19 +29,7 @@ export function TokenCredential({
         <code className="min-w-0 flex-1 rounded-md border bg-muted p-3 text-sm break-all select-all">
           {credential}
         </code>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => void copy()}
-        >
-          {copied ? (
-            <CheckIcon data-icon="inline-start" />
-          ) : (
-            <CopyIcon data-icon="inline-start" />
-          )}
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
+        <CopyButton value={credential} what="credential" onError={setError} />
       </div>
       <p className="text-xs text-muted-foreground">
         Send it in an <code>Authorization: Bearer</code> header. If you lose it,

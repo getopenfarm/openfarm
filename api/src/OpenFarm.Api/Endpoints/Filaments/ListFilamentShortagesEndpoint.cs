@@ -18,6 +18,16 @@ public sealed class FilamentShortageResponse
 public sealed class ListFilamentShortagesResponse
 {
     public IReadOnlyList<FilamentShortageResponse> Shortages { get; set; } = [];
+
+    public static ListFilamentShortagesResponse From(IReadOnlyList<FilamentShortage> shortages) => new()
+    {
+        Shortages = shortages.Select(s => new FilamentShortageResponse
+        {
+            FilamentVariantId = s.FilamentVariantId,
+            QueuedGrams = s.QueuedGrams,
+            OnHandGrams = s.OnHandGrams,
+        }).ToList(),
+    };
 }
 
 /// <summary>GET /api/v1/filaments/shortages — colours queued finite work needs more of than is on hand. Apart from the filament list so pickers don't pay for the job scan.</summary>
@@ -34,14 +44,6 @@ public sealed class ListFilamentShortagesEndpoint(IQueryHandler<GetFilamentShort
     public override async Task HandleAsync(CancellationToken ct)
     {
         var shortages = await handler.HandleAsync(new GetFilamentShortagesQuery(), ct);
-        Response = new ListFilamentShortagesResponse
-        {
-            Shortages = shortages.Select(s => new FilamentShortageResponse
-            {
-                FilamentVariantId = s.FilamentVariantId,
-                QueuedGrams = s.QueuedGrams,
-                OnHandGrams = s.OnHandGrams,
-            }).ToList(),
-        };
+        Response = ListFilamentShortagesResponse.From(shortages);
     }
 }

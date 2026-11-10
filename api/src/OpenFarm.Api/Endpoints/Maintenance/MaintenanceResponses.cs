@@ -36,7 +36,11 @@ public sealed record MaintenanceEnrollmentResponse(
     }
 }
 
-public sealed record MaintenanceEnrollmentsResponse(IReadOnlyList<MaintenanceEnrollmentResponse> Items);
+public sealed record MaintenanceEnrollmentsResponse(IReadOnlyList<MaintenanceEnrollmentResponse> Items)
+{
+    public static MaintenanceEnrollmentsResponse From(IEnumerable<MaintenanceEnrollmentView> views) =>
+        new(views.Select(MaintenanceEnrollmentResponse.From).ToList());
+}
 
 public sealed record MaintenanceLogsResponse(IReadOnlyList<MaintenanceLogView> Items, int TotalCount);
 

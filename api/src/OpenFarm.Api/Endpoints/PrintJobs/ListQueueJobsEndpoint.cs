@@ -38,6 +38,13 @@ public sealed class ListQueueJobsResponse
     public int TotalCount { get; set; }
 
     public IReadOnlyDictionary<string, int> StatusCounts { get; set; } = new Dictionary<string, int>();
+
+    public static ListQueueJobsResponse From(QueueJobsPage page) => new()
+    {
+        TotalCount = page.TotalCount,
+        StatusCounts = page.StatusCounts,
+        Items = page.Items.Select(QueueJobRowResponse.FromRow).ToList(),
+    };
 }
 
 /// <summary>GET /api/v1/print-jobs?view=queue|backfill|external — the flat, QueuePosition-ordered "dispatch order" lens (FR-008); "external" lists prints the printer started itself, newest first.</summary>
@@ -60,11 +67,6 @@ public sealed class ListQueueJobsEndpoint(IQueryHandler<GetQueueJobsQuery, Queue
 
         var result = await handler.HandleAsync(new GetQueueJobsQuery(page, pageSize, backfillOnly, req.Status, req.Search, externalOnly), ct);
 
-        Response = new ListQueueJobsResponse
-        {
-            TotalCount = result.TotalCount,
-            StatusCounts = result.StatusCounts,
-            Items = result.Items.Select(QueueJobRowResponse.FromRow).ToList(),
-        };
+        Response = ListQueueJobsResponse.From(result);
     }
 }

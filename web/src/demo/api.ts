@@ -5,6 +5,7 @@ import type {
   ActivityLogPageResponse,
   AssemblyResponse,
   AssemblySummaryResponse,
+  ConnectedAppsResponse,
   ExplodeAssemblyResponse,
   FeedReadingResponse,
   FeedUnitResponse,
@@ -1408,6 +1409,11 @@ route('GET', '/auth/sessions', () => [
   },
 ]);
 route('GET', '/auth/tokens', () => []);
+route(
+  'GET',
+  '/auth/apps',
+  (): ConnectedAppsResponse => ({ mcpUrl: null, signInEnabled: false }),
+);
 route('GET', '/auth/tokens/options', () => ({
   permissions: PERMISSIONS,
   maxLifetimeDays: 365,

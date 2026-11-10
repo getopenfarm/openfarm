@@ -16,8 +16,8 @@ public sealed class PersonalAccessTokenHandler(IOptionsMonitor<AuthenticationSch
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.Path.StartsWithSegments("/api/v1"))
-            return AuthenticateResult.Fail("Personal access tokens are only supported by the REST API.");
+        if (!Request.Path.StartsWithSegments("/api/v1") && !Request.Path.StartsWithSegments("/mcp"))
+            return AuthenticateResult.Fail("Personal access tokens are only supported by the REST API and /mcp.");
         var header = Request.Headers.Authorization.ToString();
         if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return AuthenticateResult.NoResult();
         var row = await tokens.AuthenticateAsync(header[7..], Context.RequestAborted);
@@ -25,5 +25,16 @@ public sealed class PersonalAccessTokenHandler(IOptionsMonitor<AuthenticationSch
         var claims = new List<Claim> { new("sub", row.UserId.ToString()), new("pat", row.Id.ToString()), new(NameClaim, row.Name) };
         claims.AddRange(row.Permissions.Select(p => new Claim(PermissionClaim, p)));
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
+    }
+
+    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+    {
+        if (!Request.Path.StartsWithSegments("/mcp")) return base.HandleChallengeAsync(properties);
+        // MCP clients read the challenge to learn how to authenticate (RFC 6750 §3).
+        Response.StatusCode = StatusCodes.Status401Unauthorized;
+        Response.Headers.WWWAuthenticate = Request.Headers.Authorization.Count > 0
+            ? "Bearer realm=\"openfarm-mcp\", error=\"invalid_token\""
+            : "Bearer realm=\"openfarm-mcp\"";
+        return Task.CompletedTask;
     }
 }

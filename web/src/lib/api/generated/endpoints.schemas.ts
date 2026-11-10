@@ -2896,6 +2896,12 @@ export interface ProfileInput {
   username?: string;
 }
 
+export interface ConnectedAppsResponse {
+  /** @nullable */
+  mcpUrl?: string | null;
+  signInEnabled?: boolean;
+}
+
 export interface DisplayPreferencesResponse {
   currencyCode?: string;
 }

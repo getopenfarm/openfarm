@@ -81,6 +81,12 @@ public sealed class ListPartsResponse
 {
     public List<PartSummaryResponse> Parts { get; set; } = [];
     public int TotalCount { get; set; }
+
+    public static ListPartsResponse From(PartsPage page) => new()
+    {
+        TotalCount = page.TotalCount,
+        Parts = page.Parts.Select(PartSummaryResponse.FromSummary).ToList(),
+    };
 }
 
 // GET /api/v1/parts (contracts/part-library-api.md).
@@ -104,10 +110,6 @@ public sealed class ListPartsEndpoint(IQueryHandler<GetPartsQuery, PartsPage> ha
 
         var result = await handler.HandleAsync(new GetPartsQuery(req.Tag ?? [], page, pageSize, ListSort.Parse(req.SortBy, req.SortDirection, "name"), req.Folder), ct);
 
-        Response = new ListPartsResponse
-        {
-            TotalCount = result.TotalCount,
-            Parts = result.Parts.Select(PartSummaryResponse.FromSummary).ToList(),
-        };
+        Response = ListPartsResponse.From(result);
     }
 }

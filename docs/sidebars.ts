@@ -73,7 +73,11 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Administration',
-      items: ['administration/accounts', 'administration/settings'],
+      items: [
+        'administration/accounts',
+        'administration/ai-assistants',
+        'administration/settings',
+      ],
     },
     {
       type: 'category',

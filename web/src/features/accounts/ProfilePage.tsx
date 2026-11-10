@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { ErrorState } from '@/components/empty-state/EmptyState';
 import {
@@ -19,9 +19,12 @@ import {
   SettingsSection,
 } from '@/features/settings/SettingsParts';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
+import { useOpenFarmApiEndpointsAuthListConnectedAppsEndpoint } from '@/lib/api/generated/auth/auth';
+import type { ConnectedAppsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
 import { type CurrentUser, useIdentity } from '@/lib/auth/permissions';
 import { sessionsKey, useUpdateProfile, whoAmIKey } from './api';
+import { ConnectAssistantCard } from './ConnectAssistantCard';
 import { SessionList } from './SessionList';
 import { TokenList } from './TokenList';
 
@@ -30,6 +33,7 @@ const tabs = [
   { id: 'security', label: 'Security' },
   { id: 'sessions', label: 'Sessions' },
   { id: 'tokens', label: 'Access tokens' },
+  { id: 'apps', label: 'Connected apps' },
 ] as const;
 type Tab = (typeof tabs)[number]['id'];
 
@@ -77,11 +81,21 @@ export function ProfilePage() {
       {tab === 'tokens' && (
         <SettingsSection
           title="Access tokens"
-          description="Credentials for scripts and integrations"
+          description={
+            <>
+              Personal access tokens let a script or an AI assistant use
+              OpenFarm as you, with only the permissions you give each one. Send
+              one in an <code>Authorization: Bearer</code> header.{' '}
+              <Link to="/profile?tab=apps" replace className="underline">
+                Connect an AI assistant
+              </Link>
+            </>
+          }
         >
           <TokenList />
         </SettingsSection>
       )}
+      {tab === 'apps' && <ConnectedAppsTab />}
       {tab === 'sessions' && (
         <SettingsSection
           title="Sessions"
@@ -91,6 +105,32 @@ export function ProfilePage() {
         </SettingsSection>
       )}
     </SideNavPage>
+  );
+}
+
+function ConnectedAppsTab() {
+  const query = useOpenFarmApiEndpointsAuthListConnectedAppsEndpoint();
+  const apps = query.data?.data as ConnectedAppsResponse | undefined;
+  return (
+    <SettingsSection
+      title="Connected apps"
+      description="Apps that use OpenFarm as you, with the access you allowed. Revoking access disconnects the app at once."
+    >
+      {apps ? (
+        <ConnectAssistantCard
+          mcpUrl={apps.mcpUrl}
+          signInEnabled={apps.signInEnabled ?? false}
+          defaultOpen
+        />
+      ) : query.isError ? (
+        <ErrorState
+          title="Could not load connected apps"
+          onRetry={() => query.refetch()}
+        />
+      ) : (
+        <Skeleton className="h-48" />
+      )}
+    </SettingsSection>
   );
 }
 

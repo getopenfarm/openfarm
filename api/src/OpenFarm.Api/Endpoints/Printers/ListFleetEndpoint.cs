@@ -51,6 +51,36 @@ public sealed class FleetPrinterResponse
 public sealed class ListFleetResponse
 {
     public IReadOnlyList<FleetPrinterResponse> Printers { get; set; } = [];
+
+    public static ListFleetResponse From(IReadOnlyList<FleetPrinterSummary> printers) =>
+    new ListFleetResponse
+    {
+        Printers = printers
+            .Select(p => new FleetPrinterResponse
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Brand = p.Brand,
+                ModelCode = p.ModelCode,
+                Model = PrinterModelResponse.Find(p.Brand, p.ModelCode),
+                IpAddress = p.IpAddress,
+                SerialNumber = p.SerialNumber,
+                Status = p.Status.ToString(),
+                IsReachable = p.IsReachable,
+                PrintProgressPercent = p.PrintProgressPercent,
+                NozzleDiameterMm = p.NozzleDiameterMm,
+                NozzleObservedAtUtc = p.NozzleObservedAtUtc,
+                NozzleConfirmed = p.NozzleConfirmed,
+                NozzleTempC = p.NozzleTempC,
+                BedTempC = p.BedTempC,
+                CurrentStageLabel = p.CurrentStageLabel,
+                RemainingTimeMinutes = p.RemainingTimeMinutes,
+                CurrentJobName = p.CurrentJobName,
+                CurrentPrintJobId = p.CurrentPrintJobId,
+                FilamentColorHex = p.FilamentColorHex,
+            })
+            .ToList(),
+    };
 }
 
 [Permission("printers:list")]
@@ -67,33 +97,6 @@ public sealed class ListFleetEndpoint(IQueryHandler<GetFleetQuery, IReadOnlyList
     {
         var printers = await handler.HandleAsync(new GetFleetQuery(), ct);
 
-        Response = new ListFleetResponse
-        {
-            Printers = printers
-                .Select(p => new FleetPrinterResponse
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Brand = p.Brand,
-                    ModelCode = p.ModelCode,
-                    Model = PrinterModelResponse.Find(p.Brand, p.ModelCode),
-                    IpAddress = p.IpAddress,
-                    SerialNumber = p.SerialNumber,
-                    Status = p.Status.ToString(),
-                    IsReachable = p.IsReachable,
-                    PrintProgressPercent = p.PrintProgressPercent,
-                    NozzleDiameterMm = p.NozzleDiameterMm,
-                    NozzleObservedAtUtc = p.NozzleObservedAtUtc,
-                    NozzleConfirmed = p.NozzleConfirmed,
-                    NozzleTempC = p.NozzleTempC,
-                    BedTempC = p.BedTempC,
-                    CurrentStageLabel = p.CurrentStageLabel,
-                    RemainingTimeMinutes = p.RemainingTimeMinutes,
-                    CurrentJobName = p.CurrentJobName,
-                    CurrentPrintJobId = p.CurrentPrintJobId,
-                    FilamentColorHex = p.FilamentColorHex,
-                })
-                .ToList(),
-        };
+        Response = ListFleetResponse.From(printers);
     }
 }

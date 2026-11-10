@@ -26,6 +26,7 @@ import type {
   AccessTokenCreated,
   AccessTokenInput,
   AccessTokenView,
+  ConnectedAppsResponse,
   CsrfResponse,
   DisplayPreferencesResponse,
   LoginCommand,
@@ -1234,6 +1235,224 @@ export const useOpenFarmApiEndpointsAuthUpdateProfileEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsAuthListConnectedAppsEndpointResponse200 = {
+  data: ConnectedAppsResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsAuthListConnectedAppsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAuthListConnectedAppsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAuthListConnectedAppsEndpointResponseSuccess =
+  openFarmApiEndpointsAuthListConnectedAppsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAuthListConnectedAppsEndpointResponseError = (
+  | openFarmApiEndpointsAuthListConnectedAppsEndpointResponse401
+  | openFarmApiEndpointsAuthListConnectedAppsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAuthListConnectedAppsEndpointResponse =
+  | openFarmApiEndpointsAuthListConnectedAppsEndpointResponseSuccess
+  | openFarmApiEndpointsAuthListConnectedAppsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAuthListConnectedAppsEndpointUrl = () => {
+  return `/api/v1/auth/apps`;
+};
+
+export const openFarmApiEndpointsAuthListConnectedAppsEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthListConnectedAppsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthListConnectedAppsEndpointResponse>(
+    getOpenFarmApiEndpointsAuthListConnectedAppsEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthListConnectedAppsEndpointQueryKey =
+  () => {
+    return [`/api/v1/auth/apps`] as const;
+  };
+
+export const getOpenFarmApiEndpointsAuthListConnectedAppsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsAuthListConnectedAppsEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsAuthListConnectedAppsEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsAuthListConnectedAppsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsAuthListConnectedAppsEndpointQueryError = void;
+
+export function useOpenFarmApiEndpointsAuthListConnectedAppsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthListConnectedAppsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthListConnectedAppsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsAuthListConnectedAppsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthListConnectedAppsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsAuthListConnectedAppsEndpointQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export type openFarmApiEndpointsAuthDisplayPreferencesEndpointResponse200 = {
   data: DisplayPreferencesResponse;
   status: 200;

@@ -150,6 +150,75 @@ public sealed class ListNotificationsResponse
 
     /// <summary>Loaded tagged spools the AMS reads well off their recorded weight; each clears once corrected or back in line.</summary>
     public List<RfidWeightDriftResponse> RfidDrift { get; set; } = [];
+
+    public static ListNotificationsResponse From(NotificationsPage page) => new()
+    {
+        TotalCount = page.TotalCount,
+        Items = page.Items.Select(item => new NotificationItemResponse
+        {
+            Type = item.Type,
+            PrintId = item.PrintId,
+            Name = item.Name,
+            Source = item.Source.ToString(),
+            Status = item.Status.ToString(),
+            PrinterId = item.PrinterId,
+            EndedAtUtc = item.EndedAtUtc,
+            Lines = item.Lines.Select(line => new NotificationLineResponse
+            {
+                LineId = line.LineId,
+                ToolIndex = line.ToolIndex,
+                MaterialType = line.MaterialType,
+                ColorHex = line.ColorHex,
+                EstimatedGrams = line.EstimatedGrams,
+                SpoolId = line.SpoolId,
+                Reason = line.Reason.ToString(),
+            }).ToList(),
+        }).ToList(),
+        LowStock = page.LowStock.Select(item => new LowStockNotificationResponse
+        {
+            FilamentId = item.FilamentId,
+            FilamentVariantId = item.FilamentVariantId,
+            VendorName = item.VendorName,
+            Material = item.Material,
+            ColorName = item.ColorName,
+            ColorHex = item.ColorHex,
+            OnHandGrams = item.OnHandGrams,
+            ThresholdGrams = item.ThresholdGrams,
+            DaysLeft = item.DaysLeft,
+            ThresholdDays = item.ThresholdDays,
+        }).ToList(),
+        RfidSpools = page.RfidSpools.Select(item => new UnregisteredRfidSpoolResponse
+        {
+            PrinterId = item.PrinterId,
+            PrinterName = item.PrinterName,
+            FeedSlotId = item.FeedSlotId,
+            SlotLabel = item.SlotLabel,
+            RfidId = item.RfidId,
+            MaterialType = item.MaterialType,
+            SubBrand = item.SubBrand,
+            ColorHex = item.ColorHex,
+            RemainPercent = item.RemainPercent,
+            RfidWeightGrams = item.RfidWeightGrams,
+            RemainingGrams = item.RemainingGrams,
+            FilamentVariantId = item.Match?.FilamentVariantId,
+            VariantName = item.Match is { } match ? $"{match.Material} {match.ColorName}" : null,
+            LoadedSpoolId = item.LoadedSpoolId,
+            LoadedSpoolName = item.LoadedSpoolName,
+        }).ToList(),
+        RfidDrift = page.RfidDrift.Select(item => new RfidWeightDriftResponse
+        {
+            PrinterId = item.PrinterId,
+            PrinterName = item.PrinterName,
+            FeedSlotId = item.FeedSlotId,
+            SlotLabel = item.SlotLabel,
+            SpoolId = item.SpoolId,
+            SpoolLabel = item.SpoolLabel,
+            InventoryGrams = item.InventoryGrams,
+            ReadGrams = item.ReadGrams,
+            Material = item.Material,
+            ColorName = item.ColorName,
+        }).ToList(),
+    };
 }
 
 /// <summary>GET /api/v1/notifications — action-required items, newest first; the 50 newest, with the total count.</summary>
@@ -163,76 +232,6 @@ public sealed class ListNotificationsEndpoint(IQueryHandler<ListNotificationsQue
         Policies("Permission");
     }
 
-    public override async Task HandleAsync(CancellationToken ct)
-    {
-        var page = await handler.HandleAsync(new ListNotificationsQuery(), ct);
-        Response = new ListNotificationsResponse
-        {
-            TotalCount = page.TotalCount,
-            Items = page.Items.Select(item => new NotificationItemResponse
-            {
-                Type = item.Type,
-                PrintId = item.PrintId,
-                Name = item.Name,
-                Source = item.Source.ToString(),
-                Status = item.Status.ToString(),
-                PrinterId = item.PrinterId,
-                EndedAtUtc = item.EndedAtUtc,
-                Lines = item.Lines.Select(line => new NotificationLineResponse
-                {
-                    LineId = line.LineId,
-                    ToolIndex = line.ToolIndex,
-                    MaterialType = line.MaterialType,
-                    ColorHex = line.ColorHex,
-                    EstimatedGrams = line.EstimatedGrams,
-                    SpoolId = line.SpoolId,
-                    Reason = line.Reason.ToString(),
-                }).ToList(),
-            }).ToList(),
-            LowStock = page.LowStock.Select(item => new LowStockNotificationResponse
-            {
-                FilamentId = item.FilamentId,
-                FilamentVariantId = item.FilamentVariantId,
-                VendorName = item.VendorName,
-                Material = item.Material,
-                ColorName = item.ColorName,
-                ColorHex = item.ColorHex,
-                OnHandGrams = item.OnHandGrams,
-                ThresholdGrams = item.ThresholdGrams,
-                DaysLeft = item.DaysLeft,
-                ThresholdDays = item.ThresholdDays,
-            }).ToList(),
-            RfidSpools = page.RfidSpools.Select(item => new UnregisteredRfidSpoolResponse
-            {
-                PrinterId = item.PrinterId,
-                PrinterName = item.PrinterName,
-                FeedSlotId = item.FeedSlotId,
-                SlotLabel = item.SlotLabel,
-                RfidId = item.RfidId,
-                MaterialType = item.MaterialType,
-                SubBrand = item.SubBrand,
-                ColorHex = item.ColorHex,
-                RemainPercent = item.RemainPercent,
-                RfidWeightGrams = item.RfidWeightGrams,
-                RemainingGrams = item.RemainingGrams,
-                FilamentVariantId = item.Match?.FilamentVariantId,
-                VariantName = item.Match is { } match ? $"{match.Material} {match.ColorName}" : null,
-                LoadedSpoolId = item.LoadedSpoolId,
-                LoadedSpoolName = item.LoadedSpoolName,
-            }).ToList(),
-            RfidDrift = page.RfidDrift.Select(item => new RfidWeightDriftResponse
-            {
-                PrinterId = item.PrinterId,
-                PrinterName = item.PrinterName,
-                FeedSlotId = item.FeedSlotId,
-                SlotLabel = item.SlotLabel,
-                SpoolId = item.SpoolId,
-                SpoolLabel = item.SpoolLabel,
-                InventoryGrams = item.InventoryGrams,
-                ReadGrams = item.ReadGrams,
-                Material = item.Material,
-                ColorName = item.ColorName,
-            }).ToList(),
-        };
-    }
+    public override async Task HandleAsync(CancellationToken ct) =>
+        Response = ListNotificationsResponse.From(await handler.HandleAsync(new ListNotificationsQuery(), ct));
 }

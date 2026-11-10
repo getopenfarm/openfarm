@@ -29,7 +29,9 @@ curl --header "Authorization: Bearer $OPENFARM_TOKEN" https://farm.example.com/a
 
 Select `printers:list` to use that example. Invalid, expired or revoked credentials return 401;
 a valid credential without the required permission returns 403. Personal access tokens work with
-REST APIs. SignalR live events require a browser session. Do not place personal credentials in URLs.
+REST APIs and the MCP endpoint `/mcp` (see `dev-notes/MCP.md`); browser JWTs never work on `/mcp`.
+SignalR live events require a browser session. Do not place personal credentials in URLs.
+A write made through a token is stamped in the activity log as `details.via` (`Token`, token id, name).
 
 The API intersects the token's selected abilities with its owner's **current** permissions on every
 request. Removing group or individual access therefore also limits existing tokens. Tokens cannot
@@ -80,7 +82,7 @@ The configured origin is added to the trusted authentication origins and CORS al
 
 The built frontend continues to use relative API/hub URLs, so this requires no frontend rebuild. With the supplied Compose deployment, set `ORIGIN` in `.env` and run `docker compose up -d --force-recreate openfarm`. Route the entire public hostname to OpenFarm, including `/api` and `/hubs`.
 
-The normalized public origin is also available to backend services for future MCP endpoint URLs and OAuth metadata/callback construction. This setting does not implement MCP/OAuth, change JWT issuer/audience, or register OAuth client redirect allowlists.
+The normalized public origin also gives the MCP server URL shown in My profile › Connected apps (`ORIGIN/mcp`) and is the only value a browser `Origin` header on `/mcp` may carry. With `ORIGIN` unset, `/mcp` refuses every browser `Origin`; native MCP clients send none. It does not change JWT issuer/audience.
 
 Without `ORIGIN`, HTTPS requests still set Secure refresh cookies automatically. The existing `Auth__SecureCookies=true` setting remains available for other reverse-proxy configurations. Keep HTTP development limited to trusted local networks.
 

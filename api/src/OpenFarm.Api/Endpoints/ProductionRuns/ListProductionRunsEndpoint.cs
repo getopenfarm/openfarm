@@ -36,6 +36,13 @@ public sealed class ListProductionRunsResponse
 
     /// <summary>Runs per Open/Closed/Cancelled for the search, whatever status is selected.</summary>
     public Dictionary<string, int> StatusCounts { get; set; } = [];
+
+    public static ListProductionRunsResponse From(ProductionRunsPage page) => new()
+    {
+        TotalCount = page.TotalCount,
+        Items = page.Items.Select(ProductionRunSummaryResponse.FromSummary).ToList(),
+        StatusCounts = page.StatusCounts.ToDictionary(),
+    };
 }
 
 /// <summary>GET /api/v1/production-runs — paginated list (contracts/production-run-queue-api.md).</summary>
@@ -57,11 +64,6 @@ public sealed class ListProductionRunsEndpoint(IQueryHandler<GetProductionRunsQu
         var result = await handler.HandleAsync(new GetProductionRunsQuery(
             page, pageSize, ListSort.Parse(req.SortBy, req.SortDirection, "displayLabel", "dueDate"), req.Status, req.Search), ct);
 
-        Response = new ListProductionRunsResponse
-        {
-            TotalCount = result.TotalCount,
-            Items = result.Items.Select(ProductionRunSummaryResponse.FromSummary).ToList(),
-            StatusCounts = result.StatusCounts.ToDictionary(),
-        };
+        Response = ListProductionRunsResponse.From(result);
     }
 }

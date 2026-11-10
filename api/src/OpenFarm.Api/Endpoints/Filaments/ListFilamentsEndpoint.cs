@@ -56,6 +56,12 @@ public sealed class ListFilamentsResponse
 
     /// <summary>One entry per colour of every filament listed, apart from the filaments so a save's response cannot reset it.</summary>
     public IReadOnlyList<VariantStockResponse> Stock { get; set; } = [];
+
+    public static ListFilamentsResponse From(IReadOnlyList<FilamentSummary> filaments, IReadOnlyList<VariantStock> stock) => new()
+    {
+        Filaments = filaments.Select(FilamentResponse.FromSummary).ToList(),
+        Stock = stock.Select(VariantStockResponse.From).ToList(),
+    };
 }
 
 [Permission("filaments:list")]
@@ -75,10 +81,6 @@ public sealed class ListFilamentsEndpoint(
         var filaments = await handler.HandleAsync(new GetFilamentsQuery(), ct);
         var stock = await stockHandler.HandleAsync(new GetFilamentStockQuery(), ct);
 
-        Response = new ListFilamentsResponse
-        {
-            Filaments = filaments.Select(FilamentResponse.FromSummary).ToList(),
-            Stock = stock.Select(VariantStockResponse.From).ToList(),
-        };
+        Response = ListFilamentsResponse.From(filaments, stock);
     }
 }

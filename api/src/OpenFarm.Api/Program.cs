@@ -23,6 +23,7 @@ using OpenFarm.Application.Auth;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.FilamentTracking;
+using OpenFarm.Api.Mcp;
 using OpenFarm.Application.Maintenance;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
@@ -218,7 +219,10 @@ builder.Services
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Permission", p => p.Requirements.Add(new PermissionRequirement()))
-    .AddPolicy("BrowserSession", p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser().RequireClaim("sid"));
+    .AddPolicy("BrowserSession", p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser().RequireClaim("sid"))
+    // MCP accepts only personal access tokens; a browser JWT on /mcp gets the MCP challenge.
+    .AddPolicy("Mcp", p => p.AddAuthenticationSchemes(PersonalAccessTokenHandler.SchemeName).RequireAuthenticatedUser());
+builder.Services.AddOpenFarmMcp();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<BrowserSessionService>();
 builder.Services.AddHostedService<SessionCleanupService>();
@@ -572,6 +576,34 @@ if (serveSpa)
 
 app.Use(async (context, next) =>
 {
+    if (context.Request.Path.StartsWithSegments("/mcp"))
+    {
+        var headers = context.Response.Headers;
+        headers.CacheControl = "no-store";
+        headers.XContentTypeOptions = "nosniff";
+        headers.XFrameOptions = "DENY";
+        headers.ContentSecurityPolicy = "frame-ancestors 'none'";
+        if (!HttpMethods.IsPost(context.Request.Method))
+        {
+            context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed;
+            headers.Allow = "POST";
+            await context.Response.WriteAsync("This stateless MCP endpoint accepts POST only.");
+            return;
+        }
+        if (context.Request.ContentLength > McpSetup.MaxRequestBytes)
+        {
+            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            return;
+        }
+        // Browsers send Origin; native MCP clients do not. Comparing to Host would not stop DNS rebinding.
+        if (context.Request.Headers.Origin is { Count: > 0 } mcpOrigin
+            && !string.Equals(mcpOrigin.ToString(), publicOrigin.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsync("Forbidden (MCP origin check failed)");
+            return;
+        }
+    }
     if (context.Request.Path.StartsWithSegments("/api/v1/auth") || context.Request.Path.StartsWithSegments("/api/v1/admin"))
         context.Response.Headers.CacheControl = "no-store";
     if (context.Request.Path.StartsWithSegments("/api/v1/auth") && context.Request.Method == "POST"
@@ -602,6 +634,9 @@ app.UseFastEndpoints(c =>
 app.UseSwaggerGen();
 
 app.MapHub<FarmHub>("/hubs/farm", o => o.CloseOnAuthenticationExpiration = true).RequireAuthorization("BrowserSession");
+app.MapMcp("/mcp").RequireAuthorization("Mcp")
+    .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(McpSetup.MaxRequestBytes))
+    .ExcludeFromDescription();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
@@ -609,7 +644,7 @@ app.MapHealthChecks("/health/ready");
 // Only extensionless client routes get the shell; server namespaces retain real errors.
 if (serveSpa)
 {
-    app.MapFallbackToFile("{*path:nonfile:regex(^(?!(api|hubs|health|assets)(/|$)).*)}", "index.html", spaFileOptions);
+    app.MapFallbackToFile("{*path:nonfile:regex(^(?!(api|hubs|health|assets|mcp|oauth|\\.well-known)(/|$)).*)}", "index.html", spaFileOptions);
 }
 
 // Generate contracts without a database or starting printer/background services.

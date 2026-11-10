@@ -45,6 +45,7 @@ export default defineConfig(({ mode }) => {
         ? undefined
         : {
             '/api': 'http://localhost:6868',
+            '/mcp': 'http://localhost:6868',
             '/hubs': {
               target: 'http://localhost:6868',
               ws: true,

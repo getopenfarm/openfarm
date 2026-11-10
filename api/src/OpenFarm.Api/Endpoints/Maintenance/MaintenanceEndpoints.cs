@@ -35,8 +35,7 @@ public sealed class ListMaintenanceEnrollmentsEndpoint(EnrollmentsHandler enroll
 {
     public override void Configure() { Get("/api/v1/maintenance/enrollments"); Policies("Permission"); }
     public override async Task HandleAsync(ListMaintenanceEnrollmentsRequest req, CancellationToken ct) =>
-        Response = new((await enrollments.HandleAsync(new ListMaintenanceEnrollmentsQuery(req.PrinterId, req.TaskId, req.State), ct))
-            .Select(MaintenanceEnrollmentResponse.From).ToList());
+        Response = MaintenanceEnrollmentsResponse.From(await enrollments.HandleAsync(new ListMaintenanceEnrollmentsQuery(req.PrinterId, req.TaskId, req.State), ct));
 }
 
 public sealed class ListMaintenanceLogsRequest

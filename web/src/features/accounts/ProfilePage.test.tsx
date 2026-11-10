@@ -130,3 +130,26 @@ describe('Profile form feedback', () => {
     ).toHaveLength(1);
   });
 });
+
+describe('Connected apps', () => {
+  it('shows the MCP server URL from the server and points tokens there', async () => {
+    http.mockImplementation((async (url: string) =>
+      url === '/api/v1/auth/apps'
+        ? {
+            data: {
+              mcpUrl: 'https://farm.example.com/mcp',
+              signInEnabled: false,
+            },
+            status: 200,
+            headers: new Headers(),
+          }
+        : { data: [], status: 200, headers: new Headers() }) as never);
+    setup('apps');
+    expect(
+      await screen.findByText('https://farm.example.com/mcp'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Connected apps' }),
+    ).toBeInTheDocument();
+  });
+});

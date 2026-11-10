@@ -24,6 +24,13 @@ public sealed class ListAssembliesResponse
     public List<AssemblySummaryResponse> Items { get; set; } = [];
 
     public int TotalCount { get; set; }
+
+    /// <param name="previews">Preview images per assembly; null leaves every item without previews.</param>
+    public static ListAssembliesResponse From(AssembliesPage page, IReadOnlyDictionary<Guid, IReadOnlyList<string>>? previews) => new()
+    {
+        TotalCount = page.TotalCount,
+        Items = page.Assemblies.Select(a => { var item = AssemblySummaryResponse.FromSummary(a); item.PreviewThumbnails = previews?.GetValueOrDefault(a.Id) ?? []; return item; }).ToList(),
+    };
 }
 
 /// <summary>GET /api/v1/assemblies — paginated list (contracts/assembly-bom-api.md).</summary>
@@ -49,10 +56,6 @@ public sealed class ListAssembliesEndpoint(IQueryHandler<GetAssembliesQuery, Ass
         var result = await handler.HandleAsync(new GetAssembliesQuery(page, pageSize, ListSort.Parse(req.SortBy, req.SortDirection, "name"), req.Folder), ct);
 
         var images = req.IncludePreviews == true ? await previews.ReadAsync(result.Assemblies.Select(a => a.Id).ToList(), ct) : null;
-        Response = new ListAssembliesResponse
-        {
-            TotalCount = result.TotalCount,
-            Items = result.Assemblies.Select(a => { var item = AssemblySummaryResponse.FromSummary(a); item.PreviewThumbnails = images?.GetValueOrDefault(a.Id) ?? []; return item; }).ToList(),
-        };
+        Response = ListAssembliesResponse.From(result, images);
     }
 }
