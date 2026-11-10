@@ -323,8 +323,9 @@ text, only the type name logged.
 | POST | `/api/v1/auth/oauth/consent` | `auth:self`, `Throttle(20, 60)` | `ConsentDecisionRequest(string Request, bool Approve, string[] Scopes)` → `ConsentDecisionResponse(string RedirectUri)` |
 
 - `ConnectedAppResponse(Guid Id, string ClientName, string ClientIdSuffix, ReturnsTo ReturnsTo, AccessChip[] Access, DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc, DateTimeOffset LastUsedAtUtc)`.
-- `ReturnsTo(string Kind /* Web|Loopback|Native */, string Label)` from the client's first registered
-  redirect URI, computed once in `OAuthRules.ReturnsTo` (no web copy): Web → `Uri.IdnHost` (punycode,
+- `ReturnsTo(string Kind /* Web|Loopback|Native */, string Label)` from the redirect URI the user consented
+  to (`BrowserSessions.RedirectUri`; on the consent page, the request's own redirect URI), computed once in
+  `OAuthRules.ReturnsTo` (no web copy): Web → `Uri.IdnHost` (punycode,
   so look-alikes show); Loopback → `this computer (localhost)`; Native → `an app on this device ({scheme}:)`.
 - `AccessChip(string Area, string Level /* Read|Change */, string[] Extras, string Title, bool Control)`:
   granted scopes grouped by `Area`; `Level` = Change if any Change-tier scope else Read; `Extras` = the
@@ -358,6 +359,7 @@ text, only the type name logged.
 `BrowserSessions` (`Identity/BrowserSession.cs`, `BrowserSessionConfiguration.cs`) gains:
 - `ClientId varchar(36) NULL` FK → `OAuthClients.Id` `ON DELETE CASCADE`, index.
 - `Scopes text[] NULL`.
+- `RedirectUri varchar(2048) NULL`: the redirect the user consented to ("Returns to" in lists and audit rows).
 - `CHECK (("ClientId" IS NULL) = ("Scopes" IS NULL))`.
 
 No permission keys, no role-claim seeding. Activity log: no schema change.
@@ -563,7 +565,8 @@ Format from `A/src/lib/server/oauth/config.ts:43-51`. `/mcp` never redirects to 
 4. `grant_types` ⊆ {`authorization_code`, `refresh_token`}; `response_types` = `["code"]`; `scope` parsed,
    not stored; `logo_uri`/`client_uri`/`jwks*` ignored, never fetched.
 5. `client_name`: trim, ≤ 100, reject Cc/Cf (controls, zero-width, U+202A–202E, U+2066–2069), empty → `MCP client`.
-6. Capacity 1000: at the cap reclaim the oldest client with no sessions; else 503 `temporarily_unavailable`.
+6. Capacity 1000: at the cap reclaim the oldest client with no sessions that is older than 10 minutes (the
+   consent request lifetime); else 503 `temporarily_unavailable`.
 7. 201: `client_id`, `client_id_issued_at`, `client_name`, `redirect_uris`, `token_endpoint_auth_method`,
    `client_secret` + `client_secret_expires_at: 0` (if any), `grant_types`, `response_types`, `scope`
    (all scopes). No activity row; one log line `{ClientId, AuthMethod, RedirectKinds}`, never the name.
@@ -579,7 +582,7 @@ challenge; `state` valid; `response_mode` absent or `query`. **Any failure → 3
 redirect. Approve: scopes non-empty, known, each `Grantable` for the user now, else 400 `invalid_scope`;
 then `CreatePendingAppAsync(…, id: GuidFrom(rid))` — a second approval of the same payload hits the PK →
 400 `invalid_request`. Response `ruri?code=<code>&state=<state>&iss=<ORIGIN>`. Deny:
-`ruri?error=access_denied&state=…&iss=…` (no row).
+`ruri?error=access_denied&state=…&iss=…`; a revoked pending row with the same id uses up the request.
 
 **Token** (`/oauth/token`): form only, duplicates → `invalid_request`; `resource` as at authorize; client
 auth per akaun `credentials()` (Basic + body secret, or mismatched `client_id` → 401 `invalid_client`);
@@ -587,8 +590,10 @@ method must equal the registered one.
 - `authorization_code`: unprotect (expired → `invalid_grant`); `client_id == cid`; `redirect_uri == ruri`;
   in a transaction lock the session (`FOR UPDATE`, `BrowserSessionService.cs:45` pattern), require
   `ClientId == cid`, not revoked/expired, user enabled.
-  - Session already has a credential → **replay: revoke the app**, `invalid_grant` (RFC 6749 §4.1.2).
-  - PKCE fails → delete the pending session (code burned, akaun parity), `invalid_grant`.
+  - PKCE is checked first. Session already has a credential → with the right verifier, **replay: revoke the
+    app** (the first exchange's tokens included), `invalid_grant` (RFC 6749 §4.1.2); with a wrong one,
+    `invalid_grant` and nothing changes.
+  - First exchange and PKCE fails → revoke the pending session (code burned, request used up), `invalid_grant`.
   - Else add the first `ofr_` credential, revoke other active app sessions of the same (user, client)
     (reconnect replaces), write `ConnectedApp/ConnectedAppAdded`, issue the JWT.
 - `refresh_token`: `BrowserSessionService.RefreshAsync(token, clientId)`. A `scope` that is not a subset

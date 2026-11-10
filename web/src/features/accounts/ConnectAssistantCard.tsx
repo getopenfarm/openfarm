@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/collapsible';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CopyButton } from './CopyButton';
-import { assistantClients, type Snippet } from './connectSnippets';
+import { assistantClients, DOCS_URL, type Snippet } from './connectSnippets';
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -75,7 +75,15 @@ export function ConnectAssistantCard({
           <Alert role="status">
             <InfoIcon />
             <AlertDescription>
-              Sign-in is off. Use an access token.
+              Sign-in is off. Use an access token, or set OAUTH_ENABLED=true and
+              an HTTPS ORIGIN, then restart OpenFarm.{' '}
+              <a
+                href={`${DOCS_URL}administration/ai-assistants#prepare-the-server`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                How to turn on sign-in
+              </a>
             </AlertDescription>
           </Alert>
         )}

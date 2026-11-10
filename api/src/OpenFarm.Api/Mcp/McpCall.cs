@@ -85,7 +85,7 @@ public static partial class McpCall
     }
 
     private static string Channel(HttpContext http) =>
-        http.User.FindFirst("pat")?.Value is { } token ? $"Token:{token}" : "unknown";
+        CredentialClaims.Channel(http.User) is { } via ? $"{via.Kind}:{via.CredentialId}" : "unknown";
 
     [LoggerMessage(Level = LogLevel.Information, Message = "MCP {Tool} by {UserId} via {Channel} → {Outcome} in {ElapsedMs} ms")]
     private static partial void LogCall(ILogger logger, string tool, string? userId, string channel, string outcome, long elapsedMs);

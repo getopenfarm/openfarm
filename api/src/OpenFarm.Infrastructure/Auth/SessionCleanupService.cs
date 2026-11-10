@@ -19,6 +19,8 @@ public sealed partial class SessionCleanupService(IServiceScopeFactory scopes, I
                 var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
                 // Keep revoked sessions until absolute expiry for audit/reuse detection; credentials cascade.
                 await db.BrowserSessions.Where(s => s.ExpiresAtUtc <= DateTimeOffset.UtcNow).ExecuteDeleteAsync(stoppingToken);
+                // Connected apps never exchanged, and OAuth clients no user connected.
+                await scope.ServiceProvider.GetRequiredService<OAuth.OAuthService>().CleanupAsync(stoppingToken);
             }
             catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
             {

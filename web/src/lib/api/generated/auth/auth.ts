@@ -27,10 +27,14 @@ import type {
   AccessTokenInput,
   AccessTokenView,
   ConnectedAppsResponse,
+  ConsentDecisionRequest,
+  ConsentDecisionResponse,
+  ConsentResponse,
   CsrfResponse,
   DisplayPreferencesResponse,
   LoginCommand,
   LoginResponse,
+  OpenFarmApiEndpointsAuthGetConsentEndpointParams,
   PasswordInput,
   ProfileInput,
   SessionResponse,
@@ -1775,6 +1779,343 @@ export const useOpenFarmApiEndpointsAuthLoginEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsAuthLoginEndpointMutationOptions(options),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsAuthGetConsentEndpointResponse200 = {
+  data: ConsentResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsAuthGetConsentEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAuthGetConsentEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAuthGetConsentEndpointResponseSuccess =
+  openFarmApiEndpointsAuthGetConsentEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAuthGetConsentEndpointResponseError = (
+  | openFarmApiEndpointsAuthGetConsentEndpointResponse401
+  | openFarmApiEndpointsAuthGetConsentEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAuthGetConsentEndpointResponse =
+  | openFarmApiEndpointsAuthGetConsentEndpointResponseSuccess
+  | openFarmApiEndpointsAuthGetConsentEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAuthGetConsentEndpointUrl = (
+  params?: OpenFarmApiEndpointsAuthGetConsentEndpointParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/auth/oauth/consent?${stringifiedParams}`
+    : `/api/v1/auth/oauth/consent`;
+};
+
+export const openFarmApiEndpointsAuthGetConsentEndpoint = async (
+  params?: OpenFarmApiEndpointsAuthGetConsentEndpointParams,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthGetConsentEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthGetConsentEndpointResponse>(
+    getOpenFarmApiEndpointsAuthGetConsentEndpointUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthGetConsentEndpointQueryKey = (
+  params?: OpenFarmApiEndpointsAuthGetConsentEndpointParams,
+) => {
+  return [`/api/v1/auth/oauth/consent`, ...(params ? [params] : [])] as const;
+};
+
+export const getOpenFarmApiEndpointsAuthGetConsentEndpointQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>
+  >,
+  TError = void,
+>(
+  params?: OpenFarmApiEndpointsAuthGetConsentEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getOpenFarmApiEndpointsAuthGetConsentEndpointQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>
+  > = ({ signal }) =>
+    openFarmApiEndpointsAuthGetConsentEndpoint(params, { signal });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type OpenFarmApiEndpointsAuthGetConsentEndpointQueryResult = NonNullable<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>
+>;
+export type OpenFarmApiEndpointsAuthGetConsentEndpointQueryError = void;
+
+export function useOpenFarmApiEndpointsAuthGetConsentEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>
+  >,
+  TError = void,
+>(
+  params: undefined | OpenFarmApiEndpointsAuthGetConsentEndpointParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>
+          >,
+          TError,
+          Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthGetConsentEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>
+  >,
+  TError = void,
+>(
+  params?: OpenFarmApiEndpointsAuthGetConsentEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>
+          >,
+          TError,
+          Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthGetConsentEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>
+  >,
+  TError = void,
+>(
+  params?: OpenFarmApiEndpointsAuthGetConsentEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsAuthGetConsentEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>
+  >,
+  TError = void,
+>(
+  params?: OpenFarmApiEndpointsAuthGetConsentEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof openFarmApiEndpointsAuthGetConsentEndpoint>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsAuthGetConsentEndpointQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsAuthDecideConsentEndpointResponse200 = {
+  data: ConsentDecisionResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsAuthDecideConsentEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAuthDecideConsentEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAuthDecideConsentEndpointResponseSuccess =
+  openFarmApiEndpointsAuthDecideConsentEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAuthDecideConsentEndpointResponseError = (
+  | openFarmApiEndpointsAuthDecideConsentEndpointResponse401
+  | openFarmApiEndpointsAuthDecideConsentEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAuthDecideConsentEndpointResponse =
+  | openFarmApiEndpointsAuthDecideConsentEndpointResponseSuccess
+  | openFarmApiEndpointsAuthDecideConsentEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAuthDecideConsentEndpointUrl = () => {
+  return `/api/v1/auth/oauth/consent`;
+};
+
+export const openFarmApiEndpointsAuthDecideConsentEndpoint = async (
+  consentDecisionRequest: ConsentDecisionRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthDecideConsentEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthDecideConsentEndpointResponse>(
+    getOpenFarmApiEndpointsAuthDecideConsentEndpointUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(consentDecisionRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthDecideConsentEndpointMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthDecideConsentEndpoint>>,
+    TError,
+    { data: ConsentDecisionRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthDecideConsentEndpoint>>,
+  TError,
+  { data: ConsentDecisionRequest },
+  TContext
+> => {
+  const mutationKey = ['openFarmApiEndpointsAuthDecideConsentEndpoint'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      'mutationKey' in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthDecideConsentEndpoint>>,
+    { data: ConsentDecisionRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return openFarmApiEndpointsAuthDecideConsentEndpoint(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenFarmApiEndpointsAuthDecideConsentEndpointMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthDecideConsentEndpoint>>
+  >;
+export type OpenFarmApiEndpointsAuthDecideConsentEndpointMutationBody =
+  ConsentDecisionRequest;
+export type OpenFarmApiEndpointsAuthDecideConsentEndpointMutationError = void;
+
+export const useOpenFarmApiEndpointsAuthDecideConsentEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsAuthDecideConsentEndpoint>>,
+      TError,
+      { data: ConsentDecisionRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof openFarmApiEndpointsAuthDecideConsentEndpoint>>,
+  TError,
+  { data: ConsentDecisionRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsAuthDecideConsentEndpointMutationOptions(options),
     queryClient,
   );
 };

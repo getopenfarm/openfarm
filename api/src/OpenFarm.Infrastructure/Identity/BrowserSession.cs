@@ -9,6 +9,15 @@ public sealed class BrowserSession
     public DateTimeOffset LastSeenAtUtc { get; set; }
     public DateTimeOffset? RevokedAtUtc { get; set; }
     public string Device { get; set; } = string.Empty;
+
+    /// <summary>Set for a connected app (an OAuth grant); null for a browser sign-in. Every query states which kind it wants.</summary>
+    public string? ClientId { get; set; }
+
+    /// <summary>The OAuth scopes an app was granted; null exactly when <see cref="ClientId"/> is null.</summary>
+    public string[]? Scopes { get; set; }
+
+    /// <summary>The redirect URI the user consented to (an app only): what "Returns to" shows.</summary>
+    public string? RedirectUri { get; set; }
 }
 
 public sealed class SessionCredential

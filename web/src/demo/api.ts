@@ -5,6 +5,7 @@ import type {
   ActivityLogPageResponse,
   AssemblyResponse,
   AssemblySummaryResponse,
+  ConnectedAppResponse,
   ConnectedAppsResponse,
   ExplodeAssemblyResponse,
   FeedReadingResponse,
@@ -1412,7 +1413,37 @@ route('GET', '/auth/tokens', () => []);
 route(
   'GET',
   '/auth/apps',
-  (): ConnectedAppsResponse => ({ mcpUrl: null, signInEnabled: false }),
+  (): ConnectedAppsResponse => ({
+    mcpUrl: 'https://farm.example.com/mcp',
+    signInEnabled: true,
+    apps: [
+      {
+        id: id('a995', 1),
+        clientName: 'Claude',
+        clientIdSuffix: '9f2a',
+        returnsTo: { kind: 'Web', label: 'claude.ai' },
+        access: [
+          {
+            area: 'Printers',
+            level: 'Read',
+            extras: [],
+            title: 'Can see printers, their live status and feed units.',
+            control: false,
+          },
+          {
+            area: 'Queue',
+            level: 'Change',
+            extras: [],
+            title: 'Can see, reorder, pin and requeue jobs.',
+            control: false,
+          },
+        ],
+        createdAtUtc: minutesAgo(60 * 24 * 3),
+        expiresAtUtc: new Date(now + 27 * 86_400_000).toISOString(),
+        lastUsedAtUtc: minutesAgo(2),
+      },
+    ],
+  }),
 );
 route('GET', '/auth/tokens/options', () => ({
   permissions: PERMISSIONS,
@@ -1442,6 +1473,7 @@ route('GET', '/admin/permissions', () => ({
 }));
 route('GET', '/admin/users/{id}/sessions', () => []);
 route('GET', '/admin/users/{id}/tokens', () => []);
+route('GET', '/admin/users/{id}/apps', (): ConnectedAppResponse[] => []);
 
 // Settings.
 route('GET', '/settings/general', () => ({
@@ -2059,6 +2091,24 @@ route('GET', '/activity-log', ({ query }): ActivityLogPageResponse => {
           credentialId: id('ac74', 1),
           label: 'Shop dashboard',
         },
+      },
+    },
+    {
+      id: id('ac72', 2),
+      entityType: 'PrintJob',
+      entityId: id('ac73', 2),
+      eventType: 'PrintJobPinned',
+      actorId: currentUser.userId,
+      actorType: 'User',
+      actorDisplayName: 'Demo operator',
+      timestampUtc: minutesAgo(18),
+      details: {
+        previousState: null,
+        reportedState: null,
+        observedAtUtc: null,
+        previousAlerts: null,
+        activeAlerts: null,
+        via: { kind: 'App', credentialId: id('a995', 1), label: 'Claude' },
       },
     },
   ].sort((a, b) => Date.parse(b.timestampUtc) - Date.parse(a.timestampUtc));

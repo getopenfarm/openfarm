@@ -2900,10 +2900,35 @@ export interface ProfileInput {
   username?: string;
 }
 
+export interface ReturnsTo {
+  kind?: string;
+  label?: string;
+}
+
+export interface AccessChip {
+  area?: string;
+  level?: string;
+  extras?: string[];
+  title?: string;
+  control?: boolean;
+}
+
+export interface ConnectedAppResponse {
+  id?: string;
+  clientName?: string;
+  clientIdSuffix?: string;
+  returnsTo?: ReturnsTo;
+  access?: AccessChip[];
+  createdAtUtc?: string;
+  expiresAtUtc?: string;
+  lastUsedAtUtc?: string;
+}
+
 export interface ConnectedAppsResponse {
   /** @nullable */
   mcpUrl?: string | null;
   signInEnabled?: boolean;
+  apps?: ConnectedAppResponse[];
 }
 
 export interface DisplayPreferencesResponse {
@@ -2918,6 +2943,44 @@ export interface LoginResponse {
 export interface LoginCommand {
   username?: string;
   password?: string;
+}
+
+export interface ConsentScope {
+  scope?: string;
+  label?: string;
+  includes?: string[];
+  allowed?: boolean;
+  preselected?: boolean;
+}
+
+export interface ConsentTier {
+  tier?: string;
+  scopes?: ConsentScope[];
+}
+
+export interface ConsentResponse {
+  clientId?: string;
+  clientName?: string;
+  returnsTo?: ReturnsTo;
+  unverifiedName?: boolean;
+  instance?: string;
+  username?: string;
+  accessEndsAtUtc?: string;
+  tiers?: ConsentTier[];
+}
+
+export interface ConsentRequest {
+  [key: string]: unknown;
+}
+
+export interface ConsentDecisionResponse {
+  redirectUri?: string;
+}
+
+export interface ConsentDecisionRequest {
+  request?: string;
+  approve?: boolean;
+  scopes?: string[];
 }
 
 export interface CsrfResponse {
@@ -3549,6 +3612,13 @@ export type OpenFarmApiEndpointsCostCatalogListCostItemsEndpointParams = {
    * @nullable
    */
   sortDirection?: string | null;
+};
+
+export type OpenFarmApiEndpointsAuthGetConsentEndpointParams = {
+  /**
+   * @nullable
+   */
+  request?: string | null;
 };
 
 export type OpenFarmApiEndpointsAssembliesListAssembliesEndpointParams = {

@@ -25,12 +25,16 @@ public sealed class SpaHostingTests(CustomWebApplicationFactory factory) : IClas
                 builder.UseWebRoot(webRoot);
             });
             using var client = app.CreateClient();
-            foreach (var path in new[] { "/", "/index.html", "/printers/example" })
+            foreach (var path in new[] { "/", "/index.html", "/printers/example", "/connect", "/connect/error" })
             {
                 using var response = await client.GetAsync(path);
                 response.StatusCode.Should().Be(HttpStatusCode.OK);
                 (await response.Content.ReadAsStringAsync()).Should().Be(shell);
                 response.Headers.CacheControl!.NoCache.Should().BeTrue();
+                // The shell (and so the consent page) is never framed.
+                response.Headers.GetValues("X-Frame-Options").Should().Equal("DENY");
+                response.Headers.GetValues("Content-Security-Policy").Should().Equal("frame-ancestors 'none'");
+                response.Headers.GetValues("Referrer-Policy").Should().Equal("same-origin");
                 using var head = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, path));
                 head.StatusCode.Should().Be(HttpStatusCode.OK);
                 head.Headers.CacheControl!.NoCache.Should().BeTrue();

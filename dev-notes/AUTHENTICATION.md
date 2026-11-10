@@ -62,6 +62,28 @@ Browser-only management endpoints:
 The additive PersonalAccessTokens migration runs at startup. Existing browser sessions continue to work.
 Back up the database before deployment. No existing account receives a personal token automatically.
 
+## Connected apps (OAuth)
+
+With `OAUTH_ENABLED=true` and an HTTPS `ORIGIN`, MCP clients can sign in instead of using a token (rules and
+protocol: `dev-notes/MCP.md`). A connected app is a `BrowserSessions` row with `ClientId` and `Scopes` set, so
+it reuses refresh rotation, the 10-second retry, reuse revocation and every revocation trigger. Its access
+token has issuer `ORIGIN` and audience `ORIGIN/mcp` and works only on `/mcp`; its refresh credential (`ofr_` +
+64 hex) works only at `/oauth/token`. A browser session never acts as an app and an app never as a browser
+session: My Profile › Sessions lists browsers only, and the users list counts browsers only.
+
+Revocation: Profile › Connected apps (`DELETE /api/v1/auth/sessions/{id}`), the admin user page
+(`DELETE /api/v1/admin/users/{id}/sessions/{sessionId}`), the admin revoke-all, a password change or reset,
+disabling the account, deleting the user, reconnecting the same client, a replayed code, refresh reuse after
+10 seconds, and `/oauth/revoke`. Sign out and your own "Revoke all sessions" keep apps connected.
+Consent and app management happen only in a browser session.
+
+- `GET /api/v1/auth/apps`: MCP URL, whether sign-in is on, and your connected apps.
+- `GET /api/v1/admin/users/{id}/apps`: another user's connected apps.
+- `GET/POST /api/v1/auth/oauth/consent`: the consent page's request details and decision.
+
+The additive `ConnectedApps` migration adds the `OAuthClients` table and two nullable `BrowserSessions`
+columns. With `OAUTH_ENABLED` unset nothing else changes.
+
 ## Upgrade
 
 The additive migration assigns existing accounts to Administrators once, preserving their previous effective access. Review membership after upgrading. New accounts do not inherit administrator access. Existing JWTs require a fresh sign-in because they have no session identifier. Change the default administrator password after the first sign-in.
@@ -82,7 +104,7 @@ The configured origin is added to the trusted authentication origins and CORS al
 
 The built frontend continues to use relative API/hub URLs, so this requires no frontend rebuild. With the supplied Compose deployment, set `ORIGIN` in `.env` and run `docker compose up -d --force-recreate openfarm`. Route the entire public hostname to OpenFarm, including `/api` and `/hubs`.
 
-The normalized public origin also gives the MCP server URL shown in My profile › Connected apps (`ORIGIN/mcp`) and is the only value a browser `Origin` header on `/mcp` may carry. With `ORIGIN` unset, `/mcp` refuses every browser `Origin`; native MCP clients send none. It does not change JWT issuer/audience.
+The normalized public origin also gives the MCP server URL shown in My profile › Connected apps (`ORIGIN/mcp`) and is the only value a browser `Origin` header on `/mcp` may carry. With `ORIGIN` unset, `/mcp` refuses every browser `Origin`; native MCP clients send none. It does not change the browser JWT issuer/audience; with `OAUTH_ENABLED=true` it is the issuer of connected-app access tokens.
 
 Without `ORIGIN`, HTTPS requests still set Secure refresh cookies automatically. The existing `Auth__SecureCookies=true` setting remains available for other reverse-proxy configurations. Keep HTTP development limited to trusted local networks.
 

@@ -7998,6 +7998,51 @@
         ]
       }
     },
+    "/api/v1/admin/users/{id}/apps": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthListUserConnectedAppsEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectedAppResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/display-preferences": {
       "get": {
         "tags": [
@@ -8060,6 +8105,89 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/auth/oauth/consent": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthGetConsentEndpoint",
+        "parameters": [
+          {
+            "name": "request",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthDecideConsentEndpoint",
+        "requestBody": {
+          "x-name": "ConsentDecisionRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentDecisionRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentDecisionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/auth/csrf": {
@@ -16378,6 +16506,85 @@
           },
           "signInEnabled": {
             "type": "boolean"
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectedAppResponse"
+            }
+          }
+        }
+      },
+      "ConnectedAppResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "clientIdSuffix": {
+            "type": "string"
+          },
+          "returnsTo": {
+            "$ref": "#/components/schemas/ReturnsTo"
+          },
+          "access": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessChip"
+            }
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReturnsTo": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "AccessChip": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "extras": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "control": {
+            "type": "boolean"
           }
         }
       },
@@ -16412,6 +16619,110 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "ConsentResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "clientName": {
+            "type": "string"
+          },
+          "returnsTo": {
+            "$ref": "#/components/schemas/ReturnsTo"
+          },
+          "unverifiedName": {
+            "type": "boolean"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "accessEndsAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsentTier"
+            }
+          }
+        }
+      },
+      "ConsentTier": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tier": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsentScope"
+            }
+          }
+        }
+      },
+      "ConsentScope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "includes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "preselected": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ConsentRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ConsentDecisionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "redirectUri": {
+            "type": "string"
+          }
+        }
+      },
+      "ConsentDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request": {
+            "type": "string"
+          },
+          "approve": {
+            "type": "boolean"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

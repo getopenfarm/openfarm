@@ -2088,6 +2088,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(36)
+                        .HasColumnType("character varying(36)");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -2102,17 +2106,63 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("LastSeenAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RedirectUri")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<DateTimeOffset?>("RevokedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.PrimitiveCollection<string[]>("Scopes")
+                        .HasColumnType("text[]");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClientId");
+
                     b.HasIndex("UserId", "ExpiresAtUtc");
 
-                    b.ToTable("BrowserSessions");
+                    b.ToTable("BrowserSessions", t =>
+                        {
+                            t.HasCheckConstraint("CK_BrowserSessions_AppScopes", "(\"ClientId\" IS NULL) = (\"Scopes\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.OAuthClient", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(36)
+                        .HasColumnType("character varying(36)");
+
+                    b.Property<string>("AuthMethod")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.PrimitiveCollection<string[]>("RedirectUris")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("SecretHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.ToTable("OAuthClients");
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.PersonalAccessToken", b =>
@@ -2659,6 +2709,11 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.BrowserSession", b =>
                 {
+                    b.HasOne("OpenFarm.Infrastructure.Identity.OAuthClient", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("OpenFarm.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")

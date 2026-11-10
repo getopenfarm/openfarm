@@ -53,6 +53,10 @@ export const apiQueryPermissions = [
     permissions: ['spools:list'],
   },
   {
+    pattern: '^/api/v1/auth/oauth/consent$',
+    permissions: [],
+  },
+  {
     pattern: '^/api/v1/admin/permissions$',
     permissions: ['users:manage'],
   },
@@ -215,6 +219,10 @@ export const apiQueryPermissions = [
   {
     pattern: '^/api/v1/profiles/filament/[^/]+$',
     permissions: ['profiles:get-filament'],
+  },
+  {
+    pattern: '^/api/v1/admin/users/[^/]+/apps$',
+    permissions: ['users:manage'],
   },
   {
     pattern: '^/api/v1/library/[^/]+/contents$',

@@ -25,9 +25,15 @@ describe('ConnectAssistantCard', () => {
     expect(
       screen.getByText('https://farm.example.com/mcp'),
     ).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Sign-in is off. Use an access token, or set OAUTH_ENABLED=true and an HTTPS ORIGIN, then restart OpenFarm.',
+    );
     expect(
-      screen.getByText('Sign-in is off. Use an access token.'),
-    ).toBeInTheDocument();
+      screen.getByRole('link', { name: 'How to turn on sign-in' }),
+    ).toHaveAttribute(
+      'href',
+      'https://getopenfarm.github.io/docs/administration/ai-assistants#prepare-the-server',
+    );
     expect(
       screen.queryByRole('heading', { name: 'Sign in' }),
     ).not.toBeInTheDocument();

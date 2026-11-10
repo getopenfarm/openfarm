@@ -16,7 +16,7 @@ public sealed class PermissionAuthorizationHandler(PermissionService permissions
             || !Guid.TryParse(context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var userId)) return;
         var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.IsEnabled, http.RequestAborted);
         if (user is null) return;
-        var isToken = context.User.HasClaim(c => c.Type == "pat");
+        var isToken = context.User.HasClaim(c => c.Type == CredentialClaims.Pat);
         // Account/session administration always requires a browser JWT, even for an administrator's token.
         if (isToken && (http.Request.Path.StartsWithSegments("/api/v1/admin")
             || (http.Request.Path.StartsWithSegments("/api/v1/auth") && http.Request.Path != "/api/v1/auth/whoami"))) return;

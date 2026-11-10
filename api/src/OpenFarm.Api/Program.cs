@@ -24,6 +24,8 @@ using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.FilamentTracking;
 using OpenFarm.Api.Mcp;
+using OpenFarm.Api.OAuth;
+using OpenFarm.Infrastructure.Auth.OAuth;
 using OpenFarm.Application.Maintenance;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
@@ -102,6 +104,10 @@ using WriteOffPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<
 var builder = WebApplication.CreateBuilder(args);
 var publicOrigin = new OpenFarm.Api.Hosting.PublicOrigin(builder.Configuration);
 builder.Services.AddSingleton(publicOrigin);
+// Validated at startup: OAUTH_ENABLED=true needs an HTTPS ORIGIN (HTTP only for localhost).
+var oauthSettings = new OAuthSettings(builder.Configuration["OAUTH_ENABLED"], publicOrigin.Value);
+builder.Services.AddSingleton(oauthSettings);
+builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Host.UseSerilog((ctx, cfg) => cfg
     .ReadFrom.Configuration(ctx.Configuration)
@@ -169,6 +175,7 @@ var jwtSigningKey = builder.Configuration["Jwt:SigningKey"] is { Length: > 0 } c
     : SigningKeyFile.LoadOrCreate(keysDirectory);
 // JwtTokenService reads the key from configuration too.
 builder.Configuration["Jwt:SigningKey"] = jwtSigningKey;
+var jwtKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey));
 
 builder.Services
     .AddAuthentication("ApiBearer")
@@ -186,7 +193,7 @@ builder.Services
         {
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey)),
+            IssuerSigningKey = jwtKey,
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateIssuerSigningKey = true,
@@ -215,14 +222,25 @@ builder.Services
                 return Task.CompletedTask;
             },
         };
-    });
+    })
+    // /mcp: a personal access token or an app's OAuth access token. Never the browser JwtBearer above.
+    .AddPolicyScheme(McpAuthentication.Scheme, "Personal access token or OAuth access token", options =>
+    {
+        options.ForwardDefaultSelector = context => context.Request.Headers.Authorization.ToString()
+            .StartsWith("Bearer " + PersonalAccessTokenService.Prefix, StringComparison.OrdinalIgnoreCase)
+                ? PersonalAccessTokenHandler.SchemeName : McpAuthentication.OAuthScheme;
+        options.ForwardChallenge = McpAuthentication.OAuthScheme;
+    })
+    .AddJwtBearer(McpAuthentication.OAuthScheme, options => McpAuthentication.Configure(options, oauthSettings, jwtKey));
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Permission", p => p.Requirements.Add(new PermissionRequirement()))
     .AddPolicy("BrowserSession", p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser().RequireClaim("sid"))
-    // MCP accepts only personal access tokens; a browser JWT on /mcp gets the MCP challenge.
-    .AddPolicy("Mcp", p => p.AddAuthenticationSchemes(PersonalAccessTokenHandler.SchemeName).RequireAuthenticatedUser());
+    // MCP accepts personal access tokens and app access tokens; a browser JWT on /mcp gets the MCP challenge.
+    .AddPolicy("Mcp", p => p.AddAuthenticationSchemes(McpAuthentication.Scheme).RequireAuthenticatedUser());
 builder.Services.AddOpenFarmMcp();
+builder.Services.AddScoped<OAuthService>();
+builder.Services.AddOAuthRateLimits(builder.Configuration);
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<BrowserSessionService>();
 builder.Services.AddHostedService<SessionCleanupService>();
@@ -565,6 +583,14 @@ var spaFileOptions = new StaticFileOptions
             OpenFarm.Api.Hosting.SpaAssetCache.IsFingerprintedAsset(context.Context.Request.Path)
                 ? "public, max-age=31536000, immutable"
                 : "no-cache";
+        // The app shell (including the consent page) is never framed: no clickjacking of Allow.
+        if (context.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Context.Response.Headers.XFrameOptions = "DENY";
+            context.Context.Response.Headers.ContentSecurityPolicy = "frame-ancestors 'none'";
+            // Keeps /connect?request=… out of the Referer sent to other sites.
+            context.Context.Response.Headers["Referrer-Policy"] = "same-origin";
+        }
     }
 };
 var serveSpa = !app.Environment.IsDevelopment() || Directory.Exists(app.Environment.WebRootPath);
@@ -576,13 +602,33 @@ if (serveSpa)
 
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/mcp"))
+    var isOAuth = context.Request.Path.StartsWithSegments("/oauth") || context.Request.Path.StartsWithSegments("/.well-known");
+    if (isOAuth || context.Request.Path.StartsWithSegments("/mcp"))
     {
         var headers = context.Response.Headers;
         headers.CacheControl = "no-store";
+        headers.Pragma = "no-cache";
         headers.XContentTypeOptions = "nosniff";
         headers.XFrameOptions = "DENY";
         headers.ContentSecurityPolicy = "frame-ancestors 'none'";
+        headers["Referrer-Policy"] = "same-origin";
+    }
+    if (OpenFarm.Api.OAuth.OAuthProtocolEndpoints.PostOnly.Contains(context.Request.Path.Value ?? "") && !HttpMethods.IsPost(context.Request.Method))
+    {
+        context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed;
+        context.Response.Headers.Allow = "POST";
+        await context.Response.WriteAsJsonAsync(new { error = "invalid_request" });
+        return;
+    }
+    if (isOAuth && context.Request.ContentLength > OpenFarm.Api.OAuth.OAuthProtocolEndpoints.MaxBodyBytes)
+    {
+        context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+        await context.Response.WriteAsJsonAsync(new { error = "invalid_request" });
+        return;
+    }
+    if (context.Request.Path.StartsWithSegments("/mcp"))
+    {
+        var headers = context.Response.Headers;
         if (!HttpMethods.IsPost(context.Request.Method))
         {
             context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed;
@@ -621,6 +667,7 @@ app.Use(async (context, next) =>
 });
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.UseFastEndpoints(c =>
 {
@@ -637,6 +684,7 @@ app.MapHub<FarmHub>("/hubs/farm", o => o.CloseOnAuthenticationExpiration = true)
 app.MapMcp("/mcp").RequireAuthorization("Mcp")
     .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(McpSetup.MaxRequestBytes))
     .ExcludeFromDescription();
+app.MapOAuthProtocol();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");

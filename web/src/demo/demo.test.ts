@@ -34,6 +34,14 @@ describe('marketing-site demo API', () => {
     expect((await call('GET', '/nothing-here')).status).toBe(404);
   });
 
+  it('answers the connected apps tab and the admin apps section', async () => {
+    const own = await (await call('GET', '/auth/apps')).json();
+    expect(own.apps).toHaveLength(1);
+    expect(own.apps[0].clientName).toBe('Claude');
+    const admin = await call('GET', `/admin/users/${own.apps[0].id}/apps`);
+    expect(await admin.json()).toEqual([]);
+  });
+
   it('sends the next matching queued plate to a cleared printer', async () => {
     startSimulator();
     const printer = printers.find((p) => p.name === 'P1S-03');

@@ -62,7 +62,8 @@ public sealed class ListSessionsEndpoint(OpenFarmDbContext db) : EndpointWithout
     internal static Task<SessionResponse[]> ActiveAsync(OpenFarmDbContext db, Guid userId, HttpContext http, CancellationToken ct)
     {
         var current = http.User.FindFirst("sid")?.Value;
-        return db.BrowserSessions.AsNoTracking().Where(s => s.UserId == userId && s.RevokedAtUtc == null && s.ExpiresAtUtc > DateTimeOffset.UtcNow)
+        // Browser sessions only: connected apps are listed under /apps.
+        return db.BrowserSessions.AsNoTracking().Where(s => s.UserId == userId && s.ClientId == null && s.RevokedAtUtc == null && s.ExpiresAtUtc > DateTimeOffset.UtcNow)
             .OrderByDescending(s => s.CreatedAtUtc)
             .Select(s => new SessionResponse(s.Id, s.Device, s.CreatedAtUtc, s.LastSeenAtUtc, s.ExpiresAtUtc, s.Id.ToString() == current)).ToArrayAsync(ct);
     }
@@ -86,7 +87,8 @@ public sealed class RevokeAllSessionsEndpoint(BrowserSessionService sessions) : 
     public override async Task HandleAsync(CancellationToken ct)
     {
         var user = SessionCookies.UserId(HttpContext);
-        await sessions.RevokeAsync(user, null, user, ct);
+        // Signs out every browser; connected apps stay connected (a password change ends them).
+        await sessions.RevokeAsync(user, null, user, null, browsersOnly: true, ct);
         SessionCookies.Clear(HttpContext);
         await HttpContext.Response.SendNoContentAsync(ct);
     }
@@ -125,7 +127,8 @@ public sealed class RevokeUserSessionsEndpoint(OpenFarmDbContext db, BrowserSess
     {
         if (!await db.Users.AnyAsync(u => u.Id == req.Id, ct)) { await Send.NotFoundAsync(ct); return; }
         var caller = SessionCookies.UserId(HttpContext);
-        // On their own account the caller keeps this browser; /api/v1/auth/sessions/revoke-all signs it out too.
+        // Every browser and connected app (incident response). On their own account the caller keeps this
+        // browser; /api/v1/auth/sessions/revoke-all signs it out too.
         Guid? keep = req.Id == caller && Guid.TryParse(User.FindFirst("sid")?.Value, out var sid) ? sid : null;
         await sessions.RevokeAsync(req.Id, null, caller, keep, ct);
         await Send.NoContentAsync(ct);

@@ -14,6 +14,8 @@ import { ActivityLogPage } from '../features/activity-log/ActivityLogPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
 import { AssemblyDetailPage } from '../features/assemblies/AssemblyDetailPage';
 import { AssemblyFormPage } from '../features/assemblies/AssemblyFormPage';
+import { ConnectErrorPage } from '../features/auth/ConnectErrorPage';
+import { ConsentPage } from '../features/auth/ConsentPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { CostCatalogPage } from '../features/cost-catalog/CostCatalogPage';
 import { CostItemFormPage } from '../features/cost-catalog/CostItemFormPage';
@@ -56,9 +58,13 @@ const routes: RouteObject[] = [
     path: '/login',
     element: <LoginPage />,
   },
+  // An AI assistant's sign-in lands here, so it stays outside ProtectedRoute.
+  { path: '/connect/error', element: <ConnectErrorPage /> },
   {
     element: <ProtectedRoute />,
     children: [
+      // Chromeless: the consent screen is a sibling of the app shell.
+      { path: '/connect', element: <ConsentPage /> },
       {
         element: (
           <CurrencyProvider>

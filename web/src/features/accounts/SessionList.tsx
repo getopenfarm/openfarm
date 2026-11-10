@@ -180,8 +180,8 @@ export function SessionList({
           confirming !== 'all'
             ? 'That browser is signed out at once. This cannot be undone.'
             : !userId
-              ? 'Every browser signed in as you, this one included, is signed out at once. This cannot be undone.'
-              : 'Every browser signed in as this user is signed out at once. This cannot be undone.'
+              ? 'Every browser signed in as you, this one included, is signed out at once. Connected apps and access tokens stay connected. Revoke them in their tabs, or change your password to end everything.'
+              : 'Every browser and connected app of this user is signed out at once. This cannot be undone.'
         }
         confirmLabel={confirming === 'all' ? 'Revoke all' : 'Revoke'}
         destructive

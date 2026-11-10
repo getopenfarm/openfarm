@@ -33,7 +33,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
                                 select new GroupSummary(role.Id, role.Name!)).ToArrayAsync(ct);
             var grants = await db.UserClaims.Where(c => c.UserId == user.Id && c.ClaimType == PermissionCatalog.GrantClaim).Select(c => c.ClaimValue!).ToArrayAsync(ct);
             grants = PermissionCatalog.Sort(grants.Where(PermissionCatalog.IsGrantable));
-            var count = await db.BrowserSessions.CountAsync(s => s.UserId == user.Id && s.RevokedAtUtc == null && s.ExpiresAtUtc > DateTimeOffset.UtcNow, ct);
+            var count = await db.BrowserSessions.CountAsync(s => s.UserId == user.Id && s.ClientId == null && s.RevokedAtUtc == null && s.ExpiresAtUtc > DateTimeOffset.UtcNow, ct);
             result.Add(new(user.Id, user.UserName!, user.Email!, user.DisplayName, user.IsEnabled, user.CreatedAtUtc,
                 groups, grants, access.Permissions, access.IsAdministrator, count));
         }

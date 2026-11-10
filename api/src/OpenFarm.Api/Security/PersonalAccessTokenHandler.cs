@@ -22,19 +22,8 @@ public sealed class PersonalAccessTokenHandler(IOptionsMonitor<AuthenticationSch
         if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return AuthenticateResult.NoResult();
         var row = await tokens.AuthenticateAsync(header[7..], Context.RequestAborted);
         if (row is null) return AuthenticateResult.Fail("Invalid access token.");
-        var claims = new List<Claim> { new("sub", row.UserId.ToString()), new("pat", row.Id.ToString()), new(NameClaim, row.Name) };
+        var claims = new List<Claim> { new("sub", row.UserId.ToString()), new(CredentialClaims.Pat, row.Id.ToString()), new(NameClaim, row.Name) };
         claims.AddRange(row.Permissions.Select(p => new Claim(PermissionClaim, p)));
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
-    }
-
-    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
-    {
-        if (!Request.Path.StartsWithSegments("/mcp")) return base.HandleChallengeAsync(properties);
-        // MCP clients read the challenge to learn how to authenticate (RFC 6750 §3).
-        Response.StatusCode = StatusCodes.Status401Unauthorized;
-        Response.Headers.WWWAuthenticate = Request.Headers.Authorization.Count > 0
-            ? "Bearer realm=\"openfarm-mcp\", error=\"invalid_token\""
-            : "Bearer realm=\"openfarm-mcp\"";
-        return Task.CompletedTask;
     }
 }
