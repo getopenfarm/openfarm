@@ -260,7 +260,9 @@ public class SnapmakerU1ConnectorTests
         await connector.ResumeJobAsync(harness.Details(), CancellationToken.None);
         await connector.StopJobAsync(harness.Details(), CancellationToken.None);
 
-        harness.Commands.Should().Equal("printer.print.pause", "printer.print.resume", "printer.print.cancel");
+        // The harness may still be reading the last command when cancel returns on a printer already in standby.
+        foreach (var method in new[] { "printer.print.pause", "printer.print.resume", "printer.print.cancel" })
+            await harness.NextRequestAsync(method);
     }
 
     [Fact]
