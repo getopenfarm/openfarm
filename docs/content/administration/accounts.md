@@ -24,6 +24,10 @@ Each user receives all permissions granted by their groups, plus permissions gra
 
 The API enforces permissions even when a button or navigation link is hidden. A disabled control can mean the account can view an area but cannot change it. Keep at least one administrator account enabled. Before removing an ordinary group, remove its members.
 
+## AI assistants
+
+Users connect AI assistants themselves, from **My profile → Connected apps** or with an access token: see [AI assistants](ai-assistants.md). Administrators can see and revoke a user's connected apps and tokens from that account's page.
+
 ## Sessions and passwords
 
 **My profile → Sessions** lists active browser sessions and can sign out one or all devices. Administrators can revoke another user's sessions from that account's page.

@@ -125,6 +125,8 @@ Rules for a new tool:
 3. Reads use `McpTools.Read` (read-only annotations). Lists page with `McpTools.Page`/`PageSize` (≤ 100) and
    end their description with `McpTools.PagingNote`.
 4. Leave out network addresses, serial numbers, file bytes and file URLs.
+6. Optional tool arguments need a default (`string? x = null`, `CancellationToken ct = default`): without one
+   the SDK marks the argument required and the call fails with "Invalid request".
 5. Never expose users, sessions, tokens, settings, printer connections, Mark ready or removals.
 
 ## Writes
