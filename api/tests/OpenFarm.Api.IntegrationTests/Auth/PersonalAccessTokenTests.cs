@@ -163,6 +163,28 @@ public sealed class PersonalAccessTokenTests(CustomWebApplicationFactory factory
     }
 
     [Fact]
+    public async Task TokenWritesRecordTheTokenInTheActivityLog_BrowserWritesDoNot()
+    {
+        var browser = await BrowserAsync();
+        var created = await CreateAsync(browser, ["vendors:create"]);
+        var byToken = await Bearer(created.Credential).PostAsJsonAsync("/api/v1/vendors", new { Name = $"token-{Guid.NewGuid()}" });
+        byToken.EnsureSuccessStatusCode();
+        var byBrowser = await browser.PostAsJsonAsync("/api/v1/vendors", new { Name = $"browser-{Guid.NewGuid()}" });
+        byBrowser.EnsureSuccessStatusCode();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        async Task<OpenFarm.Domain.ActivityLog.ActivityLogEntry> RowAsync(HttpResponseMessage response)
+        {
+            var id = (await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetString();
+            return await db.ActivityLogEntries.AsNoTracking().SingleAsync(a => a.EntityId == id && a.EventType == "VendorCreated");
+        }
+        (await RowAsync(byToken)).Details!.Via.Should().Be(new OpenFarm.Domain.ActivityLog.ActivityChannel("Token", created.Token.Id, created.Token.Name));
+        (await RowAsync(byBrowser)).Details?.Via.Should().BeNull();
+        var log = await browser.GetStringAsync("/api/v1/activity-log?entityType=Vendor&pageSize=100");
+        log.Should().Contain($"\"via\":{{\"kind\":\"Token\",\"credentialId\":\"{created.Token.Id}\",\"label\":\"{created.Token.Name}\"}}");
+    }
+
+    [Fact]
     public async Task PasswordChangeResetAndDisableRevokeTokens()
     {
         using var scope = factory.Services.CreateScope();

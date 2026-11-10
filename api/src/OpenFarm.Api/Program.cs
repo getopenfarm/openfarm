@@ -110,7 +110,10 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
 
 var connectionString = DatabaseConnectionString.Resolve(builder.Configuration);
 
-builder.Services.AddDbContext<OpenFarmDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<OpenFarm.Api.Security.ActivityChannelInterceptor>();
+builder.Services.AddDbContext<OpenFarmDbContext>((services, options) => options.UseNpgsql(connectionString)
+    .AddInterceptors(services.GetRequiredService<OpenFarm.Api.Security.ActivityChannelInterceptor>()));
 
 builder.Services
     .AddHealthChecks()

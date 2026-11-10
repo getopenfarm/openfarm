@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useOpenFarmApiEndpointsActivityLogGetActivityLogEndpoint } from '@/lib/api/generated/activity-log/activity-log';
 import { formatRelativeTime } from '@/lib/formatRelativeTime';
 import { cn } from '@/lib/utils';
+import { ActivityActor } from './components/ActivityActor';
 import { ActivityDetails } from './components/ActivityDetails';
 import { activityEventKind, describeActivityEvent } from './lib/activityEvent';
 
@@ -124,9 +125,12 @@ export function ActivityLogPage() {
                         entry.details,
                       )}
                     </p>
-                    <ActivityDetails details={entry.details} />
+                    <ActivityDetails
+                      details={entry.details}
+                      entityType={entry.entityType}
+                    />
                     <p className="truncate text-xs text-muted-foreground">
-                      {entry.actorDisplayName ?? 'System'}
+                      <ActivityActor entry={entry} />
                     </p>
                   </div>
                   <span className="shrink-0 font-mono text-xs text-muted-foreground">

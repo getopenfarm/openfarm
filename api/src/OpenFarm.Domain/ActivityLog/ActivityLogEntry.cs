@@ -36,6 +36,14 @@ public sealed class ActivityLogEntry
 
     public DateTimeOffset TimestampUtc { get; }
 
+    /// <summary>Records the token or app an operator used. The first attribution wins.</summary>
+    public void AttributeTo(ActivityChannel via)
+    {
+        ArgumentNullException.ThrowIfNull(via);
+        if (ActorType != ActorType.Operator || Details?.Via is not null) return;
+        Details = (Details ?? new ActivityLogDetails()) with { Via = via };
+    }
+
     public static ActivityLogEntry Create(
         string entityType,
         string entityId,

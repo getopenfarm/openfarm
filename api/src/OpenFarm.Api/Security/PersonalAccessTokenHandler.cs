@@ -12,6 +12,7 @@ public sealed class PersonalAccessTokenHandler(IOptionsMonitor<AuthenticationSch
 {
     public const string SchemeName = "PersonalAccessToken";
     public const string PermissionClaim = "openfarm.token-permission";
+    public const string NameClaim = "openfarm.token-name";
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -21,7 +22,7 @@ public sealed class PersonalAccessTokenHandler(IOptionsMonitor<AuthenticationSch
         if (!header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return AuthenticateResult.NoResult();
         var row = await tokens.AuthenticateAsync(header[7..], Context.RequestAborted);
         if (row is null) return AuthenticateResult.Fail("Invalid access token.");
-        var claims = new List<Claim> { new("sub", row.UserId.ToString()), new("pat", row.Id.ToString()) };
+        var claims = new List<Claim> { new("sub", row.UserId.ToString()), new("pat", row.Id.ToString()), new(NameClaim, row.Name) };
         claims.AddRange(row.Permissions.Select(p => new Claim(PermissionClaim, p)));
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
     }

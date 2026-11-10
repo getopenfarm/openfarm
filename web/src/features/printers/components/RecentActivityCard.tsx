@@ -1,6 +1,7 @@
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { BADGE_KIND_META } from '@/components/status-badge/kinds';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ActivityActor } from '@/features/activity-log/components/ActivityActor';
 import { ActivityDetails } from '@/features/activity-log/components/ActivityDetails';
 import {
   activityEventKind,
@@ -63,9 +64,12 @@ export function RecentActivityCard({ printerId }: RecentActivityCardProps) {
                       entry.eventType ?? 'Activity',
                       entry.details,
                     )}
-                    {entry.actorDisplayName
-                      ? ` · ${entry.actorDisplayName}`
-                      : ''}
+                    {entry.actorDisplayName && (
+                      <>
+                        {' · '}
+                        <ActivityActor entry={entry} />
+                      </>
+                    )}
                   </p>
                   <ActivityDetails details={entry.details} />
                   <p className="mt-0.5 text-[11.5px] text-muted-foreground">

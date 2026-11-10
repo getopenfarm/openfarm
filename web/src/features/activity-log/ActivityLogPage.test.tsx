@@ -69,6 +69,45 @@ describe('ActivityLogPage', () => {
     expect(screen.getByText('1–1 of 1')).toBeInTheDocument();
   });
 
+  it('shows the token a change came through and hides token audit JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          items: [
+            {
+              id: '11111111-1111-1111-1111-111111111111',
+              entityType: 'AccessToken',
+              entityId: '22222222-2222-2222-2222-222222222222',
+              eventType: 'AccessTokenCreated',
+              actorId: '33333333-3333-3333-3333-333333333333',
+              actorType: 'Operator',
+              actorDisplayName: 'hao',
+              timestampUtc: '2026-01-01T00:00:00Z',
+              details: {
+                reportedState: '{"Name":"CI script"}',
+                via: {
+                  kind: 'Token',
+                  credentialId: '44444444-4444-4444-4444-444444444444',
+                  label: 'CI script',
+                },
+              },
+            },
+          ],
+          page: 1,
+          pageSize: 25,
+          totalCount: 1,
+        }),
+      ),
+    );
+
+    renderPage();
+
+    expect(await screen.findByText('CI script')).toBeInTheDocument();
+    expect(screen.getByTitle('hao via token “CI script”')).toBeInTheDocument();
+    expect(screen.queryByText(/"Name"/)).not.toBeInTheDocument();
+  });
+
   it('shows an error state with a retry button when the request fails', async () => {
     vi.stubGlobal(
       'fetch',

@@ -2002,8 +2002,8 @@ route('GET', '/profiles/filament', () =>
   ]),
 );
 route('GET', '/activity-log', ({ query }): ActivityLogPageResponse => {
-  const events = printers
-    .flatMap((printer, index) => [
+  const events = [
+    ...printers.flatMap((printer, index) => [
       {
         id: id('ac71', index * 2 + 1),
         entityType: 'Printer',
@@ -2032,8 +2032,30 @@ route('GET', '/activity-log', ({ query }): ActivityLogPageResponse => {
         timestampUtc: minutesAgo(70 + index * 13),
         details: null,
       },
-    ])
-    .sort((a, b) => Date.parse(b.timestampUtc) - Date.parse(a.timestampUtc));
+    ]),
+    {
+      id: id('ac72', 1),
+      entityType: 'PrintJob',
+      entityId: id('ac73', 1),
+      eventType: 'PrintJobReordered',
+      actorId: currentUser.userId,
+      actorType: 'User',
+      actorDisplayName: 'Demo operator',
+      timestampUtc: minutesAgo(42),
+      details: {
+        previousState: null,
+        reportedState: null,
+        observedAtUtc: null,
+        previousAlerts: null,
+        activeAlerts: null,
+        via: {
+          kind: 'Token',
+          credentialId: id('ac74', 1),
+          label: 'Shop dashboard',
+        },
+      },
+    },
+  ].sort((a, b) => Date.parse(b.timestampUtc) - Date.parse(a.timestampUtc));
   const size = Number(query.get('pageSize') ?? 50) || 50;
   return {
     items: page(events, query, size),

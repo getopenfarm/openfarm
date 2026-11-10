@@ -16943,6 +16943,30 @@
             "items": {
               "$ref": "#/components/schemas/PrinterAlert"
             }
+          },
+          "via": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActivityChannel"
+              }
+            ]
+          }
+        }
+      },
+      "ActivityChannel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "label": {
+            "type": "string"
           }
         }
       },

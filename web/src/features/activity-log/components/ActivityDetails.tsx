@@ -24,10 +24,14 @@ export function AlertDescription({ alert }: { alert: PrinterAlert }) {
 
 export function ActivityDetails({
   details,
+  entityType = 'Printer',
 }: {
   details?: ActivityLogDetails | null;
+  entityType?: string;
 }) {
   if (!details) return null;
+  // Only printer rows carry a reported printer state; token rows store an audit snapshot there.
+  const reportedState = entityType === 'Printer' ? details.reportedState : null;
   const before = details.previousAlerts ?? [];
   const after = details.activeAlerts ?? [];
   const key = (alert: PrinterAlert) => `${alert.source}:${alert.code}`;
@@ -50,12 +54,12 @@ export function ActivityDetails({
   ];
   return (
     <div className="mt-1 flex flex-col gap-1 text-xs text-muted-foreground">
-      {details.reportedState && (
+      {reportedState && (
         <p>
           {details.previousState
             ? `${reportedStateLabel(details.previousState)} → `
             : ''}
-          {reportedStateLabel(details.reportedState)}
+          {reportedStateLabel(reportedState)}
         </p>
       )}
       {changes.map(({ alert, cleared }) => (

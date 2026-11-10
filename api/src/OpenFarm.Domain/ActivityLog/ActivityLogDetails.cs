@@ -7,4 +7,5 @@ public sealed record ActivityLogDetails(
     string? ReportedState = null,
     DateTimeOffset? ObservedAtUtc = null,
     IReadOnlyList<PrinterAlert>? PreviousAlerts = null,
-    IReadOnlyList<PrinterAlert>? ActiveAlerts = null);
+    IReadOnlyList<PrinterAlert>? ActiveAlerts = null,
+    ActivityChannel? Via = null);

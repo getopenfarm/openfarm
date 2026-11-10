@@ -3080,6 +3080,12 @@ export interface ListAssembliesRequest {
   [key: string]: unknown;
 }
 
+export interface ActivityChannel {
+  kind?: string;
+  credentialId?: string;
+  label?: string;
+}
+
 export interface ActivityLogDetails {
   /** @nullable */
   previousState?: string | null;
@@ -3091,6 +3097,7 @@ export interface ActivityLogDetails {
   previousAlerts?: PrinterAlert[] | null;
   /** @nullable */
   activeAlerts?: PrinterAlert[] | null;
+  via?: ActivityChannel | null;
 }
 
 export interface ActivityLogEntryResponse {
