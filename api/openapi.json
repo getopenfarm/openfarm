@@ -11769,6 +11769,10 @@
           "status": {
             "type": "string"
           },
+          "phase": {
+            "type": "string",
+            "nullable": true
+          },
           "fileRevisionHash": {
             "type": "string",
             "nullable": true
@@ -12144,6 +12148,10 @@
           },
           "status": {
             "type": "string"
+          },
+          "phase": {
+            "type": "string",
+            "nullable": true
           },
           "assignmentMode": {
             "type": "string"

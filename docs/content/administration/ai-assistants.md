@@ -3,7 +3,7 @@ title: AI assistants
 description: Connect Claude Code, Cursor, VS Code, Codex and other MCP clients to OpenFarm with an access token.
 ---
 
-OpenFarm runs an [MCP](https://modelcontextprotocol.io) server at `/mcp` on your installation. An AI assistant connected to it can read your farm: printers, the queue, production runs, parts, assemblies, filament, spools, maintenance and farm stats. It acts as you, with only the access you give it.
+OpenFarm runs an [MCP](https://modelcontextprotocol.io) server at `/mcp` on your installation. An AI assistant connected to it can read your farm (printers, the queue, production runs, parts, assemblies, filament, spools, maintenance and farm stats) and make the queue and maintenance changes you allow. It acts as you, with only the access you give it.
 
 ## Connect with an access token
 
@@ -29,6 +29,25 @@ Other clients need these settings:
 | Header | `Authorization: Bearer <token>` |
 
 The assistant sees only the tools that both the token and your account allow. If you lose a permission, the assistant loses it on its next request. Revoke the token to disconnect the assistant at once.
+
+## What the assistant can change
+
+With the matching permissions on its token, an assistant can also:
+
+| Change | Permission |
+|---|---|
+| Reorder, pin and unpin queued jobs | Queue: reorder, pin |
+| Requeue a failed or cancelled job | Queue: requeue |
+| Dismiss a filament follow-up notification | Queue: update status |
+| Mark maintenance done | Maintenance: complete |
+| Pause a running print | Queue: remote control |
+| Cancel a job or stop a running print | Queue: cancel |
+
+Requeue, pause and cancel act on real printers: a requeued job can start on an idle printer without another step, and a stopped print cannot be resumed. The assistant is told to show you the job, the printer and its progress and to wait for your confirmation first. Most assistants also ask you to approve each change. Give these permissions only to a token you watch.
+
+Cancel checks that the job is still where the assistant saw it. If a queued job was sent to a printer in the meantime, the cancel is refused and the assistant must read the job again and ask you.
+
+An assistant can never mark a printer ready, skip objects, remove anything, or change settings, printer connections, users or credentials. Each change appears in the activity log with the token's name.
 
 ## What the assistant sends elsewhere
 

@@ -36,6 +36,21 @@ Rules for a new tool:
 4. Leave out network addresses, serial numbers, file bytes and file URLs.
 5. Never expose users, sessions, tokens, settings, printer connections, Mark ready or removals.
 
+## Writes
+
+- `McpTools.Write` + `request.WriteAsync(dto, run, ct)`: builds the mirrored endpoint's request DTO, runs its
+  `IValidator<T>` (INVALID_INPUT with `issues`), runs the same handler, then `ActivityRecorder.RecordAsync` —
+  the code the FastEndpoints post-processor uses — so rows and live events match REST.
+- Printer commands (`pause_print_job`, `cancel_print_job`) return `{ job, confirmed, note }`: confirmed is false
+  until telemetry reports the change, as REST's 202.
+- `cancel_print_job` requires `expectedPhase` (`PrintJobPhases.Of`: Queued, Starting, Printing, Paused). A
+  dispatched job is still `Status = Queued`, so status alone cannot tell "remove from queue" from "stop the
+  printer". The handler checks it after loading the job (`PrintJobPhaseMismatchException` → 409 with
+  `currentPhase`); a dispatch racing the save fails the row version (409). REST passes no expectation.
+- Requeue, pause and cancel are `openWorld`, and their descriptions and the instructions require presenting
+  the job and obtaining reviewed confirmation (tested). Mark ready is never a tool: it is the human "bed is
+  clear" gate.
+
 ## Activity log
 
 Rows written during a token request carry `details.via` (`Token`, token id, token name), stamped by

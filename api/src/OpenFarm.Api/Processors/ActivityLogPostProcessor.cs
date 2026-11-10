@@ -31,23 +31,35 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
             return;
         }
 
-        var (actorId, actorType) = ExtractActor(httpContext.User);
-        var writer = httpContext.RequestServices.GetRequiredService<IActivityLogWriter>();
+        await ActivityRecorder.RecordAsync(httpContext, loggable, context.Response, ct);
+    }
+}
 
-        if (context.Response is IHasEntityIds hasEntityIds)
+/// <summary>
+/// Writes the activity row(s) for a successful state-changing request and sends the matching live
+/// events. Shared by the FastEndpoints post-processor and MCP write tools, so both log the same way.
+/// </summary>
+public static class ActivityRecorder
+{
+    public static async Task RecordAsync(HttpContext context, IActivityLoggable loggable, object? response, CancellationToken ct)
+    {
+        var (actorId, actorType) = ExtractActor(context.User);
+        var writer = context.RequestServices.GetRequiredService<IActivityLogWriter>();
+
+        if (response is IHasEntityIds hasEntityIds)
         {
             var bulkEntries = hasEntityIds.EntityIds
                 .Select(entityId => ActivityLogEntry.Create(loggable.EntityType, entityId, loggable.EventType, actorId, actorType))
                 .ToList();
             await writer.WriteRangeAsync(bulkEntries, ct);
-            foreach (var bulkEntry in bulkEntries) await NotifyPrinterActivityAsync(httpContext, bulkEntry, ct);
+            foreach (var bulkEntry in bulkEntries) await NotifyPrinterActivityAsync(context, bulkEntry, ct);
 
-            await NotifyInventoryChangedAsync(httpContext, loggable, ct);
-            await NotifyMaintenanceChangedAsync(httpContext, loggable, ct);
+            await NotifyInventoryChangedAsync(context, loggable, ct);
+            await NotifyMaintenanceChangedAsync(context, loggable, ct);
             return;
         }
 
-        var singleEntityId = ExtractEntityId(context.Response) ?? ExtractEntityId(context.Request);
+        var singleEntityId = ExtractEntityId(response) ?? ExtractEntityId(loggable);
         if (singleEntityId is null)
         {
             return;
@@ -61,9 +73,9 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
             actorType);
 
         await writer.WriteAsync(entry, ct);
-        await NotifyPrinterActivityAsync(httpContext, entry, ct);
-        await NotifyInventoryChangedAsync(httpContext, loggable, ct);
-        await NotifyMaintenanceChangedAsync(httpContext, loggable, ct);
+        await NotifyPrinterActivityAsync(context, entry, ct);
+        await NotifyInventoryChangedAsync(context, loggable, ct);
+        await NotifyMaintenanceChangedAsync(context, loggable, ct);
     }
 
     // A spool or filament change moves stock and what Action required lists; every open view refreshes on this one event.

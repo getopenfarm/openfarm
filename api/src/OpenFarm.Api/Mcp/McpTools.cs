@@ -1,6 +1,8 @@
+using FluentValidation;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using OpenFarm.Api.Mcp.Tools;
+using OpenFarm.Api.Processors;
 
 namespace OpenFarm.Api.Mcp;
 
@@ -21,6 +23,7 @@ public static class McpTools
         .. LibraryTools.All,
         .. FilamentTools.All,
         .. MaintenanceTools.All,
+        .. WriteTools.All,
     ];
 
     private static readonly Dictionary<string, McpToolSpec> ByName = All.ToDictionary(t => t.Name, StringComparer.Ordinal);
@@ -42,6 +45,35 @@ public static class McpTools
             OpenWorld = false,
             UseStructuredContent = true,
         }), permissions);
+
+    /// <summary>A tool that changes farm state. Every write states <c>destructive</c> explicitly.</summary>
+    public static McpToolSpec Write(string name, string title, string description, bool destructive, bool idempotent,
+        bool openWorld, Delegate method, params string[] permissions) =>
+        new(McpServerTool.Create(method, new McpServerToolCreateOptions
+        {
+            Name = name,
+            Title = title,
+            Description = description,
+            ReadOnly = false,
+            Destructive = destructive,
+            Idempotent = idempotent,
+            OpenWorld = openWorld,
+            UseStructuredContent = true,
+        }), permissions);
+
+    /// <summary>
+    /// Runs a write exactly as its REST endpoint does: the endpoint's request DTO and validator, then
+    /// the same handler, then the same activity row and live events (<see cref="ActivityRecorder"/>).
+    /// </summary>
+    public static async Task<TResponse> WriteAsync<TRequest, TResponse>(this RequestContext<CallToolRequestParams> request,
+        TRequest dto, Func<Task<TResponse>> run, CancellationToken ct) where TRequest : IActivityLoggable
+    {
+        if (request.Services!.GetService<IValidator<TRequest>>() is { } validator)
+            await validator.ValidateAndThrowAsync(dto, ct);
+        var response = await run();
+        await ActivityRecorder.RecordAsync(request.Service<IHttpContextAccessor>().HttpContext!, dto, response, ct);
+        return response;
+    }
 
     public static T Service<T>(this RequestContext<CallToolRequestParams> request) where T : notnull =>
         request.Services!.GetRequiredService<T>();

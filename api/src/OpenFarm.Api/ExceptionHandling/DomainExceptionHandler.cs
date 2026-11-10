@@ -124,6 +124,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             PinnedJobRequiresPrinterException => (StatusCodes.Status400BadRequest, "A pinned job requires a printer id"),
             PrintJobAlreadyDispatchedException => (StatusCodes.Status409Conflict, "Print job is no longer queued"),
             ProductionRunConcurrencyConflictException => (StatusCodes.Status409Conflict, "Production run or print job was concurrently modified"),
+            PrintJobPhaseMismatchException => (StatusCodes.Status409Conflict, "Print job changed since it was read"),
             FilamentConsumptionSumMismatchException => (StatusCodes.Status400BadRequest, "Filament consumption does not match a requirement on this job"),
             JobNotEligibleForRemoteControlException => (StatusCodes.Status409Conflict, "Print job is not eligible for this remote-control action"),
             PrintJobAlreadyRequeuedException => (StatusCodes.Status409Conflict, "Print job has already been requeued"),
@@ -160,6 +161,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
         else if (exception is OpenFarm.Application.Maintenance.MaintenanceCompletionFailedException completion)
             extensions["failures"] = completion.Failures.ToDictionary(f => f.Key.ToString(), f => f.Value);
         else if (exception is SlicingProfileUnconfiguredException { Code: { } profileCode }) extensions["code"] = profileCode;
+        else if (exception is PrintJobPhaseMismatchException mismatch) extensions["currentPhase"] = mismatch.Current?.ToString();
         return new ProblemDetails
         {
             Type = $"https://httpstatuses.io/{statusCode}",

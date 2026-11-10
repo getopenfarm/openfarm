@@ -39,6 +39,14 @@ public sealed class McpReadToolsTests(CustomWebApplicationFactory factory) : ICl
         ["list_spools"] = typeof(ListSpoolsEndpoint),
         ["list_maintenance"] = typeof(ListMaintenanceEnrollmentsEndpoint),
         ["get_farm_stats"] = typeof(StatsEndpoint),
+        ["reorder_print_job"] = typeof(ReorderPrintJobEndpoint),
+        ["pin_print_job"] = typeof(PinPrintJobEndpoint),
+        ["unpin_print_job"] = typeof(UnpinPrintJobEndpoint),
+        ["requeue_print_job"] = typeof(RequeuePrintJobEndpoint),
+        ["dismiss_notification"] = typeof(OpenFarm.Api.Endpoints.Notifications.DismissNotificationEndpoint),
+        ["complete_maintenance"] = typeof(OpenFarm.Api.Endpoints.Maintenance.CompleteMaintenanceEndpoint),
+        ["pause_print_job"] = typeof(PausePrintJobEndpoint),
+        ["cancel_print_job"] = typeof(CancelPrintJobEndpoint),
     };
 
     [Fact]
@@ -62,7 +70,8 @@ public sealed class McpReadToolsTests(CustomWebApplicationFactory factory) : ICl
 
         var tools = await client.ListToolsAsync();
 
-        tools.Select(t => t.Name).Should().BeEquivalentTo(McpTools.All.Select(t => t.Name)).And.HaveCount(17);
+        tools.Select(t => t.Name).Should().BeEquivalentTo(McpTools.All
+            .Where(t => t.Tool.ProtocolTool.Annotations?.ReadOnlyHint == true).Select(t => t.Name)).And.HaveCount(17);
         tools.Should().OnlyContain(t => t.ProtocolTool.Annotations!.ReadOnlyHint == true);
     }
 
@@ -103,7 +112,7 @@ public sealed class McpReadToolsTests(CustomWebApplicationFactory factory) : ICl
     }
 
     [Theory]
-    [InlineData("get_print_job", "printJobId")]
+    [InlineData("get_print_job", "jobId")]
     [InlineData("get_production_run", "productionRunId")]
     [InlineData("get_part", "partId")]
     [InlineData("get_assembly", "assemblyId")]
@@ -135,7 +144,7 @@ public sealed class McpReadToolsTests(CustomWebApplicationFactory factory) : ICl
     private async Task<McpClient> ConnectAsync()
     {
         var browser = await McpTestClient.BrowserAsync(factory);
-        var token = await McpTestClient.TokenAsync(browser, [.. McpTools.All.SelectMany(t => t.Permissions).Distinct()]);
+        var token = await McpTestClient.TokenAsync(browser, [.. McpTools.All.Where(t => t.Tool.ProtocolTool.Annotations?.ReadOnlyHint == true).SelectMany(t => t.Permissions).Distinct()]);
         return await McpTestClient.ConnectAsync(factory, token.Credential);
     }
 

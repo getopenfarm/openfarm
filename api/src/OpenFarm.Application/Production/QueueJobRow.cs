@@ -25,4 +25,5 @@ public sealed record QueueJobRow(
     Guid? ProductionRunId,
     string RunDisplayLabel, string? BlockingReason = null, bool SourcePartAvailable = true, string SnapshotState = "Ready", string? SnapshotRecoveryReason = null,
     PrintSource Source = PrintSource.Dispatched, DateTimeOffset? StartedAtUtc = null, DateTimeOffset? EndedAtUtc = null,
-    string? LastBlockReason = null, string? DemandMode = null, bool CanRequeue = false, int? TargetUnits = null, int? ProducedUnits = null, int? MissingUnits = null, string? ThumbnailBase64 = null);
+    string? LastBlockReason = null, string? DemandMode = null, bool CanRequeue = false, int? TargetUnits = null, int? ProducedUnits = null, int? MissingUnits = null, string? ThumbnailBase64 = null,
+    PrintJobPhase? Phase = null);

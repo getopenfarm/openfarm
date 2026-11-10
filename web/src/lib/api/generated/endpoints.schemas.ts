@@ -1230,6 +1230,8 @@ export interface PrintJobResponse {
   dispatchedPrinterId?: string | null;
   status?: string;
   /** @nullable */
+  phase?: string | null;
+  /** @nullable */
   fileRevisionHash?: string | null;
   /** @nullable */
   fileRevisionNumber?: number | null;
@@ -1329,6 +1331,8 @@ export interface QueueJobRowResponse {
   /** @nullable */
   queuePosition?: number | null;
   status?: string;
+  /** @nullable */
+  phase?: string | null;
   assignmentMode?: string;
   /** @nullable */
   pinnedPrinterId?: string | null;

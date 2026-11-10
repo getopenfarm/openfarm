@@ -49,6 +49,37 @@ public class CancelPrintJobCommandHandlerTests
     }
 
     [Fact]
+    public async Task HandleAsync_ExpectedQueuedButJustDispatched_RefusesWithoutStoppingThePrinter()
+    {
+        var job = ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());
+        var printer = ProductionTestFixtures.CreateLiveIntegratedPrinter();
+        job.Dispatch(printer.Id);
+        var connector = new RecordingPrinterConnector();
+        var handler = new CancelPrintJobCommandHandler(
+            new InMemoryPrintJobRepository(job), new InMemoryPrinterRepository(printer), MakeDetailsResolver(printer.SerialNumber),
+            new RecordingPrinterConnectorFactory(connector), new RecordingProductionEventPublisher());
+
+        var act = () => handler.HandleAsync(new CancelPrintJobCommand(job.Id, PrintJobPhase.Queued), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<PrintJobPhaseMismatchException>()).Which.Current.Should().Be(PrintJobPhase.Starting);
+        connector.StopCalls.Should().Be(0);
+        job.CancelRequestedAtUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task HandleAsync_ExpectedPhaseMatches_Cancels()
+    {
+        var job = ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());
+        var handler = new CancelPrintJobCommandHandler(
+            new InMemoryPrintJobRepository(job), new InMemoryPrinterRepository(), MakeDetailsResolver(),
+            new RecordingPrinterConnectorFactory(new RecordingPrinterConnector()), new RecordingProductionEventPublisher());
+
+        var result = await handler.HandleAsync(new CancelPrintJobCommand(job.Id, PrintJobPhase.Queued), CancellationToken.None);
+
+        result.Status.Should().Be(PrintJobStatus.Cancelled);
+    }
+
+    [Fact]
     public async Task HandleAsync_TerminalJob_ThrowsNotEligible()
     {
         var job = ProductionTestFixtures.CreateQueuedJob(Guid.NewGuid());

@@ -24,6 +24,10 @@ public sealed class CancelPrintJobCommandHandler(
         var job = await jobRepository.GetByIdAsync(command.JobId, cancellationToken)
             ?? throw new PrintJobNotFoundException(command.JobId);
 
+        // A dispatch landing after this check fails the row version on save (409), so it cannot slip through.
+        if (command.Expected is { } expected && PrintJobPhases.Of(job.Status, job.DispatchedAtUtc) is var current && current != expected)
+            throw new PrintJobPhaseMismatchException(job.Id, current);
+
         if (job.Status == PrintJobStatus.Queued && job.DispatchedAtUtc is null)
         {
             job.MarkCancelled();

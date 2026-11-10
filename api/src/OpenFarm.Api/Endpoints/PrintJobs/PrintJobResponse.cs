@@ -1,3 +1,4 @@
+using OpenFarm.Domain.Production;
 using OpenFarm.Application.Production;
 
 namespace OpenFarm.Api.Endpoints.PrintJobs;
@@ -9,6 +10,9 @@ public sealed class QueueJobRowResponse
     public double? QueuePosition { get; set; }
 
     public string Status { get; set; } = string.Empty;
+
+    /// <summary>Queued, Starting (sent, not yet printing), Printing or Paused; null once the job ended. Cancel through MCP must name it.</summary>
+    public string? Phase { get; set; }
 
     public string AssignmentMode { get; set; } = string.Empty;
 
@@ -57,6 +61,7 @@ public sealed class QueueJobRowResponse
         JobId = row.JobId,
         QueuePosition = row.QueuePosition,
         Status = row.Status.ToString(),
+        Phase = row.Phase?.ToString(),
         AssignmentMode = row.AssignmentMode.ToString(),
         PinnedPrinterId = row.PinnedPrinterId,
         DispatchedPrinterId = row.DispatchedPrinterId,
@@ -154,6 +159,9 @@ public sealed class PrintJobResponse
 
     public string Status { get; set; } = string.Empty;
 
+    /// <summary>Queued, Starting (sent, not yet printing), Printing or Paused; null once the job ended. Cancel through MCP must name it.</summary>
+    public string? Phase { get; set; }
+
     public string? FileRevisionHash { get; set; }
 
     public int? FileRevisionNumber { get; set; }
@@ -207,6 +215,7 @@ public sealed class PrintJobResponse
         PinnedPrinterId = detail.PinnedPrinterId,
         DispatchedPrinterId = detail.DispatchedPrinterId,
         Status = detail.Status.ToString(),
+        Phase = PrintJobPhases.Of(detail.Status, detail.DispatchedAtUtc)?.ToString(),
         FileRevisionHash = detail.FileRevisionHash,
         FileRevisionNumber = detail.FileRevisionNumber,
         DispatchedAtUtc = detail.DispatchedAtUtc,

@@ -35,10 +35,10 @@ public static class PrintJobTools
             "print-jobs:view"),
         McpTools.Read("get_print_job", "Get print job",
             "One print job: status, printer, plate, filament use and timestamps.",
-            async (RequestContext<CallToolRequestParams> request, [Description("Print job id")] Guid printJobId, CancellationToken ct) =>
+            async (RequestContext<CallToolRequestParams> request, [Description("Print job id")] Guid jobId, CancellationToken ct) =>
             {
                 var job = PrintJobResponse.FromDetail(McpTools.Found(await request.Service<IQueryHandler<GetPrintJobQuery, PrintJobDetail?>>()
-                    .HandleAsync(new GetPrintJobQuery(printJobId), ct), "Print job"));
+                    .HandleAsync(new GetPrintJobQuery(jobId), ct), "Print job"));
                 job.ThumbnailBase64 = null;
                 return job;
             },
