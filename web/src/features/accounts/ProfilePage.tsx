@@ -19,12 +19,16 @@ import {
   SettingsSection,
 } from '@/features/settings/SettingsParts';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
-import { useOpenFarmApiEndpointsAuthListConnectedAppsEndpoint } from '@/lib/api/generated/auth/auth';
-import type { ConnectedAppsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
 import { type CurrentUser, useIdentity } from '@/lib/auth/permissions';
-import { sessionsKey, useUpdateProfile, whoAmIKey } from './api';
+import {
+  sessionsKey,
+  useConnectedApps,
+  useUpdateProfile,
+  whoAmIKey,
+} from './api';
 import { ConnectAssistantCard } from './ConnectAssistantCard';
+import { ConnectedAppList } from './ConnectedAppList';
 import { SessionList } from './SessionList';
 import { TokenList } from './TokenList';
 
@@ -109,19 +113,22 @@ export function ProfilePage() {
 }
 
 function ConnectedAppsTab() {
-  const query = useOpenFarmApiEndpointsAuthListConnectedAppsEndpoint();
-  const apps = query.data?.data as ConnectedAppsResponse | undefined;
+  const query = useConnectedApps();
+  const apps = query.data;
   return (
     <SettingsSection
       title="Connected apps"
       description="Apps that use OpenFarm as you, with the access you allowed. Revoking access disconnects the app at once."
     >
       {apps ? (
-        <ConnectAssistantCard
-          mcpUrl={apps.mcpUrl}
-          signInEnabled={apps.signInEnabled ?? false}
-          defaultOpen
-        />
+        <div className="flex flex-col gap-4">
+          <ConnectAssistantCard
+            mcpUrl={apps.mcpUrl}
+            signInEnabled={apps.signInEnabled ?? false}
+            defaultOpen={!apps.apps?.length}
+          />
+          <ConnectedAppList />
+        </div>
       ) : query.isError ? (
         <ErrorState
           title="Could not load connected apps"

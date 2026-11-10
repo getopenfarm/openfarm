@@ -56,6 +56,8 @@ export function activityEventKind(
   if (alerts.some((a) => a.severity === 'Warning')) return 'amber';
   if (details?.reportedState?.trim().toUpperCase() === 'FAILED') return 'red';
   if (details?.reportedState?.trim().toUpperCase() === 'PAUSE') return 'amber';
+  if (eventType === 'ConnectedAppAdded') return 'green';
+  if (eventType === 'ConnectedAppRevoked') return 'red';
   const type = eventType.toLowerCase();
   if (type.includes('removed') || type.includes('failed')) return 'red';
   if (

@@ -39,6 +39,18 @@ const data: Record<string, unknown> = {
     permissions: [],
   },
   '/api/v1/admin/users/u1/sessions': [],
+  '/api/v1/admin/users/u1/tokens': [],
+  '/api/v1/admin/users/u1/apps': [
+    {
+      id: 's9',
+      clientName: 'Claude',
+      clientIdSuffix: '9f2a',
+      returnsTo: { kind: 'Web', label: 'claude.ai' },
+      access: [],
+      createdAtUtc: '2026-11-10T00:00:00Z',
+      expiresAtUtc: '2026-12-10T00:00:00Z',
+    },
+  ],
 };
 
 beforeEach(() => {
@@ -145,6 +157,19 @@ describe('UserFormPage', () => {
       method: 'POST',
       body: JSON.stringify({ password: 'new-password' }),
     });
+  });
+
+  it('lists the user’s connected apps for revoking', async () => {
+    renderAt('/users-groups/users/u1');
+    expect(await screen.findByText('Claude')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Only the user can connect an app. You can revoke theirs.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Revoke access' }),
+    ).toBeInTheDocument();
   });
 
   it('shows not found for an unknown user', async () => {

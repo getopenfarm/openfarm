@@ -26,4 +26,19 @@ describe('describeActivityEvent', () => {
     ).toBe('Maintenance task created');
     expect(activityEventKind('MaintenanceCompleted')).toBe('green');
   });
+
+  it('names and colors connected app events', () => {
+    expect(describeActivityEvent('ConnectedApp', 'ConnectedAppAdded')).toBe(
+      'Connected app added',
+    );
+    expect(describeActivityEvent('ConnectedApp', 'ConnectedAppRevoked')).toBe(
+      'Connected app revoked',
+    );
+    expect(
+      describeActivityEvent('ConnectedApp', 'ConnectedAppCredentialReuse'),
+    ).toBe('Connected app credential reuse');
+    expect(activityEventKind('ConnectedAppAdded')).toBe('green');
+    expect(activityEventKind('ConnectedAppRevoked')).toBe('red');
+    expect(activityEventKind('ConnectedAppCredentialReuse')).toBe('zinc');
+  });
 });

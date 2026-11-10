@@ -6,6 +6,8 @@ import {
 } from '@tanstack/react-query';
 import type {
   AccountResponse,
+  ConnectedAppResponse,
+  ConnectedAppsResponse,
   GroupResponse,
   PermissionArea,
   PermissionCatalogResponse,
@@ -17,6 +19,7 @@ import { httpClient } from '@/lib/api/httpClient';
 
 export type {
   AccountResponse,
+  ConnectedAppResponse,
   GroupResponse,
   PermissionArea,
   PermissionDefinition,
@@ -92,6 +95,29 @@ function invalidateSessions(client: QueryClient, userId?: string) {
   // [adminKey] prefixes the user's session list and the user list's sessionCount.
   return client.invalidateQueries({
     queryKey: userId ? [adminKey] : ownSessionsKey,
+  });
+}
+/** Own connected apps (with the connect card's data) without a userId; that user's apps with one. */
+export function connectedAppsKey(userId?: string) {
+  return userId ? [adminKey, 'users', userId, 'apps'] : ['/api/v1/auth/apps'];
+}
+export function useConnectedApps(userId?: string) {
+  return useQuery({
+    queryKey: connectedAppsKey(userId),
+    queryFn: async (): Promise<ConnectedAppsResponse> =>
+      userId
+        ? {
+            apps: (
+              await httpClient<{ data: ConnectedAppResponse[] }>(
+                `${adminKey}/users/${userId}/apps`,
+              )
+            ).data,
+          }
+        : (
+            await httpClient<{ data: ConnectedAppsResponse }>(
+              '/api/v1/auth/apps',
+            )
+          ).data,
   });
 }
 export function useRemoveUser() {

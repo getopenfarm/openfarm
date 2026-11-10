@@ -45,6 +45,7 @@ import {
   useRemoveUser,
   whoAmIKey,
 } from './api';
+import { ConnectedAppList } from './ConnectedAppList';
 import { SessionList } from './SessionList';
 import { sectionLabel } from './styles';
 import { TokenList } from './TokenList';
@@ -401,6 +402,15 @@ function UserForm({
                 theirs.
               </p>
               <TokenList userId={id} />
+            </section>
+          )}
+          {id && (
+            <section className="flex flex-col gap-3">
+              <div className={sectionLabel}>Connected apps</div>
+              <p className="text-xs text-muted-foreground">
+                Only the user can connect an app. You can revoke theirs.
+              </p>
+              <ConnectedAppList userId={id} />
             </section>
           )}
         </FieldGroup>

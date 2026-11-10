@@ -152,4 +152,24 @@ describe('Connected apps', () => {
       screen.getByRole('heading', { name: 'Connected apps' }),
     ).toBeInTheDocument();
   });
+
+  it('collapses the connect card once an app is connected', async () => {
+    http.mockImplementation((async () => ({
+      data: {
+        mcpUrl: 'https://farm.example.com/mcp',
+        signInEnabled: true,
+        apps: [{ id: 'a1', clientName: 'Claude', access: [] }],
+      },
+      status: 200,
+      headers: new Headers(),
+    })) as never);
+    setup('apps');
+    expect(await screen.findByText('Claude')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Connect an AI assistant' }),
+    ).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByText('https://farm.example.com/mcp'),
+    ).not.toBeInTheDocument();
+  });
 });
