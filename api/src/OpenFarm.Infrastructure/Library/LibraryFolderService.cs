@@ -37,6 +37,11 @@ public sealed class LibraryFolderService(OpenFarmDbContext db) : ILibraryFolderS
         var items = await query.OrderBy(f => f.Name.ToLower()).ThenBy(f => f.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return new(items, count, ancestors);
     }
+    public async Task<IReadOnlyList<LibraryFolder>> ListAllAsync(string library, CancellationToken ct)
+    {
+        LibraryFolder.ValidateLibrary(library);
+        return await db.LibraryFolders.AsNoTracking().Where(f => f.Library == library).ToListAsync(ct);
+    }
     // All structural folder writes share this transaction lock. FK restrictions also protect
     // against concurrent item creation, which does not need to take the folder lock.
     private async Task<T> WriteAsync<T>(Func<Task<T>> action, CancellationToken ct)

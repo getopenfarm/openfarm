@@ -22,6 +22,9 @@ public interface ISpoolReadModel
     /// </summary>
     Task<IReadOnlyList<VariantStock>> ListStockAsync(DateTimeOffset usedSince, CancellationToken cancellationToken);
 
+    /// <summary>Each colour's newest registered spool.</summary>
+    Task<IReadOnlyList<OpenFarm.Application.Production.SpoolPurchase>> ListLatestPurchasesAsync(CancellationToken cancellationToken);
+
     /// <summary>
     /// <see cref="MaterialsReport"/> over the query's range: the lines of prints that closed in it once deduction ran on them (a
     /// print cancelled before it started has none), and the write-offs and restores recorded in it.

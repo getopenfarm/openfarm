@@ -50,8 +50,8 @@ Facts re-verified for this version:
 
 | Item | Why not now | Add when |
 |---|---|---|
-| `resume_print_job`, `skip_print_objects`, `create_production_run` | Act on a running print with no human at it, or need preview + idempotency inputs. | Q1 says yes. Each gets a **new** scope. |
-| `mark_printer_ready` | The human "bed is clear" gate; dispatch follows on its own (`FEATURE_PLAN.md:134,161`). | Never over MCP. |
+| `resume_print_job`, `skip_print_objects`, `create_production_run` | Act on a running print with no human at it, or need preview + idempotency inputs. | Q1 says yes. Each gets a **new** scope. Production shipped 2026-11-11 as `plan_production` + `queue_production`. |
+| `mark_printer_ready` | The human "bed is clear" gate; dispatch follows on its own (`FEATURE_PLAN.md:134,161`). | Superseded 2026-11-11: `mark_printers_ready` ships, gated by the user's word and the `awaitingClearSinceUtc` read (`dev-notes/MCP.md` § Writes). |
 | `insufficient_scope` 403 step-up | Unusable tools are not listed. Needs JSON-RPC body inspection (`A/src/lib/server/mcp/oauth-challenge.ts:47-149`). | A target client drives re-consent from it. |
 | CIMD | SSRF into the printer LAN; akaun skips it (`A/dev-notes/OAUTH.md:107`). | A target client drops DCR. |
 | Per-group delegation ceiling | OpenFarm has none (`AUTHENTICATION.md:37-38`); the frozen scope catalog bounds apps. | Admins ask. |

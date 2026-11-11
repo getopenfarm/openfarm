@@ -6,6 +6,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using OpenFarm.Application.Auth;
 using OpenFarm.Infrastructure.Auth;
 using OpenFarm.Infrastructure.Auth.OAuth;
 using OpenFarm.Infrastructure.Identity;
@@ -18,7 +19,7 @@ public sealed class OAuthDiscoveryAndRegistrationTests(OAuthFactory factory)
 {
     private readonly OAuthKit _kit = new(factory);
 
-    private const string Scopes = """["printers.read","print-jobs.read","production-runs.read","library.read","filament.read","maintenance.read","print-jobs.write","maintenance.write","print-jobs.pause","print-jobs.cancel"]""";
+    private const string Scopes = """["printers.read","print-jobs.read","production-runs.read","library.read","filament.read","maintenance.read","pricing.read","print-jobs.write","production-runs.write","library.write","filament.write","maintenance.write","pricing.write","printers.ready","print-jobs.pause","print-jobs.cancel"]""";
 
     private static string Compact(string json) => JsonSerializer.Serialize(JsonDocument.Parse(json).RootElement);
 
@@ -150,7 +151,7 @@ public sealed class OAuthDiscoveryAndRegistrationTests(OAuthFactory factory)
         var secret = json.GetProperty("client_secret").GetString()!;
         secret.Should().MatchRegex("^ofs_[0-9a-f]{64}$");
         json.GetProperty("client_secret_expires_at").GetInt64().Should().Be(0);
-        json.GetProperty("scope").GetString()!.Split(' ').Should().HaveCount(10);
+        json.GetProperty("scope").GetString()!.Split(' ').Should().HaveCount(OAuthScopes.All.Count);
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();

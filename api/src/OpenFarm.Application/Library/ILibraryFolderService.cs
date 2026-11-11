@@ -7,6 +7,8 @@ public interface ILibraryFolderService
 {
     Task ValidateDestinationAsync(string library, Guid? id, CancellationToken ct);
     Task<FolderPage> ListAsync(string library, Guid? parentId, int page, int pageSize, CancellationToken ct);
+    /// <summary>Every folder of one library, to resolve paths.</summary>
+    Task<IReadOnlyList<LibraryFolder>> ListAllAsync(string library, CancellationToken ct);
     Task<LibraryFolder> CreateAsync(string library, string name, Guid? parentId, CancellationToken ct);
     Task<LibraryFolder> RenameAsync(string library, Guid id, string name, CancellationToken ct);
     Task<LibraryFolder> MoveFolderAsync(string library, Guid id, Guid? parentId, CancellationToken ct);

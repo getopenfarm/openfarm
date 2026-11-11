@@ -89,9 +89,11 @@ public sealed class UpdateFeesEndpoint(IFeeProfileRepository profiles) : Endpoin
     }
 }
 
-public sealed class SaveFeeProfileRequest
+public sealed class SaveFeeProfileRequest : OpenFarm.Api.Processors.IActivityLoggable
 {
     public Guid Id { get; set; }
+    public string EntityType => "FeeProfile";
+    public string EventType => Id == Guid.Empty ? "FeeProfileCreated" : "FeeProfileEdited";
     public string Name { get; set; } = string.Empty;
     public List<FeeDto> Fees { get; set; } = [];
 }
@@ -148,7 +150,8 @@ public sealed class EditFeeProfileEndpoint(IFeeProfileRepository profiles) : End
     }
     public override async Task HandleAsync(SaveFeeProfileRequest req, CancellationToken ct)
     {
-        var result = await profiles.SaveAsync(Route<Guid>("id"), req.Name, req.Fees.Select(f => new Fee(f.Name, f.Type, f.Amount)).ToList(), ct);
+        req.Id = Route<Guid>("id");
+        var result = await profiles.SaveAsync(req.Id, req.Name, req.Fees.Select(f => new Fee(f.Name, f.Type, f.Amount)).ToList(), ct);
         if (result.DuplicateName)
         {
             AddError(r => r.Name, "Fee profile names must be unique.");

@@ -4,8 +4,8 @@ namespace OpenFarm.Application.Parts;
 
 public interface IPartRepository
 {
-    Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListInFolderAsync(IReadOnlyList<string> tags, int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken) =>
-        folder is null ? ListAsync(tags, page, pageSize, cancellationToken, sorting) : throw new NotSupportedException("Folder queries require a persistent repository.");
+    Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListInFolderAsync(IReadOnlyList<string> tags, int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken, string? search = null) =>
+        folder is null && search is null ? ListAsync(tags, page, pageSize, cancellationToken, sorting) : throw new NotSupportedException("Folder queries require a persistent repository.");
 
     Task AddAsync(Part part, CancellationToken cancellationToken);
 

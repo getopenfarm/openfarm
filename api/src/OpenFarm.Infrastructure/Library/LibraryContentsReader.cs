@@ -43,7 +43,7 @@ public sealed class LibraryContentsReader(OpenFarmDbContext db, ILibraryFolderSe
             : [];
         var assemblies = library == "assemblies" && itemIds.Count > 0
             ? await db.Assemblies.AsNoTracking().Where(a => itemIds.Contains(a.Id))
-                .Select(a => new AssemblySummary(a.Id, a.Name, a.Description, a.Lines.Count)).ToDictionaryAsync(a => a.Id, ct)
+                .Select(a => new AssemblySummary(a.Id, a.Name, a.Description, a.Lines.Count, a.FolderId)).ToDictionaryAsync(a => a.Id, ct)
             : [];
         var entries = new List<LibraryContentsEntry>();
         foreach (var key in pageKeys)

@@ -21,6 +21,11 @@ public static class McpSetup
                 o.ServerInstructions = McpInstructions.Text;
                 o.Filters.Request.CallToolFilters.Add(McpCall.Filter);
             })
+            // No resources or prompts, but answer their lists: on the 2026-07-28 protocol an unknown method is an HTTP 404,
+            // which clients such as MCP Inspector treat as a broken connection, dropping tools/list sent alongside.
+            .WithListResourcesHandler((_, _) => ValueTask.FromResult(new ListResourcesResult()))
+            .WithListResourceTemplatesHandler((_, _) => ValueTask.FromResult(new ListResourceTemplatesResult()))
+            .WithListPromptsHandler((_, _) => ValueTask.FromResult(new ListPromptsResult()))
             .WithHttpTransport(t =>
             {
                 t.SessionMode = HttpServerSessionMode.Stateless;

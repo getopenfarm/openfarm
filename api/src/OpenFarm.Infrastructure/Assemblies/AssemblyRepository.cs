@@ -24,9 +24,12 @@ public sealed class AssemblyRepository(OpenFarmDbContext dbContext) : IAssemblyR
     public Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListAsync(int page, int pageSize, CancellationToken cancellationToken, OpenFarm.Application.Common.ListSort? sorting = null) =>
         ListInFolderAsync(page, pageSize, sorting, null, cancellationToken);
 
-    public async Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListInFolderAsync(int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken)
+    public async Task<(IReadOnlyList<Assembly> Assemblies, int TotalCount)> ListInFolderAsync(int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken, string? search = null)
     {
         var query = dbContext.Assemblies.Include(a => a.Lines).Include(a => a.AdditionalCosts).AsSplitQuery();
+
+        foreach (var pattern in LikePatterns.Contains(search))
+            query = query.Where(a => EF.Functions.ILike(a.Name, pattern, "\\"));
 
         if (folder is not null)
         {

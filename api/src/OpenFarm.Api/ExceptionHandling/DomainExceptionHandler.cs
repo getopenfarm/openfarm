@@ -45,6 +45,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             IncompatibleBuildPlateException => (StatusCodes.Status422UnprocessableEntity, "Build plate incompatible with printer model"),
             ImmutablePrinterFieldMismatchException => (StatusCodes.Status422UnprocessableEntity, "Printer identity fields cannot be changed"),
             InvalidPrinterStatusTransitionException => (StatusCodes.Status409Conflict, "Invalid printer status transition"),
+            OpenFarm.Application.Printers.PrinterChangedSinceReadException => (StatusCodes.Status409Conflict, "Printer changed since it was read"),
             PrinterNotFoundException => (StatusCodes.Status404NotFound, "Printer not found"),
             ProcessProfileRequiresMachineProfileException => (StatusCodes.Status422UnprocessableEntity, "Machine profile required"),
             ProcessProfileIncompatibleWithMachineException => (StatusCodes.Status422UnprocessableEntity, "Process profile incompatible with machine"),

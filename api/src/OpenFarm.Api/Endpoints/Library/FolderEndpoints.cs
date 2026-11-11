@@ -1,4 +1,5 @@
 using FastEndpoints;
+using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.Library;
 using OpenFarm.Domain.Library;
@@ -12,16 +13,33 @@ public sealed class ListFoldersRequest : FolderLibraryRequest
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 25;
 }
-public sealed class CreateFolderRequest : FolderLibraryRequest
+public sealed class CreateFolderRequest : FolderLibraryRequest, IActivityLoggable
 {
+    public string EntityType => "LibraryFolder";
+    public string EventType => "LibraryFolderCreated";
     public string Name { get; set; } = string.Empty;
     public Guid? ParentId { get; set; }
 }
-public class FolderIdRequest : FolderLibraryRequest { public Guid Id { get; set; } }
-public sealed class RenameFolderRequest : FolderIdRequest { public string Name { get; set; } = string.Empty; }
-public sealed class MoveFolderRequest : FolderIdRequest { public Guid? ParentId { get; set; } }
-public sealed class MoveLibraryItemsRequest : FolderLibraryRequest
+public class FolderIdRequest : FolderLibraryRequest, IActivityLoggable
 {
+    public Guid Id { get; set; }
+    public string EntityType => "LibraryFolder";
+    public virtual string EventType => "LibraryFolderRemoved";
+}
+public sealed class RenameFolderRequest : FolderIdRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public override string EventType => "LibraryFolderRenamed";
+}
+public sealed class MoveFolderRequest : FolderIdRequest
+{
+    public Guid? ParentId { get; set; }
+    public override string EventType => "LibraryFolderMoved";
+}
+public sealed class MoveLibraryItemsRequest : FolderLibraryRequest, IActivityLoggable
+{
+    public string EntityType => Library == "parts" ? "Part" : "Assembly";
+    public string EventType => "LibraryItemsMoved";
     public List<Guid> Ids { get; set; } = [];
     public Guid? FolderId { get; set; }
 }

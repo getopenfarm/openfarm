@@ -28,7 +28,7 @@ public sealed class GetFleetQueryHandler(IPrinterRepository printerRepository, I
                 p.RemainingTimeMinutes,
                 currentPrints[p.Id].Name,
                 FilamentColor.FromFeedReadings(p.FeedReadings), p.ReportedNozzleDiameterMm, p.NozzleObservedAtUtc, p.NozzleConfirmed,
-                currentPrints[p.Id].JobId))
+                currentPrints[p.Id].JobId, p.ActivitySinceUtc, p.ActiveAlerts))
             .ToList();
     }
 }

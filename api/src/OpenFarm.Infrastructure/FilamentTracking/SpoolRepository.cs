@@ -42,8 +42,6 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
 
     private const int DefaultPageSize = 25;
     private const int MaxPageSize = 100;
-    private const int MaxSearchTerms = 8;
-    private const int MaxSearchTermLength = 64;
 
     public async Task<SpoolRowPage> ListRowsAsync(GetSpoolsQuery query, CancellationToken cancellationToken)
     {
@@ -397,15 +395,17 @@ public sealed class SpoolRepository(OpenFarmDbContext dbContext) : ISpoolReposit
         }).ToList();
     }
 
-    /// <summary>Trimmed, bounded, LIKE-escaped terms; a bounded term count keeps a pasted paragraph from becoming a huge predicate.</summary>
-    private static IEnumerable<string> SearchTerms(string? search) =>
-        (search ?? string.Empty)
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Take(MaxSearchTerms)
-            .Select(term => (term.Length > MaxSearchTermLength ? term[..MaxSearchTermLength] : term)
-                .Replace("\\", "\\\\", StringComparison.Ordinal)
-                .Replace("%", "\\%", StringComparison.Ordinal)
-                .Replace("_", "\\_", StringComparison.Ordinal));
+    // ponytail: every spool's five columns in memory, as ListStockAsync does; group in SQL at tens of thousands of spools.
+    public async Task<IReadOnlyList<OpenFarm.Application.Production.SpoolPurchase>> ListLatestPurchasesAsync(CancellationToken cancellationToken) =>
+        (await dbContext.Spools.AsNoTracking()
+            .Select(s => new { s.FilamentVariantId, s.SpoolWeightGrams, s.Price, s.Supplier, s.CreatedAtUtc })
+            .ToListAsync(cancellationToken))
+        .GroupBy(s => s.FilamentVariantId)
+        .Select(g => g.MaxBy(s => s.CreatedAtUtc)!)
+        .Select(s => new OpenFarm.Application.Production.SpoolPurchase(s.FilamentVariantId, s.SpoolWeightGrams, s.Price, s.Supplier, s.CreatedAtUtc))
+        .ToList();
+
+    private static IEnumerable<string> SearchTerms(string? search) => LikePatterns.Terms(search);
 
     public async Task<IReadOnlyList<Spool>> FindLoadedInFeedUnitAsync(Guid feedUnitId, CancellationToken cancellationToken)
     {

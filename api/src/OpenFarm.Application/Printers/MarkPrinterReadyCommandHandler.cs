@@ -23,6 +23,8 @@ public sealed class MarkPrinterReadyCommandHandler(
             ?? throw new PrinterNotFoundException(command.PrinterId);
 
         PrinterStatusTransitions.EnsureValidManualTransition(printer.Status, PrinterStatus.Idle);
+        if (command.ExpectedSinceUtc is { } expected && expected != printer.ActivitySinceUtc)
+            throw new PrinterChangedSinceReadException(printer.Id);
         printer.TransitionTo(PrinterStatus.Idle);
         await printerRepository.SaveChangesAsync(cancellationToken);
 

@@ -354,6 +354,7 @@ builder.Services.AddScoped<CreateFilamentHandlerType, CreateFilamentCommandHandl
 builder.Services.AddScoped<IQueryHandler<GetFilamentsQuery, IReadOnlyList<FilamentSummary>>, GetFilamentsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentStockQuery, IReadOnlyList<VariantStock>>, GetFilamentStockQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFilamentShortagesQuery, IReadOnlyList<FilamentShortage>>, GetFilamentShortagesQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetFilamentForecastQuery, IReadOnlyList<FilamentForecast>>, GetFilamentForecastQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetFeedUnitsQuery, IReadOnlyList<FeedUnitDetail>>, GetFeedUnitsQueryHandler>();
 builder.Services.AddScoped<RegisterSpoolHandlerType, RegisterSpoolCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetSpoolsQuery, IReadOnlyList<SpoolSummary>>, GetSpoolsQueryHandler>();
@@ -556,6 +557,15 @@ builder.Services
     });
 
 var app = builder.Build();
+
+// Startup only: confirms what ORIGIN and OAUTH_ENABLED resolved to (invalid values already stopped startup above).
+#pragma warning disable CA1848, CA1873
+app.Logger.LogInformation("Public origin (ORIGIN): {Origin}", publicOrigin.Value ?? "not set");
+if (oauthSettings.Enabled)
+    app.Logger.LogInformation("MCP sign-in (OAuth): on, issuer {Issuer}, resource {Resource}", oauthSettings.Issuer, oauthSettings.Resource);
+else
+    app.Logger.LogInformation("MCP sign-in (OAuth): off, OAUTH_ENABLED is not true; MCP accepts access tokens only");
+#pragma warning restore CA1848, CA1873
 
 // LoginEndpoint's Throttle() falls back to Connection.RemoteIpAddress when no X-Forwarded-For
 // header is present, and hard-403s ("can't identify client") if that's also null. Kestrel always

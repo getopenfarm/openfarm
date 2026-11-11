@@ -16,14 +16,14 @@ public static class McpTools
 {
     public static readonly IReadOnlyList<McpToolSpec> All =
     [
-        .. AccountTools.All,
+        .. OverviewTools.All,
         .. PrinterTools.All,
-        .. PrintJobTools.All,
-        .. ProductionRunTools.All,
+        .. QueueTools.All,
+        .. ProductionTools.All,
         .. LibraryTools.All,
-        .. FilamentTools.All,
+        .. PricingTools.All,
         .. MaintenanceTools.All,
-        .. WriteTools.All,
+        .. FilamentTools.All,
     ];
 
     private static readonly Dictionary<string, McpToolSpec> ByName = All.ToDictionary(t => t.Name, StringComparer.Ordinal);
@@ -31,10 +31,12 @@ public static class McpTools
     public static McpToolSpec? Find(string name) => ByName.GetValueOrDefault(name);
 
     public const string PagingNote = "Pages reflect current data; repeat the query if items change while paging.";
+    public const string PageArg = "1-based page, default 1";
+    public const string PageSizeArg = "1–100, default 25";
 
     /// <summary>A read-only tool: never changes farm state.</summary>
     public static McpToolSpec Read(string name, string title, string description, Delegate method, params string[] permissions) =>
-        new(McpServerTool.Create(method, new McpServerToolCreateOptions
+        new(McpSchemas.Portable(McpServerTool.Create(method, new McpServerToolCreateOptions
         {
             Name = name,
             Title = title,
@@ -44,12 +46,12 @@ public static class McpTools
             Idempotent = true,
             OpenWorld = false,
             UseStructuredContent = true,
-        }), permissions);
+        })), permissions);
 
     /// <summary>A tool that changes farm state. Every write states <c>destructive</c> explicitly.</summary>
     public static McpToolSpec Write(string name, string title, string description, bool destructive, bool idempotent,
         bool openWorld, Delegate method, params string[] permissions) =>
-        new(McpServerTool.Create(method, new McpServerToolCreateOptions
+        new(McpSchemas.Portable(McpServerTool.Create(method, new McpServerToolCreateOptions
         {
             Name = name,
             Title = title,
@@ -59,7 +61,7 @@ public static class McpTools
             Idempotent = idempotent,
             OpenWorld = openWorld,
             UseStructuredContent = true,
-        }), permissions);
+        })), permissions);
 
     /// <summary>
     /// Runs a write exactly as its REST endpoint does: the endpoint's request DTO and validator, then
@@ -78,11 +80,29 @@ public static class McpTools
     public static T Service<T>(this RequestContext<CallToolRequestParams> request) where T : notnull =>
         request.Services!.GetRequiredService<T>();
 
-    /// <summary>Throws the NOT_FOUND tool error when a lookup found nothing.</summary>
-    public static T Found<T>(T? value, string what) where T : class =>
-        value ?? throw new KeyNotFoundException($"{what} not found");
+    public static HttpContext Http(this RequestContext<CallToolRequestParams> request) =>
+        request.Service<IHttpContextAccessor>().HttpContext!;
 
-    public static int PageSize(int? requested) => requested is >= 1 and <= 100 ? requested.Value : 25;
+    public static Guid UserId(this RequestContext<CallToolRequestParams> request) =>
+        Guid.Parse(request.Http().User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)!.Value);
 
-    public static int Page(int? requested) => Math.Max(requested ?? 1, 1);
+    /// <summary>What this connection may use now: the account's permissions narrowed to the credential.</summary>
+    public static Task<IReadOnlySet<string>> AllowedAsync(this RequestContext<CallToolRequestParams> request) =>
+        Security.CredentialAccess.EffectiveAsync(request.Http());
+
+    /// <summary>Throws the FORBIDDEN tool error unless the connection holds every permission; for checks that depend on an argument.</summary>
+    public static async Task RequireAsync(this RequestContext<CallToolRequestParams> request, params string[] permissions)
+    {
+        var allowed = await request.AllowedAsync();
+        if (permissions.FirstOrDefault(p => !allowed.Contains(p)) is { } missing)
+            throw new UnauthorizedAccessException($"This connection lacks the {missing} permission this call needs.");
+    }
+
+    /// <summary>Throws the NOT_FOUND tool error when a lookup found nothing; <paramref name="hint"/> names the tool that finds valid ids.</summary>
+    public static T Found<T>(T? value, string what, string? hint = null) where T : class =>
+        value ?? throw new KeyNotFoundException(hint is null ? $"{what} not found." : $"{what} not found. {hint}");
+
+    public static int PageSize(int? requested) => Math.Clamp(requested ?? 25, 1, 100);
+
+    public static int Page(int? requested) => Math.Clamp(requested ?? 1, 1, 100_000);
 }

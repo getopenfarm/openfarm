@@ -3,7 +3,7 @@ title: AI assistants
 description: Connect Claude, ChatGPT, Claude Code, Cursor, VS Code and other MCP clients to OpenFarm by signing in or with an access token.
 ---
 
-OpenFarm runs an [MCP](https://modelcontextprotocol.io) server at `/mcp` on your installation. An AI assistant connected to it can read your farm (printers, the queue, production runs, parts, assemblies, filament, spools, maintenance and farm stats) and make the queue and maintenance changes you allow. It acts as you, with only the access you give it.
+OpenFarm runs an [MCP](https://modelcontextprotocol.io) server at `/mcp` on your installation. An AI assistant connected to it can read your farm (printers, the queue, production runs, parts, assemblies, filament stock, fee profiles, maintenance and farm stats) and make the changes you allow. It acts as you, with only the access you give it.
 
 There are two ways to connect:
 
@@ -25,7 +25,7 @@ Sign-in is off until an administrator turns it on. It needs a public HTTPS addre
 
 2. Recreate the application: `docker compose up -d --force-recreate openfarm`.
 3. Route the whole hostname to OpenFarm, including `/mcp`, `/oauth/` and `/.well-known/`, as for `/api` and `/hubs` (see [Configuration](../installation/configuration.md#https-and-reverse-proxies)). Do not put Cloudflare Access or another login wall in front of `/.well-known/` or `/oauth/token`.
-4. Check it: `curl -i https://farm.example.com/mcp` answers `401` with a `WWW-Authenticate` header that contains `resource_metadata`.
+4. Check it: the startup log (`docker compose logs openfarm`) shows `Public origin (ORIGIN): https://farm.example.com` and `MCP sign-in (OAuth): on`, and `curl -i https://farm.example.com/mcp` answers `401` with a `WWW-Authenticate` header that contains `resource_metadata`.
 
 Claude and ChatGPT on the web connect from the internet: the address must be reachable from there. An installation reachable only on your LAN can use Claude Code, Cursor or VS Code with an access token instead.
 
@@ -75,24 +75,44 @@ Other clients need these settings:
 
 The assistant sees only the tools that both its access and your account allow. If you lose a permission, the assistant loses it on its next request.
 
+## What you can ask
+
+- "What needs my attention?" — printers awaiting clear, offline or alerting, jobs that cannot be sent and why, failed jobs, late runs, low filament and maintenance due.
+- "Queue 20 keychains and 5 desk sets." or "Make a production run for Friday's market." — the assistant shows the plan (plates, print hours, filament, shortages) and queues it only after you agree.
+- "I cleared the plates on P1 and P3." — marks those printers ready.
+- "Why is the bracket job not printing?" — the checks each printer fails: nozzle, material, colour, plate or pin.
+- "What filament should I order for the next six weeks?" — stock, use over the last 30 days, queued work and spools to buy per colour.
+- "I received 10 spools of PLA Basic Black, 1 kg, 22 each." — adds them to stock.
+- "Put the gridfinity parts in Storage/Gridfinity and tag them." — folders, names, tags and assemblies.
+- "Add a Shopee fee profile: 18% commission and 0.50 per order." and "What does the desk set sell for on Shopee?"
+- "Lubricate the rods every 200 print hours on all X1C printers."
+
 ## What the assistant can change
 
 With the matching access, an assistant can also:
 
 | Change | Sign-in choice | Token permission |
 |---|---|---|
-| Reorder, pin and unpin queued jobs | Reorder, pin and requeue jobs, and dismiss notifications | Queue: reorder, pin |
-| Requeue a failed or cancelled job | same | Queue: requeue |
-| Dismiss a filament follow-up notification | same | Queue: update status |
-| Mark maintenance done | Mark maintenance done | Maintenance: complete |
-| Pause a running print | Pause running prints | Queue: remote control |
-| Cancel a job or stop a running print | Cancel jobs and stop running prints | Queue: cancel |
+| Reorder, pin and unpin queued jobs | Reorder, pin and requeue jobs | Print jobs: Reorder, Pin |
+| Requeue a failed or cancelled job | same | Print jobs: Requeue |
+| Queue parts and assemblies, alone or as a production run | Plan and queue parts and assemblies | Production runs: Add |
+| Organize library folders, rename and tag parts, add and change assemblies | Organize folders, rename and tag parts, and add or change assemblies | Library: Organize; Parts: Change; Assemblies: Add, Change |
+| Add new spools to stock | Add new spools to stock | Spools: Add |
+| Add and change fee profiles | Add and change fee profiles | Settings: Change fees |
+| Add maintenance tasks, assign them to printers, mark them done | Add and assign maintenance tasks, and mark maintenance done | Maintenance: Change, Mark done |
+| Mark printers ready | Mark printers ready after their plates are cleared | Printers: Mark ready |
+| Pause a running print | Pause running prints | Print jobs: Remote control |
+| Cancel a job or stop a running print | Cancel jobs and stop running prints | Print jobs: Cancel |
 
-Requeue, pause and cancel act on real printers: a requeued job can start on an idle printer without another step, and a stopped print cannot be resumed. The assistant is told to show you the job, the printer and its progress and to wait for your confirmation first. Most assistants also ask you to approve each change. Allow these only for an assistant you watch.
+Queueing, requeueing, marking ready, pausing and cancelling act on real printers: an idle printer can start the work at once, and a stopped print cannot be resumed.
 
-Cancel checks that the job is still where the assistant saw it. If a queued job was sent to a printer in the meantime, the cancel is refused and the assistant must read the job again and ask you.
+- **Queueing**: the assistant first shows you the plan and queues exactly that plan only after you agree. Asking twice never queues it twice.
+- **Mark ready**: the assistant marks a printer ready only when you tell it that printer's plate is clear. If another print ended on that printer after the assistant looked, it refuses and asks you again.
+- **Requeue, pause and cancel**: the assistant shows you the job, the printer and its progress and waits for your confirmation. Cancel also checks that the job is still where the assistant saw it.
 
-An assistant can never mark a printer ready, skip objects, remove anything, or change settings, printer connections, users or credentials. Each change appears in the activity log under your name, with the app or token name.
+Most assistants also ask you to approve each change. Allow printer control only for an assistant you watch.
+
+An assistant can never remove anything, resume prints, skip objects, or change settings other than fee profiles, printer connections, users or credentials. Each change appears in the activity log under your name, with the app or token name.
 
 ## What the assistant sends elsewhere
 

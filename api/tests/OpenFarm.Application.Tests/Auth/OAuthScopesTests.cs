@@ -12,11 +12,17 @@ public sealed class OAuthScopesTests
         ["printers.read"] = (ScopeTier.Read, ["printers:list", "printers:get-detail"]),
         ["print-jobs.read"] = (ScopeTier.Read, ["print-jobs:view"]),
         ["production-runs.read"] = (ScopeTier.Read, ["production-runs:view"]),
-        ["library.read"] = (ScopeTier.Read, ["parts:list", "parts:view", "parts:read", "assemblies:view"]),
+        ["library.read"] = (ScopeTier.Read, ["parts:list", "parts:view", "parts:read", "assemblies:view", "library:view"]),
         ["filament.read"] = (ScopeTier.Read, ["filaments:list", "spools:list"]),
         ["maintenance.read"] = (ScopeTier.Read, ["maintenance:view"]),
-        ["print-jobs.write"] = (ScopeTier.Change, ["print-jobs:reorder", "print-jobs:pin", "print-jobs:requeue", "print-jobs:update-status"]),
-        ["maintenance.write"] = (ScopeTier.Change, ["maintenance:complete"]),
+        ["pricing.read"] = (ScopeTier.Read, ["settings:fees:read"]),
+        ["print-jobs.write"] = (ScopeTier.Change, ["print-jobs:reorder", "print-jobs:pin", "print-jobs:requeue"]),
+        ["production-runs.write"] = (ScopeTier.Change, ["production-runs:create"]),
+        ["library.write"] = (ScopeTier.Change, ["library:manage", "parts:edit", "assemblies:create", "assemblies:edit"]),
+        ["filament.write"] = (ScopeTier.Change, ["spools:register"]),
+        ["maintenance.write"] = (ScopeTier.Change, ["maintenance:complete", "maintenance:manage"]),
+        ["pricing.write"] = (ScopeTier.Change, ["settings:fees:update"]),
+        ["printers.ready"] = (ScopeTier.PrinterControl, ["printers:mark-ready"]),
         ["print-jobs.pause"] = (ScopeTier.PrinterControl, ["print-jobs:remote-control"]),
         ["print-jobs.cancel"] = (ScopeTier.PrinterControl, ["print-jobs:cancel"]),
     };
@@ -35,13 +41,14 @@ public sealed class OAuthScopesTests
     [Fact]
     public void ScopesUseKnownReadKeysForReads_AndNeverAdministrativeOrRemovalKeys()
     {
-        string[] banned = ["printers:register", "printers:edit-connection", "printers:verify-connection", "printers:remove",
-            "printers:mark-ready", "activity-log:list"];
+        string[] banned = ["printers:register", "printers:edit-connection", "printers:verify-connection", "printers:remove", "activity-log:list"];
+        string[] settings = ["settings:fees:read", "settings:fees:update"];
         foreach (var scope in OAuthScopes.All)
             foreach (var key in scope.Permissions)
             {
                 PermissionCatalog.IsKnown(key).Should().BeTrue(key);
-                key.Should().NotStartWith("users:").And.NotStartWith("settings:").And.NotEndWith(":delete");
+                key.Should().NotStartWith("users:").And.NotEndWith(":delete");
+                if (key.StartsWith("settings:", StringComparison.Ordinal)) settings.Should().Contain(key, "fee profiles are the only setting an app may reach");
                 banned.Should().NotContain(key);
                 if (scope.Tier == ScopeTier.Read) PermissionCatalog.All.Single(p => p.Key == key).IsRead.Should().BeTrue(key);
             }
@@ -87,6 +94,6 @@ public sealed class OAuthScopesTests
         chips[1].Level.Should().Be("Change");
         chips[1].Extras.Should().Equal("Pause", "Cancel");
         chips[1].Control.Should().BeTrue();
-        chips[1].Title.Should().Be("Read the queue and print jobs; Reorder, pin and requeue jobs, and dismiss notifications; Pause running prints; Cancel jobs and stop running prints");
+        chips[1].Title.Should().Be("Read the queue and print jobs; Reorder, pin and requeue jobs; Pause running prints; Cancel jobs and stop running prints");
     }
 }

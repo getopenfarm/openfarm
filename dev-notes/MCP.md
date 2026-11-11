@@ -22,6 +22,11 @@ AI assistants reach OpenFarm through the Model Context Protocol at `POST /mcp`, 
   over 16 KiB; `/oauth/register|token|revoke` 405 `{"error":"invalid_request"}` with `Allow: POST` for any other
   method. The SPA's `.html` files get the frame headers and `Referrer-Policy: same-origin` too.
 - `/mcp`, `/oauth` and `/.well-known` are excluded from the SPA fallback and from OpenAPI.
+- Both protocol eras work: 2025 `initialize` and 2026-07-28 `server/discover` (per-request `_meta`, `Mcp-Method`
+  header). On 2026-07-28 the SDK answers an unknown method with HTTP 404, which MCP Inspector 2.x treats as a broken
+  connection and then drops the `tools/list` it sent alongside. So `McpSetup` answers `resources/list`,
+  `resources/templates/list` and `prompts/list` with empty lists (tested). The startup log states `ORIGIN` and
+  whether OAuth is on.
 
 ### Which credential reaches what
 
@@ -87,9 +92,11 @@ Adding a query on `BrowserSessions` means choosing its kind.
 
 ### Scopes
 
-`Application/Auth/OAuthScopes.cs` is a frozen catalog of 10 scopes (`<area>.<tier>`, tiers Read, Change and
-Printer control). `OAuthScopesTests` snapshots every expansion: never widen a scope, since every app already
-granted it would gain the ability; add a new scope instead. Each permission belongs to exactly one scope
+`Application/Auth/OAuthScopes.cs` is a frozen catalog of 16 scopes (`<area>.<tier>`, tiers Read, Change and
+Printer control). `OAuthScopesTests` snapshots every expansion: never widen a released scope, since every app
+already granted it would gain the ability; add a new scope instead (the 2026-11 tool rewrite reshaped them before
+the first release). Fee profiles are the only setting a scope may reach, and `printers.ready` (Mark ready) is
+Printer control, never pre-ticked. Each permission belongs to exactly one scope
 (tested), so for an app `CredentialAccess.EffectiveAsync` = owner permissions ∩ expand(granted scopes) gates
 tools on scope and permission at once. Scopes are read from the app session on every request, never from the
 token. Consent pre-ticks only allowed Read scopes; Change and Printer control are never pre-ticked.
@@ -110,39 +117,127 @@ Forward `/mcp`, `/oauth/` and `/.well-known/` unbuffered with `Authorization`, `
 
 ## Tools
 
+Tools are shaped around what a person asks an assistant to do, not around REST endpoints: one call per goal,
+names next to ids, batches where a person thinks in batches. Design sources: Anthropic's "Writing effective tools
+for agents", the MCP 2025-06-18 tools spec, and the Block, Vercel, WorkOS and Phil Schmid MCP guides.
+
 - `Mcp/McpTools.cs` is the one table: each `McpToolSpec` is an SDK tool plus the permissions it needs.
 - `McpSetup.ConfigureSessionOptions` lists only the tools the caller may use now
   (`CredentialAccess.EffectiveAsync` = owner permissions ∩ token abilities, or ∩ expand(scopes) for an app).
 - `McpCall.Filter` wraps every call: it rechecks access (FORBIDDEN), maps exceptions through
   `DomainExceptionHandler.ToProblem` to `{"error":{"code","message",…}}` tool errors (NOT_FOUND, CONFLICT,
-  INVALID_INPUT, INTERNAL_ERROR), and logs one line per call without arguments or results.
-- A tool returns the mirrored REST endpoint's response DTO, built by the same static factory the endpoint uses
-  (for example `ListFleetResponse.From`). Structured content and the output schema come from that type.
+  INVALID_INPUT, FORBIDDEN, INTERNAL_ERROR), and logs one line per call without arguments or results. The message
+  is the problem title plus the domain exception's message (what REST returns as `detail`), so the agent sees
+  what was wrong; NOT_FOUND names the tool that finds valid ids.
+
+| Area | Read | Change |
+|---|---|---|
+| Overview | `get_farm_overview` (no permission; each section checks its own and lists the rest in `hidden`) | |
+| Printers | `list_printers`, `get_printer` | `mark_printers_ready` |
+| Queue | `list_print_jobs`, `get_print_job` (with why a queued job waits) | `reorder_print_job`, `pin_print_job` (no printer unpins), `requeue_print_job`, `pause_print_job`, `cancel_print_job` |
+| Production | `plan_production`, `list_production_runs`, `get_production_run` | `queue_production` |
+| Library | `search_library`, `get_part`, `get_assembly` (`expand` for the full tree) | `create_library_folder`, `rename_library_folder`, `move_library_items`, `update_parts`, `save_assembly` |
+| Pricing | `list_fee_profiles`, `quote_assembly` | `save_fee_profile` |
+| Maintenance | `list_maintenance` | `save_maintenance_task`, `assign_maintenance`, `complete_maintenance` |
+| Filament | `list_filaments` (stock + forecast + suggested purchase), `list_spools`, `get_farm_stats` | `register_spools` |
 
 Rules for a new tool:
-1. Reuse the endpoint's Application handler and response factory. Never query EF Core from a tool.
-2. Its permissions equal the endpoint's `[Permission]` + `AdditionalPermissions` (a test enforces this).
-3. Reads use `McpTools.Read` (read-only annotations). Lists page with `McpTools.Page`/`PageSize` (≤ 100) and
-   end their description with `McpTools.PagingNote`.
-4. Leave out network addresses, serial numbers, file bytes and file URLs.
+1. A tool may call several Application handlers or services; never EF Core directly. Its permissions are the
+   union of the REST endpoints whose work it does (`McpReadToolsTests.Mirrors`, tested), so MCP never reaches more
+   than REST. A tool mirroring a `library:*` endpoint also checks the library's read permission per call
+   (`request.RequireAsync`), as `PermissionAuthorizationHandler` does by route.
+2. Return a view record shaped for agents, never a bare list: MCP structured content must be an object (tested).
+   Put names next to ids (printer, part, run, colour), units in field names (`Grams`, `Minutes`, `…Utc`), and
+   document fields with `<param>` comments. Reuse a REST DTO only when it already does this.
+   `McpSchemas.Portable` (applied by `McpTools.Read`/`Write`) inlines `$ref`s and rewrites nullable
+   `"type": [X, "null"]` as `anyOf`, so clients that read one type per schema (Gemini's OpenAPI subset; MCP
+   Inspector's portability check) accept every tool (tested). Results leave null fields out, and clients reject a
+   whole call whose result misses a required field, so an output schema requires only fields .NET never omits:
+   numbers, booleans, ids and dates (tested on every schema).
+3. Reads use `McpTools.Read`. Lists page with `McpTools.Page`/`PageSize` (clamped to 1–100) and return
+   `page`, `pageSize`, `totalCount` and `hasMore`; end the description with `McpTools.PagingNote`.
+4. Descriptions say when to use the tool and which tool gives its ids. Batch arguments are arrays of records with
+   `[property: Description]` on each field.
+5. Leave out network addresses, serial numbers, file bytes and file URLs.
 6. Optional tool arguments need a default (`string? x = null`, `CancellationToken ct = default`): without one
    the SDK marks the argument required and the call fails with "Invalid request".
-5. Never expose users, sessions, tokens, settings, printer connections, Mark ready or removals.
+   `McpCall` drops blank arguments (`""`, whitespace, `null`, also inside objects and lists) before a tool runs,
+   since form clients send an empty field that way: a blank optional argument gets its default, a blank required
+   one fails as missing.
+8. Add every new tool to `McpToolResultsTests.EveryToolsResultMatchesItsOutputSchema`: it calls each tool on real
+   data and checks the result against the tool's own output schema, and fails while a tool is not called.
+7. Person only: every removal, resuming prints, skipping objects, and settings other than fee profiles, users,
+   sessions, tokens and printer connections.
 
 ## Writes
 
 - `McpTools.Write` + `request.WriteAsync(dto, run, ct)`: builds the mirrored endpoint's request DTO, runs its
   `IValidator<T>` (INVALID_INPUT with `issues`), runs the same handler, then `ActivityRecorder.RecordAsync` —
-  the code the FastEndpoints post-processor uses — so rows and live events match REST.
+  the code the FastEndpoints post-processor uses — so rows and live events match REST. Folder and fee-profile
+  requests became `IActivityLoggable` for this, which also logs their REST changes.
+- Approval (`McpInstructions.Text`): an explicit request authorizes the routine change it names (library,
+  fee profiles, maintenance setup, spool registration, reorder, pin). Requeue, pause and cancel need reviewed
+  confirmation of that exact job (tested).
+- **Production is previewed, then committed.** `plan_production` is read-only and returns a `planToken`: a
+  30-minute `ITimeLimitedDataProtector` payload of the lines, each line's `planVersion` and submission id, the
+  destination and the account. `queue_production(planToken)` submits exactly that, so what the user approved is
+  what is queued; the same token never queues twice (per-line `SubmissionId`s; a new run uses one). Destination
+  `queue` and `run` submit each line through `ProductionDemandService` and report per-line outcomes, so a
+  line refused for a changed part does not hide the ones already queued; `newRun` is one atomic
+  `CreateProductionRunCommand`. Finite quantities only; backfill stays in the UI.
+- **Mark ready** is a tool, gated by the user's word: only for printers the user says in this conversation have
+  a clear plate. `mark_printers_ready` takes each printer's `awaitingClearSinceUtc` from `list_printers`;
+  `MarkPrinterReadyCommand.ExpectedSinceUtc` refuses a printer whose activity changed since (another print
+  ended, so the plate the user cleared may not be this one) with `ChangedSinceRead`. Each printer is handled on
+  its own and gets its own activity row.
 - Printer commands (`pause_print_job`, `cancel_print_job`) return `{ job, confirmed, note }`: confirmed is false
   until telemetry reports the change, as REST's 202.
 - `cancel_print_job` requires `expectedPhase` (`PrintJobPhases.Of`: Queued, Starting, Printing, Paused). A
   dispatched job is still `Status = Queued`, so status alone cannot tell "remove from queue" from "stop the
   printer". The handler checks it after loading the job (`PrintJobPhaseMismatchException` → 409 with
   `currentPhase`); a dispatch racing the save fails the row version (409). REST passes no expectation.
-- Requeue, pause and cancel are `openWorld`, and their descriptions and the instructions require presenting
-  the job and obtaining reviewed confirmation (tested). Mark ready is never a tool: it is the human "bed is
-  clear" gate.
+
+## Filament forecast
+
+`GetFilamentForecastQuery` joins each colour's stock (30-day use), the grams unfinished finite jobs still need
+(`GetFilamentShortagesQueryHandler.QueuedDemandAsync`) and the newest spool bought, and `FilamentForecasts.Compute`
+decides purchases per material and colour (material exactly, hex ignoring case, as job matching compares them):
+
+- A job line tied to a catalog colour can only print from that colour: its shortfall is bought as that colour.
+- What every brand has left after its own jobs forms one pool for lines that name only the material and colour and
+  for the next `coverDays` of use (past use counts as interchangeable between brands).
+- The pool's shortfall is suggested once, on the brand bought last (most stock when none was bought), in that
+  brand's last spool size (1 kg when none).
+
+So two brands of PLA #000000 with 5 kg on one and 0 g on the other suggest nothing for a 1 kg job that names only the
+colour, and two empty brands suggest one spool, not two. With one brand per colour this is the plain
+`ceil(max(0, coverDays × used30d/30 + queued − onHand) / spool size)`. `list_filaments` shows `queuedGrams` (tied to
+the colour) apart from `sharedQueuedGrams` (the same figure on every brand, counted once); `get_farm_overview`'s
+short list and `plan_production`'s `shortGrams` use the same rule. `RunsOutOn` is the colour's pool date across brands,
+today when the colour's own jobs are already short, and empty beyond ten years. Limits: a linear 30-day pace, and
+backfill demand is not counted. The REST `GET /filaments/shortages` still flags every matching brand, by design
+("over-reported but never missed").
+
+## Evaluating tools
+
+Change tool names and descriptions against tasks, not taste. Run `./dev.sh up`, create a token under Profile →
+Connected apps, connect Claude Code with
+`claude mcp add --transport http openfarm http://localhost:6868/mcp --header "Authorization: Bearer ofp_…"`, and
+run each task in a fresh session. Record tool calls, errors and tokens; read the transcripts for retries, wrong
+ids and unasked questions.
+
+1. "What needs my attention this morning?"
+2. "Queue 3 Lamp kits." (expects plan, summary, approval, queue)
+3. "I cleared the plates on P1 and P3, mark them ready."
+4. "Why is the bracket job not printing?"
+5. "What filament should I order to cover the next six weeks?"
+6. "I received 10 spools of Bambu PLA Basic Black, 1 kg, 22 each, from the Bambu store."
+7. "Move every gridfinity part into Storage/Gridfinity and tag them gridfinity."
+8. "Make an assembly Desk set: 2 pen holders and 1 tray, priced at 40% margin."
+9. "Add a Shopee fee profile: 18% commission, 2% payment fee, 0.50 per order."
+10. "Lubricate the rods every 200 print hours on all X1C printers; it was done last Monday."
+11. "Make a production run for the market on Friday: 20 keychains and 5 Desk sets."
+12. "What does the Desk set sell for on Shopee, and how much can I discount it?"
 
 ## Known trade-offs
 
@@ -157,7 +252,7 @@ Rules for a new tool:
 
 Rows written during a token or app request carry `details.via` (`Token`/token id/token name, or `App`/app
 session id/app name), stamped by `ActivityChannelInterceptor` on SaveChanges, so REST and MCP writes are
-attributed the same way. `whoami` reports the same kind and label, plus the granted scopes for an app.
+attributed the same way. `get_farm_overview` reports the same kind and label as `connection`.
 
 App lifecycle rows (`EntityType = ConnectedApp`, `EntityId` = app session id): `ConnectedAppAdded`,
 `ConnectedAppRevoked` (`Reason`: `user`, `administrator`, `replaced`, `code-reuse`, `app`) with a

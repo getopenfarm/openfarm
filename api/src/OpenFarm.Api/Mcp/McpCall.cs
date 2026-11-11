@@ -20,6 +20,8 @@ public static partial class McpCall
         {
             var name = request.Params?.Name ?? "";
             if (McpTools.Find(name) is not { } spec) return await next(request, ct);
+            if (request.Params!.Arguments is { Count: > 0 } arguments)
+                request.Params.Arguments = arguments.Where(a => !Blank(a.Value)).ToDictionary(a => a.Key, a => WithoutBlanks(a.Value));
             var http = request.Service<IHttpContextAccessor>().HttpContext!;
             var logger = request.Service<ILoggerFactory>().CreateLogger(typeof(McpCall));
             var started = Stopwatch.GetTimestamp();
@@ -55,22 +57,38 @@ public static partial class McpCall
     private static (string Code, string Message, IDictionary<string, object?>? Extras) Describe(Exception e, bool read)
     {
         if (e is KeyNotFoundException) return ("NOT_FOUND", e.Message, null);
+        if (e is UnauthorizedAccessException) return ("FORBIDDEN", e.Message, null);
         if (e is FluentValidation.ValidationException invalid)
             return ("INVALID_INPUT", "Invalid input", new Dictionary<string, object?>
             {
                 ["issues"] = invalid.Errors.Select(f => new { field = f.PropertyName, message = f.ErrorMessage }).ToArray(),
             });
         var problem = DomainExceptionHandler.ToProblem(e);
+        // The detail is the domain exception's message, which REST already returns; it says what was wrong.
+        var message = problem?.Detail is { Length: > 0 } detail && detail != problem.Title ? $"{problem.Title}: {detail}" : problem?.Title;
         return problem?.Status switch
         {
-            404 => ("NOT_FOUND", problem.Title!, problem.Extensions),
-            409 => ("CONFLICT", "This item changed since it was read. Read it again and check with the user before retrying.", problem.Extensions),
-            400 or 422 => ("INVALID_INPUT", problem.Title!, problem.Extensions),
+            404 => ("NOT_FOUND", message!, problem.Extensions),
+            409 => ("CONFLICT", $"{message!.TrimEnd('.')}. Read the item again and check with the user before retrying.", problem.Extensions),
+            400 or 422 => ("INVALID_INPUT", message!, problem.Extensions),
             _ => ("INTERNAL_ERROR", read
                 ? "The read could not be completed. Try a narrower query."
                 : "The change could not be completed. Read the item again before retrying, in case part of it was saved.", null),
         };
     }
+
+    // Form-based clients (MCP Inspector) send an empty field as "" or null: treat it as not given, so the tool's
+    // default applies instead of a parse error. A required argument left blank then fails as missing.
+    private static bool Blank(JsonElement value) =>
+        value.ValueKind == JsonValueKind.Null || (value.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(value.GetString()));
+
+    private static JsonElement WithoutBlanks(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.Object => JsonSerializer.SerializeToElement(value.EnumerateObject().Where(p => !Blank(p.Value))
+            .ToDictionary(p => p.Name, p => WithoutBlanks(p.Value))),
+        JsonValueKind.Array => JsonSerializer.SerializeToElement(value.EnumerateArray().Where(v => !Blank(v)).Select(WithoutBlanks).ToList()),
+        _ => value,
+    };
 
     public static CallToolResult Error(string code, string message, IDictionary<string, object?>? extras = null)
     {

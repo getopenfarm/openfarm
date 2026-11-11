@@ -33,9 +33,12 @@ public sealed class PartRepository(OpenFarmDbContext dbContext) : IPartRepositor
         ListInFolderAsync(tags, page, pageSize, sorting, null, cancellationToken);
 
     public async Task<(IReadOnlyList<Part> Parts, int TotalCount)> ListInFolderAsync(
-        IReadOnlyList<string> tags, int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken)
+        IReadOnlyList<string> tags, int page, int pageSize, OpenFarm.Application.Common.ListSort? sorting, string? folder, CancellationToken cancellationToken, string? search = null)
     {
         var query = Include(dbContext.Parts).AsQueryable();
+
+        foreach (var pattern in LikePatterns.Contains(search))
+            query = query.Where(p => EF.Functions.ILike(p.Name, pattern, "\\") || p.Tags.Any(t => EF.Functions.ILike(t.Name, pattern, "\\")));
 
         foreach (var tag in tags)
         {

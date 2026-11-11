@@ -22,7 +22,7 @@ public sealed record OAuthScope(string Scope, ScopeTier Tier, string Area, strin
 public sealed record AccessChip(string Area, string Level, string[] Extras, string Title, bool Control);
 
 /// <summary>
-/// The frozen OAuth scope catalog (dev-notes/MCP.md). Never widen a scope: every app already granted it
+/// The frozen OAuth scope catalog (dev-notes/MCP.md). Never widen a released scope: every app already granted it
 /// would gain the new ability. Add a new scope instead; a snapshot test fails on any expansion change.
 /// </summary>
 public static class OAuthScopes
@@ -32,12 +32,19 @@ public static class OAuthScopes
         new("printers.read", ScopeTier.Read, "Printers", "Read printers, their live status and feed units", null, ["printers:list", "printers:get-detail"]),
         new("print-jobs.read", ScopeTier.Read, "Queue", "Read the queue and print jobs", null, ["print-jobs:view"]),
         new("production-runs.read", ScopeTier.Read, "Runs", "Read production runs and their progress", null, ["production-runs:view"]),
-        new("library.read", ScopeTier.Read, "Library", "Read parts and assemblies", null, ["parts:list", "parts:view", "parts:read", "assemblies:view"]),
-        new("filament.read", ScopeTier.Read, "Filament", "Read filaments, spools, shortages and farm stats", null, ["filaments:list", "spools:list"]),
+        new("library.read", ScopeTier.Read, "Library", "Read parts, assemblies and library folders", null, ["parts:list", "parts:view", "parts:read", "assemblies:view", "library:view"]),
+        new("filament.read", ScopeTier.Read, "Filament", "Read filament stock, forecasts, spools and farm stats", null, ["filaments:list", "spools:list"]),
         new("maintenance.read", ScopeTier.Read, "Maintenance", "Read maintenance tasks and what is due", null, ["maintenance:view"]),
-        new("print-jobs.write", ScopeTier.Change, "Queue", "Reorder, pin and requeue jobs, and dismiss notifications", null,
-            ["print-jobs:reorder", "print-jobs:pin", "print-jobs:requeue", "print-jobs:update-status"]),
-        new("maintenance.write", ScopeTier.Change, "Maintenance", "Mark maintenance done", null, ["maintenance:complete"]),
+        new("pricing.read", ScopeTier.Read, "Pricing", "Read fee profiles", null, ["settings:fees:read"]),
+        new("print-jobs.write", ScopeTier.Change, "Queue", "Reorder, pin and requeue jobs", null,
+            ["print-jobs:reorder", "print-jobs:pin", "print-jobs:requeue"]),
+        new("production-runs.write", ScopeTier.Change, "Runs", "Plan and queue parts and assemblies, alone or as production runs", null, ["production-runs:create"]),
+        new("library.write", ScopeTier.Change, "Library", "Organize folders, rename and tag parts, and add or change assemblies", null,
+            ["library:manage", "parts:edit", "assemblies:create", "assemblies:edit"]),
+        new("filament.write", ScopeTier.Change, "Filament", "Add new spools to stock", null, ["spools:register"]),
+        new("maintenance.write", ScopeTier.Change, "Maintenance", "Add and assign maintenance tasks, and mark maintenance done", null, ["maintenance:complete", "maintenance:manage"]),
+        new("pricing.write", ScopeTier.Change, "Pricing", "Add and change fee profiles", null, ["settings:fees:update"]),
+        new("printers.ready", ScopeTier.PrinterControl, "Printers", "Mark printers ready after their plates are cleared", "Mark ready", ["printers:mark-ready"]),
         new("print-jobs.pause", ScopeTier.PrinterControl, "Queue", "Pause running prints", "Pause", ["print-jobs:remote-control"]),
         new("print-jobs.cancel", ScopeTier.PrinterControl, "Queue", "Cancel jobs and stop running prints", "Cancel", ["print-jobs:cancel"]),
     ];

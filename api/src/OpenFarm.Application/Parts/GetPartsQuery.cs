@@ -1,6 +1,7 @@
 namespace OpenFarm.Application.Parts;
 
-public sealed record GetPartsQuery(IReadOnlyList<string> Tags, int Page, int PageSize, OpenFarm.Application.Common.ListSort? Sorting = null, string? Folder = null);
+/// <param name="Search">Whitespace-separated terms; each must match the part's name or one of its tags.</param>
+public sealed record GetPartsQuery(IReadOnlyList<string> Tags, int Page, int PageSize, OpenFarm.Application.Common.ListSort? Sorting = null, string? Folder = null, string? Search = null);
 
 public sealed record PartSummary(
     Guid Id,
@@ -18,7 +19,7 @@ public sealed record PartSummary(
     IReadOnlyList<string>? ProcessingWarnings = null,
     string? EstimateUnavailableReason = null, OpenFarm.Domain.Parts.EstimationDetails? Estimation = null,
     int UnitsPerPrint = 1,
-    IReadOnlyList<PartColorGrams>? FilamentByColor = null);
+    IReadOnlyList<PartColorGrams>? FilamentByColor = null, Guid? FolderId = null);
 
 /// <summary>One requirement's grams for the Build panel's by-colour totals (per plate set, purge included; null when unknown).</summary>
 public sealed record PartColorGrams(string? MaterialType, string? ColorHex, decimal? Grams, Guid? NarrowFilamentVariantId = null);

@@ -6,7 +6,7 @@ public sealed class GetPartsQueryHandler(IPartRepository partRepository) : IQuer
 {
     public async Task<PartsPage> HandleAsync(GetPartsQuery query, CancellationToken cancellationToken)
     {
-        var (parts, totalCount) = await partRepository.ListInFolderAsync(query.Tags, query.Page, query.PageSize, query.Sorting, query.Folder, cancellationToken);
+        var (parts, totalCount) = await partRepository.ListInFolderAsync(query.Tags, query.Page, query.PageSize, query.Sorting, query.Folder, cancellationToken, query.Search);
 
         var summaries = parts.Select(FromPart).ToList();
 
@@ -39,6 +39,7 @@ public sealed class GetPartsQueryHandler(IPartRepository partRepository) : IQuer
             materialTypes,
             part.Tags.Select(t => t.Name).ToList(),
             part.PrintRequirementsStatus.ToString(), part.ProcessingWarnings, part.EstimateUnavailableReason, part.Estimation, part.UnitsPerPrint,
-            part.FilamentRequirements.Select(r => new PartColorGrams(r.MaterialType, r.DetectedColorHex, r.EstimatedGrams, r.NarrowFilamentVariantId)).ToList());
+            part.FilamentRequirements.Select(r => new PartColorGrams(r.MaterialType, r.DetectedColorHex, r.EstimatedGrams, r.NarrowFilamentVariantId)).ToList(),
+            part.FolderId);
     }
 }
