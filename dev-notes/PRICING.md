@@ -89,5 +89,17 @@ price rounding to price points.
   omitting it on PUT keeps the saved value.
 - Assembly create, edit and detail carry `pricing: { mode, value } | null`, with
   `mode` one of `Price`, `Margin`, `Markup`. On edit, omitting `pricing` keeps
-  it and `null` clears it. The server stores the rule; prices, fees and profit
-  are calculated in the web client.
+  it and `null` clears it.
+- `POST /api/v1/assemblies/quote` (`assemblies:view`) computes the Build panel's
+  totals and the Pricing table on the server (`AssemblyQuoteService`, the
+  formulas in `FeeProfilePricing`). Send `lines` (and `additionalCosts`) to quote
+  an unsaved draft, or only `assemblyId` to quote a saved assembly; `pricing`
+  overrides the rule and is priced as typed, so a draft margin of 120% shows as
+  unreachable instead of failing. The response carries the print estimate,
+  per-colour filament costs, depreciation, electricity, failure allowance, cost
+  categories (shipping included), the total with its partial/available flags,
+  the estimate notes and one pricing row per fee profile. Without
+  `settings:fees:read` it holds only the "No fees" row. The editor sends one
+  debounced request that the Build panel and Pricing share; the MCP tool
+  `quote_assembly` reads the same quote. The live demo answers the endpoint
+  with the former client-side math (`web/src/demo/quote/`).

@@ -11,11 +11,10 @@ import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { DropdownMenuGroup } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { feeTotals } from '@/features/assemblies/pricing';
 import type { FeeProfileDto } from '@/lib/api/generated/endpoints.schemas';
 import { pluralize } from '@/lib/pluralize';
 import { useFeeProfileRemoval } from './FeeProfileRemoval';
-import { feeSummary, useFeeProfiles } from './fees';
+import { feeSummary, feeTotals, useFeeProfiles } from './fees';
 import { useCurrency } from './generalSettings';
 
 export function FeesPage() {

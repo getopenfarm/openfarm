@@ -15,22 +15,19 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { useFeeProfiles } from '@/features/settings/fees';
 import { useCurrency } from '@/features/settings/generalSettings';
-import type { AssemblyCostInput } from '@/lib/api/generated/endpoints.schemas';
+import type {
+  AssemblyCostInput,
+  ProfilePricing,
+  QuoteProfile,
+} from '@/lib/api/generated/endpoints.schemas';
 import { formatCost } from '@/lib/formatUnits';
 import { cn } from '@/lib/utils';
-import {
-  type Fee,
-  type FeeProfile,
-  feeTotals,
-  type PricingMode,
-  type ProfilePricing,
-  pricingModes,
-  profilePricing,
-} from '../pricing';
 import type { EditableLine } from './BomLineEditor';
 import { useBuildEstimate } from './useBuildEstimate';
+
+export type PricingMode = 'Price' | 'Margin' | 'Markup';
+const pricingModes: PricingMode[] = ['Price', 'Margin', 'Markup'];
 
 /** The form keeps the typed text; blank saves no pricing. */
 export interface PricingDraft {
@@ -46,19 +43,10 @@ interface PricingSectionProps {
   error?: string;
 }
 
-type PricedProfile = FeeProfile & { fees: Fee[] };
-const NO_FEES: PricedProfile = {
-  name: 'No fees',
-  feePercent: 0,
-  fixedFee: 0,
-  fees: [],
-};
-const percent = (f: number | null, digits = 1) =>
+const percent = (f: number | null | undefined, digits = 1) =>
   f == null ? '—' : `${(f * 100).toFixed(digits)}%`;
-const numberOrNull = (text: string) =>
-  text.trim() === '' || !Number.isFinite(Number(text)) ? null : Number(text);
 
-/** Selling price per fee profile: the price splits into cost, the profile's fees and profit (dev-notes/PRICING.md). */
+/** Selling price per fee profile, priced by the server quote: the price splits into cost, the profile's fees and profit (dev-notes/PRICING.md). */
 export function PricingSection({
   lines,
   additionalCosts,
@@ -67,31 +55,21 @@ export function PricingSection({
   error,
 }: PricingSectionProps) {
   const currency = useCurrency();
-  const build = useBuildEstimate(lines, additionalCosts);
-  const profilesQuery = useFeeProfiles();
-  const saved = (profilesQuery.data?.data.profiles ?? []).map((p) => ({
-    name: p.name ?? '',
-    fees: p.fees ?? [],
-    ...feeTotals(p.fees ?? []),
-  }));
-  const profiles = saved.length > 0 ? saved : [NO_FEES];
-
-  const cost = build.totalCost;
-  const costKnown = !build.incomplete && cost.available;
-  const typed = numberOrNull(value.value);
-  const pricing = typed == null ? null : { mode: value.mode, value: typed };
-  // A fixed price needs no cost; margin and markup do.
-  const priceable = costKnown || value.mode === 'Price';
-  const rows = profiles.map((profile) => ({
+  const build = useBuildEstimate(lines, additionalCosts, value);
+  const quote = build.quote;
+  const cost = {
+    amount: quote?.total?.amount ?? 0,
+    partial: !!quote?.total?.partial,
+  };
+  const costKnown = !build.incomplete && !!quote?.total?.available;
+  const rows = (quote?.profiles ?? []).map((profile) => ({
     profile,
-    result: profilePricing(
-      costKnown ? cost.amount : 0,
-      profile,
-      priceable ? pricing : null,
-    ),
+    result: profile.pricing ?? { breakEven: 0, unreachable: false },
   }));
+  // The server sends one unnamed "No fees" row while no fee profile exists.
+  const noProfiles = rows.length === 0 || rows[0].profile.profileId == null;
   const unreachable = rows.filter((r) => r.result.unreachable);
-  const loading = build.loading || profilesQuery.isPending;
+  const loading = build.loading;
 
   // Switching mode keeps the top row's price: the toggle changes what is held fixed, not the price.
   const switchMode = (mode: PricingMode) => {
@@ -218,7 +196,7 @@ export function PricingSection({
             <TableBody>
               {rows.map(({ profile, result }) => (
                 <ProfileRows
-                  key={profile.name}
+                  key={profile.profileId ?? profile.name}
                   profile={profile}
                   result={result}
                   costKnown={costKnown}
@@ -229,11 +207,11 @@ export function PricingSection({
             </TableBody>
           </Table>
           <Legend />
-          {(saved.length === 0 ||
+          {(noProfiles ||
             unreachable.length > 0 ||
             (costKnown && cost.partial)) && (
             <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
-              {saved.length === 0 && (
+              {noProfiles && (
                 <li>
                   No fee profiles.{' '}
                   <Link
@@ -269,22 +247,23 @@ function ProfileRows({
   cost,
   currency,
 }: {
-  profile: PricedProfile;
+  profile: QuoteProfile;
   result: ProfilePricing;
   costKnown: boolean;
   cost: number;
   currency: string;
 }) {
-  const money = (n: number | null) =>
+  const money = (n: number | null | undefined) =>
     n == null ? '—' : formatCost(n, currency);
-  const known = (n: number | null) => (costKnown ? n : null);
+  const known = (n: number | null | undefined) =>
+    costKnown ? (n ?? null) : null;
   const loss = costKnown && result.profit != null && result.profit < 0;
   const discount = known(result.maxDiscount);
   const price = result.price;
   const breakdown =
-    price == null || profile.fees.length === 0
+    price == null || (profile.fees ?? []).length === 0
       ? undefined
-      : profile.fees
+      : (profile.fees ?? [])
           .map(
             (fee) =>
               `${fee.name} ${money(fee.type === 'Percent' ? (price * (fee.amount ?? 0)) / 100 : (fee.amount ?? 0))}`,

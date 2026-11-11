@@ -8792,6 +8792,60 @@
         ]
       }
     },
+    "/api/v1/assemblies/quote": {
+      "post": {
+        "tags": [
+          "Assemblies"
+        ],
+        "operationId": "OpenFarmApiEndpointsAssembliesQuoteAssemblyEndpoint",
+        "requestBody": {
+          "x-name": "QuoteAssemblyRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteAssemblyRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyQuote"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/activity-log": {
       "get": {
         "tags": [
@@ -17208,6 +17262,356 @@
       "ListAssembliesRequest": {
         "type": "object",
         "additionalProperties": false
+      },
+      "AssemblyQuote": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "parts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "components": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "print": {
+            "$ref": "#/components/schemas/PrintEstimate"
+          },
+          "colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteColor"
+            }
+          },
+          "filament": {
+            "$ref": "#/components/schemas/QuoteFilament"
+          },
+          "depreciation": {
+            "$ref": "#/components/schemas/QuoteMetric"
+          },
+          "electricity": {
+            "$ref": "#/components/schemas/QuoteMetric"
+          },
+          "failurePercent": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "failure": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "failureAvailable": {
+            "type": "boolean"
+          },
+          "printPartial": {
+            "type": "boolean"
+          },
+          "breakdown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteCategory"
+            }
+          },
+          "costsPartial": {
+            "type": "boolean"
+          },
+          "shipping": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "total": {
+            "$ref": "#/components/schemas/QuoteTotal"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteProfile"
+            }
+          }
+        }
+      },
+      "QuoteColor": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "materialType": {
+            "type": "string",
+            "nullable": true
+          },
+          "colorHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "variantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "grams": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "missing": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "swatchHex": {
+            "type": "string",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "costPriced": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "costMissing": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "QuoteFilament": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "total": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "priced": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missingSelection": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missingPrice": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missingGrams": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "incomplete": {
+            "type": "boolean"
+          }
+        }
+      },
+      "QuoteMetric": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "total": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "priced": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "missing": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "QuoteCategory": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "QuoteTotal": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        }
+      },
+      "QuoteProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "profileId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "fees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Fee"
+            }
+          },
+          "feePercent": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "fixedFee": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/ProfilePricing"
+          }
+        }
+      },
+      "Fee": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "ProfilePricing": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "price": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "unreachable": {
+            "type": "boolean"
+          },
+          "fees": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "profit": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "margin": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "markup": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "breakEven": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "maxDiscount": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "QuoteAssemblyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "assemblyId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/QuoteLineRequest"
+            }
+          },
+          "additionalCosts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AssemblyCostInput"
+            }
+          },
+          "pricing": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuotePricingRequest"
+              }
+            ]
+          }
+        }
+      },
+      "QuoteLineRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "targetKind": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "QuotePricingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
       },
       "ActivityLogPageResponse": {
         "type": "object",

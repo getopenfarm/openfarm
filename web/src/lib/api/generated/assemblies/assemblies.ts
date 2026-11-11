@@ -23,6 +23,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useAuthorizedQuery as useQuery } from '@/lib/auth/useAuthorizedQuery';
 import { httpClient } from '../../httpClient';
 import type {
+  AssemblyQuote,
   AssemblyResponse,
   CreateAssemblyRequest,
   EditAssemblyRequest,
@@ -30,6 +31,8 @@ import type {
   ListAssembliesResponse,
   OpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointParams,
   OpenFarmApiEndpointsAssembliesListAssembliesEndpointParams,
+  ProblemDetails,
+  QuoteAssemblyRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -1239,3 +1242,141 @@ export function useOpenFarmApiEndpointsAssembliesExplodeAssemblyEndpoint<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export type openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse200 = {
+  data: AssemblyQuote;
+  status: 200;
+};
+
+export type openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse400 = {
+  data: ProblemDetails;
+  status: 400;
+};
+
+export type openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponseSuccess =
+  openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponseError = (
+  | openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse400
+  | openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse401
+  | openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse =
+  | openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponseSuccess
+  | openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponseError;
+
+export const getOpenFarmApiEndpointsAssembliesQuoteAssemblyEndpointUrl = () => {
+  return `/api/v1/assemblies/quote`;
+};
+
+export const openFarmApiEndpointsAssembliesQuoteAssemblyEndpoint = async (
+  quoteAssemblyRequest: QuoteAssemblyRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAssembliesQuoteAssemblyEndpointResponse>(
+    getOpenFarmApiEndpointsAssembliesQuoteAssemblyEndpointUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(quoteAssemblyRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAssembliesQuoteAssemblyEndpointMutationOptions =
+  <TError = ProblemDetails | void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAssembliesQuoteAssemblyEndpoint>
+      >,
+      TError,
+      { data: QuoteAssemblyRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsAssembliesQuoteAssemblyEndpoint>
+    >,
+    TError,
+    { data: QuoteAssemblyRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsAssembliesQuoteAssemblyEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAssembliesQuoteAssemblyEndpoint>
+      >,
+      { data: QuoteAssemblyRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsAssembliesQuoteAssemblyEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsAssembliesQuoteAssemblyEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsAssembliesQuoteAssemblyEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsAssembliesQuoteAssemblyEndpointMutationBody =
+  QuoteAssemblyRequest;
+export type OpenFarmApiEndpointsAssembliesQuoteAssemblyEndpointMutationError =
+  ProblemDetails | void;
+
+export const useOpenFarmApiEndpointsAssembliesQuoteAssemblyEndpoint = <
+  TError = ProblemDetails | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsAssembliesQuoteAssemblyEndpoint>
+      >,
+      TError,
+      { data: QuoteAssemblyRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsAssembliesQuoteAssemblyEndpoint>
+  >,
+  TError,
+  { data: QuoteAssemblyRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsAssembliesQuoteAssemblyEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};

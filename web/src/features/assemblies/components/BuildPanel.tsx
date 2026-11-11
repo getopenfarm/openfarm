@@ -23,50 +23,46 @@ import type { AssemblyCostInput } from '@/lib/api/generated/endpoints.schemas';
 import { formatCost } from '@/lib/formatUnits';
 import { formatEstimateMetric } from '@/lib/printEstimates';
 import type { EditableLine } from './BomLineEditor';
-import { filamentColorKey } from './bomRollup';
-import { useBuildEstimate } from './useBuildEstimate';
+import { type PricingDraftInput, useBuildEstimate } from './useBuildEstimate';
 
 interface BuildPanelProps {
   /** The form's draft lines — the preview never waits for a save. */
   lines: EditableLine[];
   className?: string;
   additionalCosts?: AssemblyCostInput[];
+  /** The Pricing draft, so the panel shares the Pricing section's quote request. */
+  pricing?: PricingDraftInput;
 }
 
 /** Live build totals for the draft BOM, filament split by colour (purge included); the structure tree is the per-line view. */
 export function BuildPanel({
   lines,
   additionalCosts = [],
+  pricing,
   className,
 }: BuildPanelProps) {
   const currency = useCurrency();
-  const {
-    catalog,
-    machineQuery,
-    filamentQuery,
-    subQueries,
-    printQuery,
-    printLoading,
-    printIncomplete,
-    loading,
-    failed,
-    incomplete,
-    total,
-    print,
-    machine,
-    machineUnavailable,
-    breakdown,
-    shipping,
-    costsPartial,
-    variants,
-    filament,
-    failurePercent,
-    failure,
-    printPartial,
-    failureAvailable,
-    notes,
-    totalCost,
-  } = useBuildEstimate(lines, additionalCosts);
+  const { quote, loading, failed, incomplete, fetching, retry } =
+    useBuildEstimate(lines, additionalCosts, pricing);
+  const parts = quote?.parts ?? 0;
+  const print = quote?.print;
+  const filament = quote?.filament;
+  const depreciation = quote?.depreciation;
+  const electricity = quote?.electricity;
+  const breakdown = new Map(
+    (quote?.breakdown ?? []).map((b) => [b.category ?? '', b.amount ?? 0]),
+  );
+  const shipping = quote?.shipping ?? 0;
+  const costsPartial = !!quote?.costsPartial;
+  const failurePercent = quote?.failurePercent ?? 0;
+  const totalCost = {
+    amount: quote?.total?.amount ?? 0,
+    partial: !!quote?.total?.partial,
+    available: !!quote?.total?.available,
+  };
+  const notes = failed
+    ? ['Could not calculate totals. Retry to complete estimates.']
+    : (quote?.notes ?? []);
   const estimate = (amount: number, partial: boolean, available = true) =>
     incomplete || !available
       ? 'Unavailable'
@@ -87,7 +83,7 @@ export function BuildPanel({
             <Metric
               label="Print time"
               value={
-                printIncomplete
+                incomplete || !print
                   ? 'Unavailable'
                   : formatEstimateMetric(
                       print.time,
@@ -95,12 +91,12 @@ export function BuildPanel({
                       !!print.approximate,
                     )
               }
-              loading={printLoading}
+              loading={loading}
             />
             <Metric
               label="Filament"
               value={
-                printIncomplete
+                incomplete || !print
                   ? 'Unavailable'
                   : formatEstimateMetric(
                       print.filament,
@@ -108,15 +104,15 @@ export function BuildPanel({
                       !!print.approximate,
                     )
               }
-              loading={printLoading}
+              loading={loading}
             />
           </dl>
-          {printLoading ? (
+          {loading ? (
             <Skeleton
               className="h-24 w-full"
               aria-label="Loading filament breakdown"
             />
-          ) : (print.colors ?? []).length > 0 && !printIncomplete ? (
+          ) : (quote?.colors ?? []).length > 0 && !incomplete ? (
             <Table aria-label="Filament breakdown">
               <TableHeader>
                 <TableRow>
@@ -130,59 +126,38 @@ export function BuildPanel({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(print.colors ?? []).map((c) => {
-                  const color = filament.colors.get(
-                    filamentColorKey(c.materialType, c.colorHex, c.variantId),
-                  );
-                  const variant = c.variantId
-                    ? variants.get(c.variantId)
-                    : undefined;
-                  return (
-                    <TableRow
-                      key={filamentColorKey(
-                        c.materialType,
-                        c.colorHex,
-                        c.variantId,
+                {(quote?.colors ?? []).map((c) => (
+                  <TableRow
+                    key={`${c.variantId ?? ''}|${c.materialType ?? ''}|${c.colorHex ?? ''}`}
+                  >
+                    <TableCell className="whitespace-normal">
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="size-3 shrink-0 rounded-full border"
+                          style={{
+                            backgroundColor: c.swatchHex ?? undefined,
+                          }}
+                          aria-hidden
+                        />
+                        <span>{c.name}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatEstimateMetric(
+                        { value: c.grams, missing: c.missing },
+                        'filament',
+                        false,
                       )}
-                    >
-                      <TableCell className="whitespace-normal">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className="size-3 shrink-0 rounded-full border"
-                            style={{
-                              backgroundColor:
-                                variant?.colorHex ?? c.colorHex ?? undefined,
-                            }}
-                            aria-hidden
-                          />
-                          <span>
-                            {variant
-                              ? variant.name
-                              : c.variantId
-                                ? 'Filament unavailable'
-                                : c.colorHex
-                                  ? `${c.materialType ?? 'Any'} ${c.colorHex}`
-                                  : 'Unknown color'}
-                          </span>
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatEstimateMetric(
-                          { value: c.grams, missing: c.missing },
-                          'filament',
-                          false,
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {estimate(
-                          color?.total ?? 0,
-                          (color?.missing ?? 0) > 0,
-                          (color?.priced ?? 0) > 0,
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {estimate(
+                        c.cost ?? 0,
+                        (c.costMissing ?? 0) > 0,
+                        (c.costPriced ?? 0) > 0,
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           ) : null}
@@ -191,36 +166,38 @@ export function BuildPanel({
             <Row
               label="Filament cost"
               value={estimate(
-                filament.total,
-                filament.incomplete,
-                filament.priced > 0 || total.parts.size === 0,
+                filament?.total ?? 0,
+                !!filament?.incomplete,
+                (filament?.priced ?? 0) > 0 || parts === 0,
               )}
               loading={loading}
             />
             <Row
               label="Printer depreciation"
               value={estimate(
-                machine.depreciation.total,
-                machine.depreciation.missing > 0,
-                !machineUnavailable &&
-                  (machine.depreciation.priced > 0 || total.parts.size === 0),
+                depreciation?.total ?? 0,
+                (depreciation?.missing ?? 0) > 0,
+                (depreciation?.priced ?? 0) > 0 || parts === 0,
               )}
               loading={loading}
             />
             <Row
               label="Electricity"
               value={estimate(
-                machine.electricity.total,
-                machine.electricity.missing > 0,
-                !machineUnavailable &&
-                  (machine.electricity.priced > 0 || total.parts.size === 0),
+                electricity?.total ?? 0,
+                (electricity?.missing ?? 0) > 0,
+                (electricity?.priced ?? 0) > 0 || parts === 0,
               )}
               loading={loading}
             />
             {failurePercent > 0 && (
               <Row
                 label={`Failure allowance (${failurePercent}%)`}
-                value={estimate(failure, printPartial, failureAvailable)}
+                value={estimate(
+                  quote?.failure ?? 0,
+                  !!quote?.printPartial,
+                  !!quote?.failureAvailable,
+                )}
                 loading={loading}
               />
             )}
@@ -265,19 +242,12 @@ export function BuildPanel({
           </dl>
         </CardFooter>
       </Card>
-      {machineQuery.isError && total.parts.size > 0 && (
-        <Button variant="outline" onClick={() => void machineQuery.refetch()}>
-          Retry printer costs
-        </Button>
-      )}
       {notes.length > 0 && (
         <Alert role="status" className="mt-4">
           <AlertTitle>
-            {loading
-              ? 'Calculating build…'
-              : incomplete || totalCost.partial
-                ? 'Build estimates incomplete'
-                : 'Estimate notes'}
+            {incomplete || totalCost.partial
+              ? 'Build estimates incomplete'
+              : 'Estimate notes'}
           </AlertTitle>
           <AlertDescription>
             <ul className="flex flex-col gap-1">
@@ -290,18 +260,8 @@ export function BuildPanel({
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={
-                  printQuery.isFetching ||
-                  catalog.isFetching ||
-                  filamentQuery.isFetching ||
-                  subQueries.some((q) => q.isFetching)
-                }
-                onClick={() => {
-                  catalog.retry();
-                  void filamentQuery.refetch();
-                  void printQuery.refetch();
-                  for (const query of subQueries) void query.refetch();
-                }}
+                disabled={fetching}
+                onClick={retry}
               >
                 Retry totals
               </Button>

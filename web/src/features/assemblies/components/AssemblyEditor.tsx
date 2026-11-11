@@ -125,6 +125,7 @@ export function AssemblyEditor({
     control: form.control,
     name: 'additionalCosts',
   });
+  const pricing = useWatch({ control: form.control, name: 'pricing' });
 
   return (
     <Form {...form}>
@@ -222,6 +223,7 @@ export function AssemblyEditor({
           <BuildPanel
             lines={lines}
             additionalCosts={additionalCosts}
+            pricing={pricing}
             className="min-w-0 xl:sticky xl:top-4"
           />
         </div>

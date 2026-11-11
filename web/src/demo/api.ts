@@ -28,6 +28,7 @@ import type {
   PrintEstimate,
   PrinterDetailResponse,
   PrinterMatchingDiagnostics,
+  PrinterModelCostResponse,
   PrinterModelResponse,
   PrintJobResponse,
   ProductionDemandResponse,
@@ -35,6 +36,7 @@ import type {
   ProductionRunDetailResponse,
   ProductionRunSummaryResponse,
   QueueJobRowResponse,
+  QuoteAssemblyRequest,
   RunLineSummaryResponse,
   SpoolHistoryEntryResponse,
   SpoolResponse,
@@ -68,6 +70,7 @@ import {
   variant,
   vendors,
 } from './farm';
+import { demoQuote } from './quote/quote';
 
 // --- shared lookups ------------------------------------------------------------------------------------------
 export const printerById = (printerId: string | null | undefined) =>
@@ -1482,30 +1485,43 @@ route('GET', '/settings/general', () => ({
   failureAllowancePercent: 5,
   supportedCurrencies: ['USD', 'EUR', 'GBP', 'MYR', 'SGD'],
 }));
-route('GET', '/settings/fees', () => ({
-  profiles: [{ id: id('fee5', 1), name: 'Online shop', fees: [] }],
+const feeProfiles = [{ id: id('fee5', 1), name: 'Online shop', fees: [] }];
+route('GET', '/settings/fees', () => ({ profiles: feeProfiles }));
+const printerCostModels: PrinterModelCostResponse[] = (
+  ['P1S', 'X1C', 'A1', 'A1MINI', 'U1'] as const
+).map((modelCode) => ({
+  brand: modelCode === 'U1' ? 'Snapmaker' : 'Bambu',
+  modelCode,
+  printerPurchasePrice: {
+    P1S: 699,
+    X1C: 1199,
+    A1: 399,
+    A1MINI: 249,
+    U1: 999,
+  }[modelCode],
+  printerUpfrontCost: null,
+  lifetimeServiceCost: 150,
+  lifetimePrintingHours: 6000,
+  averagePrintingWatts: modelCode === 'X1C' ? 180 : 120,
+  canRemove: false,
+  depreciationPerHour: 0.14,
+  electricityPerHour: 0.02,
 }));
 route('GET', '/settings/printer-costs', () => ({
   electricityPricePerKwh: 0.16,
-  models: (['P1S', 'X1C', 'A1', 'A1MINI', 'U1'] as const).map((modelCode) => ({
-    brand: modelCode === 'U1' ? 'Snapmaker' : 'Bambu',
-    modelCode,
-    printerPurchasePrice: {
-      P1S: 699,
-      X1C: 1199,
-      A1: 399,
-      A1MINI: 249,
-      U1: 999,
-    }[modelCode],
-    printerUpfrontCost: null,
-    lifetimeServiceCost: 150,
-    lifetimePrintingHours: 6000,
-    averagePrintingWatts: modelCode === 'X1C' ? 180 : 120,
-    canRemove: false,
-    depreciationPerHour: 0.14,
-    electricityPerHour: 0.02,
-  })),
+  models: printerCostModels,
 }));
+route('POST', '/assemblies/quote', ({ body }) =>
+  demoQuote(body as QuoteAssemblyRequest, {
+    parts,
+    assemblies,
+    filaments,
+    summary: partSummary,
+    models: printerCostModels,
+    failurePercent: 5,
+    profiles: feeProfiles,
+  }),
+);
 route('GET', '/settings/slicing-defaults', () => ({
   id: id('51ce', 1),
   default: { engine: 'BambuStudio', version: '2.7.1', isExplicit: true },

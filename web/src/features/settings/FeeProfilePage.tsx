@@ -50,7 +50,6 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { feeTotals } from '@/features/assemblies/pricing';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import type {
   FeeProfileDto,
@@ -58,7 +57,7 @@ import type {
 } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
 import { useFeeProfileRemoval } from './FeeProfileRemoval';
-import { feeSummary, feesKey, useFeeProfiles } from './fees';
+import { feeSummary, feesKey, feeTotals, useFeeProfiles } from './fees';
 import { useCurrency } from './generalSettings';
 
 const number = z

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { feeTotals, profilePricing } from './pricing';
+import { feeTotals } from '@/features/settings/fees';
+import { profilePricing } from './pricing';
 
 // Sheet H0001 of the pricing workbook: cost 4.47, Shopee 31.06% + 0.54 per order.
 const shopee = { name: 'Shopee', feePercent: 31.06, fixedFee: 0.54 };

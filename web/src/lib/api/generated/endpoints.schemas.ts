@@ -3153,6 +3153,124 @@ export interface ListAssembliesRequest {
   [key: string]: unknown;
 }
 
+export interface QuoteColor {
+  /** @nullable */
+  materialType?: string | null;
+  /** @nullable */
+  colorHex?: string | null;
+  /** @nullable */
+  variantId?: string | null;
+  /** @nullable */
+  grams?: number | null;
+  missing?: number;
+  name?: string;
+  /** @nullable */
+  swatchHex?: string | null;
+  cost?: number;
+  costPriced?: number;
+  costMissing?: number;
+}
+
+export interface QuoteFilament {
+  total?: number;
+  priced?: number;
+  missingSelection?: number;
+  missingPrice?: number;
+  missingGrams?: number;
+  incomplete?: boolean;
+}
+
+export interface QuoteMetric {
+  total?: number;
+  priced?: number;
+  missing?: number;
+}
+
+export interface QuoteCategory {
+  category?: string;
+  amount?: number;
+}
+
+export interface QuoteTotal {
+  amount?: number;
+  partial?: boolean;
+  available?: boolean;
+}
+
+export interface Fee {
+  name?: string;
+  type?: string;
+  amount?: number;
+}
+
+export interface ProfilePricing {
+  /** @nullable */
+  price?: number | null;
+  unreachable?: boolean;
+  /** @nullable */
+  fees?: number | null;
+  /** @nullable */
+  profit?: number | null;
+  /** @nullable */
+  margin?: number | null;
+  /** @nullable */
+  markup?: number | null;
+  breakEven?: number;
+  /** @nullable */
+  maxDiscount?: number | null;
+}
+
+export interface QuoteProfile {
+  /** @nullable */
+  profileId?: string | null;
+  name?: string;
+  fees?: Fee[];
+  feePercent?: number;
+  fixedFee?: number;
+  pricing?: ProfilePricing;
+}
+
+export interface AssemblyQuote {
+  parts?: number;
+  components?: number;
+  print?: PrintEstimate;
+  colors?: QuoteColor[];
+  filament?: QuoteFilament;
+  depreciation?: QuoteMetric;
+  electricity?: QuoteMetric;
+  failurePercent?: number;
+  failure?: number;
+  failureAvailable?: boolean;
+  printPartial?: boolean;
+  breakdown?: QuoteCategory[];
+  costsPartial?: boolean;
+  shipping?: number;
+  total?: QuoteTotal;
+  notes?: string[];
+  profiles?: QuoteProfile[];
+}
+
+export interface QuoteLineRequest {
+  targetKind?: string;
+  targetId?: string;
+  quantity?: number;
+}
+
+export interface QuotePricingRequest {
+  mode?: string;
+  value?: number;
+}
+
+export interface QuoteAssemblyRequest {
+  /** @nullable */
+  assemblyId?: string | null;
+  /** @nullable */
+  lines?: QuoteLineRequest[] | null;
+  /** @nullable */
+  additionalCosts?: AssemblyCostInput[] | null;
+  pricing?: QuotePricingRequest | null;
+}
+
 export interface ActivityChannel {
   kind?: string;
   credentialId?: string;

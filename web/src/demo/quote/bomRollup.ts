@@ -1,8 +1,8 @@
+import type { BomLineTargetKind } from '@/features/assemblies/components/BomLineEditor';
 import type {
   ExplodedNonPrintedComponentResponse,
   ExplodedPartResponse,
 } from '@/lib/api/generated/endpoints.schemas';
-import type { BomLineTargetKind } from './BomLineEditor';
 
 interface RollupLine {
   targetKind: BomLineTargetKind;

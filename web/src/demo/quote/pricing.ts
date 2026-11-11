@@ -1,15 +1,9 @@
+/** The demo's stand-in for the server quote (AssemblyQuoteService): the editor's former client-side pricing. */
 export type PricingMode = 'Price' | 'Margin' | 'Markup';
-export const pricingModes: PricingMode[] = ['Price', 'Margin', 'Markup'];
 
 export interface Pricing {
   mode: PricingMode;
   value: number;
-}
-
-export interface Fee {
-  name?: string;
-  type?: string;
-  amount?: number;
 }
 
 /** A fee profile reduced to what pricing needs: its percent fees and its fixed fees, each summed. */
@@ -17,16 +11,6 @@ export interface FeeProfile {
   name: string;
   feePercent: number;
   fixedFee: number;
-}
-
-export function feeTotals(fees: Fee[]) {
-  let feePercent = 0;
-  let fixedFee = 0;
-  for (const fee of fees) {
-    if (fee.type === 'Percent') feePercent += fee.amount ?? 0;
-    else fixedFee += fee.amount ?? 0;
-  }
-  return { feePercent, fixedFee };
 }
 
 export interface ProfilePricing {

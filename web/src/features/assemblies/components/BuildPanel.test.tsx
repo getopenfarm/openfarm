@@ -1,12 +1,18 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { printEstimateFixture } from '@/test-utils/printEstimate';
+import type {
+  AssemblyQuote,
+  QuoteAssemblyRequest,
+} from '@/lib/api/generated/endpoints.schemas';
 import type { EditableLine } from './BomLineEditor';
 import { BuildPanel } from './BuildPanel';
+import { PricingSection } from './PricingSection';
 
+// The server computes every total (AssemblyQuoteService, tested in AssemblyQuoteEndpointTests); these tests cover rendering.
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -14,86 +20,73 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-// Adapt existing catalog scenarios into fake HTTP estimate responses. New backend tests cover the actual calculator.
-function stubGlobal(name: string, handler: typeof fetch) {
-  vi.stubGlobal(
-    name,
-    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (input.toString().includes('/parts/print-estimate')) {
-        const catalog = await handler('/api/v1/parts?page=1&pageSize=200');
-        if (!catalog.ok) return catalog;
-        const body = await catalog.json();
-        return jsonResponse(
-          printEstimateFixture(
-            JSON.parse(String(init?.body)).parts,
-            body.parts ?? [],
-          ),
-        );
-      }
-      return handler(input, init);
-    }),
-  );
-}
-
-const ROUTES: [string, unknown][] = [
-  ['/api/v1/filaments', { filaments: [] }],
-  [
-    '/api/v1/assemblies/a1/explosion',
+const QUOTE: AssemblyQuote = {
+  parts: 1,
+  components: 1,
+  print: {
+    time: { value: 120, missing: 0 },
+    filament: { value: 40, missing: 0 },
+    approximate: false,
+    colors: [],
+  },
+  colors: [
     {
-      printedParts: [{ partId: 'p1', partName: 'Bracket', quantity: 1 }],
-      nonPrintedComponents: [
-        {
-          nonPrintedComponentId: 'c2',
-          name: 'M3 screw',
-          quantity: 4,
-        },
-      ],
+      materialType: 'PLA',
+      colorHex: '000000',
+      variantId: 'v1',
+      grams: 40,
+      missing: 0,
+      name: 'Acme PLA · Black',
+      swatchHex: '000000',
+      cost: 0.8,
+      costPriced: 1,
+      costMissing: 0,
     },
   ],
-  [
-    '/api/v1/parts',
+  filament: {
+    total: 0.8,
+    priced: 1,
+    missingSelection: 0,
+    missingPrice: 0,
+    missingGrams: 0,
+    incomplete: false,
+  },
+  depreciation: { total: 2, priced: 1, missing: 0 },
+  electricity: { total: 0.2, priced: 1, missing: 0 },
+  failurePercent: 10,
+  failure: 0.3,
+  failureAvailable: true,
+  printPartial: false,
+  breakdown: [
+    { category: 'Hardware', amount: 1 },
+    { category: 'Packaging', amount: 0.5 },
+    { category: 'Shipping', amount: 3 },
+    { category: 'Labour', amount: 2 },
+  ],
+  costsPartial: false,
+  shipping: 3,
+  total: { amount: 9.8, partial: false, available: true },
+  notes: [],
+  profiles: [
     {
-      parts: [
-        {
-          id: 'p1',
-          name: 'Bracket',
-          unitsPerPrint: 2,
-          estimatedPrintTimeMinutes: 60,
-          estimatedFilamentWeightGrams: 10,
-        },
-      ],
-      totalCount: 1,
+      profileId: 'shop',
+      name: 'Shop',
+      fees: [{ name: 'Commission', type: 'Percent', amount: 10 }],
+      feePercent: 10,
+      fixedFee: 0.5,
+      pricing: {
+        price: 17.17,
+        unreachable: false,
+        fees: 2.217,
+        profit: 5.153,
+        margin: 0.3,
+        markup: 0.752,
+        breakEven: 11.44,
+        maxDiscount: 0.333,
+      },
     },
   ],
-  ['/api/v1/assemblies', { items: [] }],
-  [
-    '/api/v1/cost-items',
-    {
-      items: [
-        {
-          id: 'c1',
-          name: 'Magnet',
-          effectiveRate: 0.25,
-          pricing: {
-            itemType: 'Physical',
-            unit: 'Piece',
-            category: 'Hardware',
-          },
-        },
-        {
-          id: 'c2',
-          name: 'M3 screw',
-          effectiveRate: 0.05,
-          pricing: {
-            itemType: 'Physical',
-            unit: 'Piece',
-            category: 'Hardware',
-          },
-        },
-      ],
-    },
-  ],
-];
+};
 
 const LINES: EditableLine[] = [
   {
@@ -108,27 +101,38 @@ const LINES: EditableLine[] = [
     targetKind: 'NonPrintedComponent',
     targetId: 'c1',
     targetName: 'Magnet',
-    quantity: 2,
-  },
-  {
-    key: 'l3',
-    targetKind: 'Assembly',
-    targetId: 'a1',
-    targetName: 'Hinge',
-    quantity: 2,
+    quantity: 4,
   },
 ];
 
-function renderPanel(lines: EditableLine[]) {
+let requests: QuoteAssemblyRequest[] = [];
+function stubQuote(respond: (body: QuoteAssemblyRequest) => Response) {
+  requests = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (!input.toString().includes('/api/v1/assemblies/quote'))
+        throw new Error(`Unexpected fetch: ${input}`);
+      const body = JSON.parse(String(init?.body)) as QuoteAssemblyRequest;
+      requests.push(body);
+      return respond(body);
+    }),
+  );
+}
+
+function wrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  function Wrapper({ children }: { children: ReactNode }) {
+  return function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      </MemoryRouter>
     );
-  }
-  return render(<BuildPanel lines={lines} />, { wrapper: Wrapper });
+  };
 }
 
 const stat = (label: string) =>
@@ -137,645 +141,160 @@ const stat = (label: string) =>
   );
 
 describe('BuildPanel', () => {
-  beforeEach(() => {
-    stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) => {
-        const url = input.toString();
-        const hit = ROUTES.find(([path]) => url.includes(path));
-        return hit
-          ? Promise.resolve(jsonResponse(hit[1]))
-          : Promise.reject(new Error(`Unexpected fetch: ${url}`));
-      }),
-    );
-  });
+  beforeEach(() => stubQuote(() => jsonResponse(QUOTE)));
   afterEach(() => vi.unstubAllGlobals());
 
-  it('rolls up the draft lines into totals only, without a save', async () => {
-    renderPanel(LINES);
+  it('quotes the draft lines and shows the totals the server returns', async () => {
+    render(<BuildPanel lines={LINES} />, { wrapper: wrapper() });
 
-    // Bracket: 2 direct + 2 x 1 via Hinge = 4 units / 2 per plate x 60m.
-    await vi.waitFor(() =>
-      expect(stat('Print time').getByText('2h')).toBeTruthy(),
+    await waitFor(() =>
+      expect(stat('Print time').getByText('2h')).toBeInTheDocument(),
     );
-    expect(stat('Filament').getByText('20 g')).toBeInTheDocument();
-    // 2 x 0.25 + 8 x 0.05
-    expect(stat('Hardware cost').getByText('USD 0.90')).toBeInTheDocument();
-    // Totals only — no per-line BOM rows.
-    expect(screen.queryByText('Bracket')).not.toBeInTheDocument();
-    expect(screen.queryByText('M3 screw')).not.toBeInTheDocument();
+    expect(requests[0].lines).toEqual([
+      { targetKind: 'Part', targetId: 'p1', quantity: 2 },
+      { targetKind: 'NonPrintedComponent', targetId: 'c1', quantity: 4 },
+    ]);
+    expect(stat('Filament').getByText('40 g')).toBeInTheDocument();
+    const colours = screen.getByRole('table', { name: 'Filament breakdown' });
+    expect(within(colours).getByText('Acme PLA · Black')).toBeInTheDocument();
+    expect(within(colours).getByText('USD 0.80')).toBeInTheDocument();
+    expect(
+      stat('Printer depreciation').getByText('USD 2.00'),
+    ).toBeInTheDocument();
+    expect(
+      stat('Failure allowance (10%)').getByText('USD 0.30'),
+    ).toBeInTheDocument();
+    expect(stat('Hardware cost').getByText('USD 1.00')).toBeInTheDocument();
+    expect(stat('Labor cost').getByText('USD 2.00')).toBeInTheDocument();
+    expect(stat('Product cost').getByText('USD 6.80')).toBeInTheDocument();
+    expect(
+      stat('Shipping allowance').getByText('USD 3.00'),
+    ).toBeInTheDocument();
+    expect(
+      stat('Estimated total including shipping').getByText('USD 9.80'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('lists filament grams by colour, adding up to the total', async () => {
-    stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) => {
-        const url = input.toString();
-        if (url.includes('/api/v1/parts'))
-          return Promise.resolve(
-            jsonResponse({
-              parts: [
-                {
-                  id: 'p1',
-                  name: 'Bracket',
-                  unitsPerPrint: 1,
-                  estimatedPrintTimeMinutes: 60,
-                  estimatedFilamentWeightGrams: 10,
-                  filamentByColor: [
-                    { materialType: 'PLA', colorHex: '#000000', grams: 7.4 },
-                    { materialType: 'PLA', colorHex: '#FFFFFF', grams: 3.1 },
-                  ],
-                },
-              ],
-            }),
-          );
-        return Promise.resolve(jsonResponse({ items: [] }));
-      }),
+  it('leaves picker rows without a target out and re-quotes when the lines change', async () => {
+    const { rerender } = render(
+      <BuildPanel
+        lines={[...LINES, { ...LINES[0], key: 'blank', targetId: '' }]}
+      />,
+      { wrapper: wrapper() },
     );
-    renderPanel(LINES.slice(0, 1));
-
-    const colours = await screen.findByRole('table', {
-      name: 'Filament breakdown',
-    });
-    // 2 units x (7.4 + 3.1): purge-inclusive, not the slicer's 10 g.
-    expect(within(colours).getByText('PLA #000000')).toBeInTheDocument();
-    expect(within(colours).getByText('14.8 g')).toBeInTheDocument();
-    expect(within(colours).getByText('6.2 g')).toBeInTheDocument();
-    expect(stat('Filament').getByText('21 g')).toBeInTheDocument();
-  });
-
-  it('updates when the lines prop changes', async () => {
-    const { rerender } = renderPanel(LINES.slice(0, 1));
-    await vi.waitFor(() =>
-      expect(stat('Print time').getByText('1h')).toBeTruthy(),
-    );
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].lines).toHaveLength(2);
 
     rerender(<BuildPanel lines={[{ ...LINES[0], quantity: 6 }]} />);
-    await waitFor(() =>
-      expect(stat('Print time').getByText('3h')).toBeInTheDocument(),
-    );
+
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests[1].lines).toEqual([
+      { targetKind: 'Part', targetId: 'p1', quantity: 6 },
+    ]);
   });
 
-  it('shows unattributed weight even when no known colors are available', async () => {
-    renderPanel(LINES.slice(0, 1));
-    const table = await screen.findByRole('table', {
-      name: 'Filament breakdown',
-    });
-    const row = within(table).getByRole('row', { name: /Unknown color/ });
-    expect(within(row).getByRole('cell', { name: '10 g' })).toBeInTheDocument();
-    expect(
-      within(row).getByRole('cell', { name: 'Unavailable' }),
-    ).toBeInTheDocument();
-  });
-
-  it.each([
-    { price: 0, rowCost: 'USD 0.00', subtotal: 'USD 0.00' },
-    { price: null, rowCost: 'Unavailable', subtotal: 'USD 3.00 (partial)' },
-  ])(
-    'keeps zero and missing prices distinct in the build sheet ($price)',
-    async ({ price, rowCost, subtotal }) => {
-      stubGlobal(
-        'fetch',
-        vi.fn((input: RequestInfo | URL) => {
-          const url = input.toString();
-          if (url.includes('/api/v1/filaments'))
-            return Promise.resolve(
-              jsonResponse({
-                filaments: [
-                  {
-                    variants: [
-                      { id: 'black', pricePerKg: 30 },
-                      { id: 'white', colorName: 'White', pricePerKg: price },
-                    ],
-                  },
-                ],
-              }),
-            );
-          if (url.includes('/api/v1/parts'))
-            return Promise.resolve(
-              jsonResponse({
-                parts: [
-                  {
-                    id: 'p1',
-                    unitsPerPrint: 2,
-                    estimatedPrintTimeMinutes: 60,
-                    filamentByColor: [
-                      {
-                        materialType: 'PLA',
-                        colorHex: '#000000',
-                        grams: 100,
-                        narrowFilamentVariantId: 'black',
-                      },
-                      {
-                        materialType: 'PLA',
-                        colorHex: '#FFFFFF',
-                        grams: 50,
-                        narrowFilamentVariantId: 'white',
-                      },
-                    ],
-                  },
-                ],
-              }),
-            );
-          const hit = ROUTES.find(([path]) => url.includes(path));
-          return Promise.resolve(jsonResponse(hit?.[1] ?? {}));
-        }),
-      );
-      renderPanel(LINES.slice(0, 1));
-      const table = await screen.findByRole('table', {
-        name: 'Filament breakdown',
-      });
-      const row = within(table).getByRole('row', { name: /White/ });
-      expect(
-        within(row).getByRole('cell', { name: '50 g' }),
-      ).toBeInTheDocument();
-      expect(
-        within(row).getByRole('cell', { name: rowCost }),
-      ).toBeInTheDocument();
-      expect(
-        stat('Filament cost').getByText(price === 0 ? 'USD 3.00' : subtotal),
-      ).toBeInTheDocument();
-      expect(
-        stat('Estimated total including shipping').getByText(
-          price === 0 ? 'USD 3.00 (partial)' : subtotal,
-        ),
-      ).toBeInTheDocument();
-    },
-  );
-
-  it('flags parts without an estimate and components without a cost', async () => {
-    stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) => {
-        const url = input.toString();
-        if (url.includes('/api/v1/parts'))
-          return Promise.resolve(
-            jsonResponse({ parts: [{ id: 'p1', name: 'Bracket' }] }),
-          );
-        if (url.includes('/api/v1/cost-items'))
-          return Promise.resolve(
-            jsonResponse({ items: [{ id: 'c1', name: 'Magnet' }] }),
-          );
-        return Promise.resolve(jsonResponse({ items: [] }));
+  it('marks partial totals and lists the server notes', async () => {
+    stubQuote(() =>
+      jsonResponse({
+        ...QUOTE,
+        costsPartial: true,
+        total: { amount: 9.8, partial: true, available: true },
+        notes: ['1 component without cost.'],
       }),
     );
-    renderPanel(LINES.slice(0, 2));
-    expect(
-      await screen.findByText('Some print time estimates are unavailable.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('1 component without cost.')).toBeInTheDocument();
-  });
+    render(<BuildPanel lines={LINES} />, { wrapper: wrapper() });
 
-  it('shows catalog names and keeps same-color variants and unselected material separate', async () => {
-    stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) => {
-        const url = input.toString();
-        if (url.includes('/api/v1/filaments'))
-          return Promise.resolve(
-            jsonResponse({
-              filaments: [
-                {
-                  vendorName: 'Bambu Lab',
-                  material: 'PETG Basic',
-                  pricePerKg: 20,
-                  variants: [
-                    { id: 'basic', colorName: 'White', colorHex: '#FFFFFF' },
-                  ],
-                },
-                {
-                  vendorName: 'Polymaker',
-                  material: 'PETG',
-                  pricePerKg: 30,
-                  variants: [
-                    {
-                      id: 'premium',
-                      colorName: 'Snow white',
-                      colorHex: '#FFFFFF',
-                    },
-                  ],
-                },
-              ],
-            }),
-          );
-        if (url.includes('/api/v1/parts'))
-          return Promise.resolve(
-            jsonResponse({
-              parts: [
-                {
-                  id: 'p1',
-                  unitsPerPrint: 2,
-                  estimatedPrintTimeMinutes: 60,
-                  filamentByColor: [
-                    {
-                      materialType: 'PETG',
-                      colorHex: '#FFFFFF',
-                      grams: 100,
-                      narrowFilamentVariantId: 'basic',
-                    },
-                    {
-                      materialType: 'PETG',
-                      colorHex: '#FFFFFF',
-                      grams: 50,
-                      narrowFilamentVariantId: 'premium',
-                    },
-                    { materialType: 'PETG', colorHex: '#FFFFFF', grams: 10 },
-                    {
-                      materialType: 'PETG',
-                      colorHex: '#FFFFFF',
-                      grams: 5,
-                      narrowFilamentVariantId: 'removed',
-                    },
-                  ],
-                },
-              ],
-            }),
-          );
-        const hit = ROUTES.find(([path]) => url.includes(path));
-        return Promise.resolve(jsonResponse(hit?.[1] ?? {}));
-      }),
-    );
-    renderPanel(LINES.slice(0, 1));
-    const table = await screen.findByRole('table', {
-      name: 'Filament breakdown',
-    });
-    const basic = within(table).getByRole('row', {
-      name: /Bambu Lab PETG Basic · White/,
-    });
     expect(
-      within(basic).getByRole('cell', { name: '100 g' }),
+      await screen.findByText('1 component without cost.'),
     ).toBeInTheDocument();
-    expect(
-      within(basic).getByRole('cell', { name: 'USD 2.00' }),
-    ).toBeInTheDocument();
-    const premium = within(table).getByRole('row', {
-      name: /Polymaker PETG · Snow white/,
-    });
-    expect(
-      within(premium).getByRole('cell', { name: '50 g' }),
-    ).toBeInTheDocument();
-    expect(
-      within(premium).getByRole('cell', { name: 'USD 1.50' }),
-    ).toBeInTheDocument();
-    expect(
-      within(table).getByRole('row', { name: /PETG #FFFFFF/ }),
-    ).toHaveTextContent('10 g');
-    expect(
-      within(table).getByRole('row', { name: /Filament unavailable/ }),
-    ).toHaveTextContent('5 g');
-    expect(stat('Filament').getByText('165 g')).toBeInTheDocument();
-    expect(
-      stat('Filament cost').getByText('USD 3.50 (partial)'),
-    ).toBeInTheDocument();
-  });
-
-  it('marks totals as loading while a sub-assembly explodes', () => {
-    stubGlobal(
-      'fetch',
-      vi.fn(() => new Promise<Response>(() => {})),
-    );
-    renderPanel(LINES.slice(2, 3));
-    expect(screen.getByText('Loading sub-assemblies…')).toBeInTheDocument();
-    expect(
-      screen.getByRole('complementary', { name: 'Build' }),
-    ).toHaveAttribute('aria-busy', 'true');
-    expect(
-      screen.getByLabelText('Loading filament breakdown'),
-    ).toBeInTheDocument();
-    expect(
-      stat('Estimated total including shipping').queryByText('0.00'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('marks totals incomplete when a sub-assembly explosion fails', async () => {
-    stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) => {
-        const url = input.toString();
-        if (url.includes('/explosion'))
-          return Promise.resolve(jsonResponse({}, 500));
-        const hit = ROUTES.find(([path]) => url.includes(path));
-        return Promise.resolve(jsonResponse(hit?.[1] ?? {}));
-      }),
-    );
-    renderPanel(LINES);
-    expect(
-      await screen.findByText(
-        'Could not load 1 sub-assembly. Totals incomplete.',
-      ),
-    ).toBeInTheDocument();
-  });
-  it('shows selected filament costs, color breakdown and combined hardware total', async () => {
-    stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) => {
-        const url = input.toString();
-        if (url.includes('/api/v1/filaments'))
-          return Promise.resolve(
-            jsonResponse({
-              filaments: [
-                {
-                  pricePerKg: 20,
-                  variants: [{ id: 'black', pricePerKg: 30 }, { id: 'white' }],
-                },
-              ],
-            }),
-          );
-        if (url.includes('/api/v1/parts'))
-          return Promise.resolve(
-            jsonResponse({
-              parts: [
-                {
-                  id: 'p1',
-                  unitsPerPrint: 2,
-                  estimatedPrintTimeMinutes: 60,
-                  filamentByColor: [
-                    {
-                      materialType: 'PLA',
-                      colorHex: '#000000',
-                      grams: 100,
-                      narrowFilamentVariantId: 'black',
-                    },
-                    {
-                      materialType: 'PLA',
-                      colorHex: '#FFFFFF',
-                      grams: 50,
-                      narrowFilamentVariantId: 'white',
-                    },
-                  ],
-                },
-              ],
-            }),
-          );
-        const hit = ROUTES.find(([path]) => url.includes(path));
-        return Promise.resolve(jsonResponse(hit?.[1] ?? {}));
-      }),
-    );
-    renderPanel(LINES);
-    await vi.waitFor(() =>
-      expect(stat('Filament cost').getByText('USD 8.00')).toBeInTheDocument(),
-    );
+    expect(screen.getByText('Build estimates incomplete')).toBeInTheDocument();
     expect(
       stat('Estimated total including shipping').getByText(
-        'USD 8.90 (partial)',
+        'USD 9.80 (partial)',
       ),
     ).toBeInTheDocument();
-    const colors = screen.getByRole('table', { name: 'Filament breakdown' });
-    expect(within(colors).getByText('USD 6.00')).toBeInTheDocument();
-    expect(within(colors).getByText('USD 2.00')).toBeInTheDocument();
   });
 
-  it('keeps totals unavailable after catalog failure and supports keyboard retry', async () => {
+  it('keeps totals unavailable after a failed quote and supports keyboard retry', async () => {
     const user = userEvent.setup();
     let fail = true;
-    stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) => {
-        const url = input.toString();
-        if (url.includes('/api/v1/filaments') && fail)
-          return Promise.resolve(jsonResponse({}, 500));
-        const hit = ROUTES.find(([path]) => url.includes(path));
-        return Promise.resolve(jsonResponse(hit?.[1] ?? {}));
-      }),
-    );
-    renderPanel(LINES);
+    stubQuote(() => (fail ? jsonResponse({}, 500) : jsonResponse(QUOTE)));
+    render(<BuildPanel lines={LINES} />, { wrapper: wrapper() });
+
     const retry = await screen.findByRole('button', { name: 'Retry totals' });
     expect(
       stat('Estimated total including shipping').getByText('Unavailable'),
     ).toBeInTheDocument();
-    await waitFor(() =>
-      expect(stat('Print time').getByText('2h')).toBeInTheDocument(),
-    );
-    expect(stat('Filament').getByText('20 g')).toBeInTheDocument();
     fail = false;
     await user.tab();
     expect(retry).toHaveFocus();
     await user.keyboard('{Enter}');
-    await vi.waitFor(() =>
+
+    await waitFor(() =>
       expect(
-        stat('Estimated total including shipping').getByText(
-          'USD 0.90 (partial)',
-        ),
+        stat('Estimated total including shipping').getByText('USD 9.80'),
       ).toBeInTheDocument(),
     );
-    expect(stat('Filament cost').getByText('Unavailable')).toBeInTheDocument();
   });
 });
 
-it('adds area packaging and shipping while inheriting only production costs', async () => {
-  stubGlobal(
-    'fetch',
-    vi.fn((input: RequestInfo | URL) => {
-      const url = input.toString();
-      if (url.includes('/api/v1/assemblies/child/explosion'))
-        return Promise.resolve(
-          jsonResponse({
-            printedParts: [],
-            nonPrintedComponents: [],
-            productionCosts: [
-              { catalogItemId: 'labour', category: 'Labour', cost: 2 },
-            ],
-            finalProductCosts: [
-              { catalogItemId: 'shipping', category: 'Shipping', cost: 99 },
-            ],
-          }),
-        );
-      if (url.includes('/api/v1/cost-items'))
-        return Promise.resolve(
-          jsonResponse({
-            items: [
-              {
-                id: 'wrap',
-                name: 'Bubble wrap',
-                effectiveRate: 0.4,
-                pricing: {
-                  itemType: 'Physical',
-                  category: 'Packaging',
-                  unit: 'SquareMetre',
-                },
-              },
-              {
-                id: 'shipping',
-                name: 'Shipping',
-                effectiveRate: 8,
-                pricing: {
-                  itemType: 'Service',
-                  category: 'Shipping',
-                  unit: 'Application',
-                },
-              },
-            ],
-            totalCount: 2,
-          }),
-        );
-      if (url.includes('/api/v1/filaments'))
-        return Promise.resolve(jsonResponse({ filaments: [] }));
-      return Promise.resolve(
-        jsonResponse({ parts: [], items: [], totalCount: 0 }),
-      );
-    }),
-  );
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  const lines: EditableLine[] = [
-    {
-      key: 'child',
-      targetKind: 'Assembly',
-      targetId: 'child',
-      targetName: 'Child',
-      quantity: 3,
-    },
-  ];
-  const { rerender } = render(
-    <QueryClientProvider client={client}>
-      <BuildPanel
-        lines={lines}
-        additionalCosts={[
-          {
-            catalogItemId: 'wrap',
-            purpose: 'FinalProduct',
-            inputMode: 'Dimensions',
-            length: 50,
-            lengthUnit: 'cm',
-            width: 20,
-            widthUnit: 'cm',
-            pieces: 1,
-          },
-          { catalogItemId: 'shipping', purpose: 'FinalProduct', quantity: 1 },
-        ]}
-      />
-    </QueryClientProvider>,
-  );
-  await vi.waitFor(() =>
-    expect(
-      stat('Estimated total including shipping').getByText('USD 14.04'),
-    ).toBeInTheDocument(),
-  );
-  expect(stat('Product cost').getByText('USD 6.04')).toBeInTheDocument();
-  expect(stat('Labor cost').getByText('USD 6.00')).toBeInTheDocument();
-  expect(stat('Shipping allowance').getByText('USD 8.00')).toBeInTheDocument();
-  rerender(
-    <QueryClientProvider client={client}>
-      <BuildPanel
-        lines={lines}
-        additionalCosts={[
-          {
-            catalogItemId: 'wrap',
-            purpose: 'FinalProduct',
-            inputMode: 'Dimensions',
-            length: 50,
-            lengthUnit: 'cm',
-            width: 20,
-            widthUnit: 'cm',
-            pieces: 2,
-          },
-        ]}
-      />
-    </QueryClientProvider>,
-  );
-  expect(
-    stat('Estimated total including shipping').getByText('USD 6.08'),
-  ).toBeInTheDocument();
-  vi.unstubAllGlobals();
-});
+describe('PricingSection', () => {
+  afterEach(() => vi.unstubAllGlobals());
 
-it('adds machine costs to live draft totals and keeps depreciation available without electricity', async () => {
-  stubGlobal(
-    'fetch',
-    vi.fn((input: RequestInfo | URL) => {
-      const url = input.toString();
-      if (url.includes('/settings/printer-costs'))
-        return Promise.resolve(
-          jsonResponse({
-            models: [
-              {
-                brand: 'Bambu',
-                modelCode: 'P1S',
-                depreciationPerHour: 0.9,
-                electricityPerHour: 0.075,
-              },
-            ],
-          }),
-        );
-      if (url.includes('/parts'))
-        return Promise.resolve(
-          jsonResponse({
-            parts: [
-              {
-                id: 'p1',
-                unitsPerPrint: 2,
-                estimatedPrintTimeMinutes: 120,
-                estimationPrinterBrand: 'Bambu',
-                estimationPrinterModelCode: 'P1S',
-                filamentByColor: [{ grams: 10, narrowFilamentVariantId: 'v' }],
-              },
-            ],
-            totalCount: 1,
-          }),
-        );
-      if (url.includes('/filaments'))
-        return Promise.resolve(
-          jsonResponse({
-            filaments: [
-              { pricePerKg: 0, variants: [{ id: 'v', colorName: 'White' }] },
-            ],
-          }),
-        );
-      return Promise.resolve(jsonResponse({ items: [], totalCount: 0 }));
-    }),
-  );
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+  it('shows each fee profile the server priced, and sends the typed rule', async () => {
+    stubQuote(() => jsonResponse(QUOTE));
+    render(
+      <PricingSection
+        lines={LINES}
+        additionalCosts={[]}
+        value={{ mode: 'Margin', value: '30' }}
+        onChange={() => {}}
+      />,
+      { wrapper: wrapper() },
+    );
+
+    const table = await screen.findByRole('table', {
+      name: 'Profit by fee profile',
+    });
+    expect(within(table).getByText('Shop')).toBeInTheDocument();
+    expect(within(table).getByText('USD 17.17')).toBeInTheDocument();
+    expect(within(table).getByText('USD 5.15')).toBeInTheDocument();
+    expect(requests[0].pricing).toEqual({ mode: 'Margin', value: 30 });
+    expect(screen.queryByText(/No fee profiles/)).not.toBeInTheDocument();
   });
-  const { rerender } = render(
-    <QueryClientProvider client={client}>
-      <BuildPanel lines={LINES.slice(0, 1)} />
-    </QueryClientProvider>,
-  );
-  await waitFor(() =>
-    expect(
-      stat('Printer depreciation').getByText('USD 1.80'),
-    ).toBeInTheDocument(),
-  );
-  expect(stat('Electricity').getByText('USD 0.15')).toBeInTheDocument();
-  expect(stat('Product cost').getByText('USD 1.95')).toBeInTheDocument();
-  expect(
-    stat('Estimated total including shipping').getByText('USD 1.95'),
-  ).toBeInTheDocument();
-  rerender(
-    <QueryClientProvider client={client}>
-      <BuildPanel lines={[{ ...LINES[0], quantity: 1 }]} />
-    </QueryClientProvider>,
-  );
-  await waitFor(() =>
-    expect(
-      stat('Printer depreciation').getByText('USD 0.90'),
-    ).toBeInTheDocument(),
-  );
-  expect(stat('Electricity').getByText('USD 0.07')).toBeInTheDocument();
-  await act(async () => {
-    client.setQueryData(['/api/v1/settings/printer-costs'], {
-      data: {
-        models: [
+
+  it('points to Settings while only the No fees row exists, and names unreachable margins', async () => {
+    stubQuote(() =>
+      jsonResponse({
+        ...QUOTE,
+        profiles: [
           {
-            brand: 'Bambu',
-            modelCode: 'P1S',
-            depreciationPerHour: 0.9,
-            electricityPerHour: null,
+            profileId: null,
+            name: 'No fees',
+            fees: [],
+            feePercent: 0,
+            fixedFee: 0,
+            pricing: {
+              price: null,
+              unreachable: true,
+              breakEven: 9.8,
+            },
           },
         ],
-      },
-    });
+      }),
+    );
+    render(
+      <PricingSection
+        lines={LINES}
+        additionalCosts={[]}
+        value={{ mode: 'Margin', value: '120' }}
+        onChange={() => {}}
+      />,
+      { wrapper: wrapper() },
+    );
+
+    expect(await screen.findByText(/No fee profiles/)).toBeInTheDocument();
+    expect(screen.getByText(/No fees fees ≥ 100%/)).toBeInTheDocument();
   });
-  await waitFor(() =>
-    expect(stat('Electricity').getByText('Unavailable')).toBeInTheDocument(),
-  );
-  expect(
-    stat('Printer depreciation').getByText('USD 0.90'),
-  ).toBeInTheDocument();
-  expect(
-    stat('Product cost').getByText('USD 0.90 (partial)'),
-  ).toBeInTheDocument();
-  vi.unstubAllGlobals();
 });
