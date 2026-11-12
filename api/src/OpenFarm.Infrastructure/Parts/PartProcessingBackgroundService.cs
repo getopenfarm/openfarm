@@ -36,15 +36,21 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
 
     public void Enqueue(PartProcessingWorkItem workItem) => _channel.Writer.TryWrite(workItem);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
         // The work queue is an in-memory Channel, never durable across restarts — anything left
         // Processing or ReadyForReview-with-a-Resolving-preview-estimate at this exact moment was
         // orphaned by a previous process lifetime ending mid-job (crash, restart, deploy), not
-        // something this run enqueued. Reconcile once, before any real work starts, or those
-        // rows sit stuck forever with the UI spinning and nothing left to ever pick them back up.
-        await ReconcileOrphanedWorkAsync(stoppingToken);
+        // something this run enqueued. Reconcile once, or those rows sit stuck forever with the UI
+        // spinning and nothing left to ever pick them back up. It runs here, awaited, and not in
+        // ExecuteAsync: BackgroundService runs ExecuteAsync on a background thread, so the host
+        // could already take an upload whose new Processing job would be "reconciled" as orphaned.
+        await ReconcileOrphanedWorkAsync(cancellationToken);
+        await base.StartAsync(cancellationToken);
+    }
 
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
         var workers = Enumerable.Range(0, _maxConcurrency)
             .Select(_ => ConsumeAsync(stoppingToken))
             .ToArray();

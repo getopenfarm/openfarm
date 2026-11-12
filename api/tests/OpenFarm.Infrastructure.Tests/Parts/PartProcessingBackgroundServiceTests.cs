@@ -230,7 +230,9 @@ public class PartProcessingBackgroundServiceTests
     [Fact]
     public async Task ConsumeLoop_EnqueuedWorkItem_ProcessesJobToReadyForReview()
     {
-        var jobs = new ReconcilingJobRepository();
+        // A slow reconciliation: StartAsync must still finish it before returning, or the job added below
+        // is listed as orphaned and marked Failed, as a busy CI runner showed.
+        var jobs = new ReconcilingJobRepository { ListDelay = TimeSpan.FromMilliseconds(300) };
         var publisher = new RecordingPartEventPublisher();
         var processor = new ConfigurablePartFileProcessor
         {
@@ -246,10 +248,8 @@ public class PartProcessingBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            await WaitForReconciliationToSettleAsync();
-
-            // Only now — after startup reconciliation has drained — is a fresh job enqueued, exactly
-            // as AddPartCommandHandler does inside the already-running process.
+            // StartAsync has reconciled, so this is fresh work, exactly as AddPartCommandHandler
+            // enqueues it inside the already-running process.
             var job = ProcessingJob();
             jobs.Add(job);
             service.Enqueue(new PartProcessingWorkItem(job.Id));
@@ -290,8 +290,6 @@ public class PartProcessingBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            await WaitForReconciliationToSettleAsync();
-
             jobs.Add(poison);
             jobs.Add(healthy);
             service.Enqueue(new PartProcessingWorkItem(poison.Id));
@@ -329,8 +327,6 @@ public class PartProcessingBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            await WaitForReconciliationToSettleAsync();
-
             var job = ProcessingJob();
             jobs.Add(job);
             service.Enqueue(new PartProcessingWorkItem(job.Id));
@@ -365,7 +361,6 @@ public class PartProcessingBackgroundServiceTests
         await service.StartAsync(CancellationToken.None);
         try
         {
-            await WaitForReconciliationToSettleAsync();
             var job = ProcessingJob();
             jobs.Add(job);
             service.Enqueue(new PartProcessingWorkItem(job.Id));
@@ -422,15 +417,6 @@ public class PartProcessingBackgroundServiceTests
             estimatedPrintTimeMinutes: 42, estimatedFilamentWeightGrams: 12.5m, plateNumber: 1,
             unitsPerPrint: 1, revisionHash: $"{Guid.NewGuid():N}",
             [new FilamentRequirementSpec("PLA", null, null, null, null)], thumbnails: [], tags: []);
-
-    /// <summary>
-    /// Lets the one-time startup reconciliation pass settle before a consume test enqueues fresh work.
-    /// These consume tests seed no orphaned rows, so reconciliation enumerates an empty set and is a
-    /// no-op — a short, bounded settle wait is enough to guarantee it has run (and the workers have
-    /// started) before a genuinely-new job is added and enqueued, matching how AddPartCommandHandler
-    /// enqueues into the already-running process.
-    /// </summary>
-    private static Task WaitForReconciliationToSettleAsync() => Task.Delay(TimeSpan.FromMilliseconds(100));
 
     private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
     {
@@ -528,11 +514,17 @@ public class PartProcessingBackgroundServiceTests
         public Task<PartProcessingJob?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(_jobs.GetValueOrDefault(id));
 
-        public Task<IReadOnlyList<PartProcessingJob>> ListOrphanedInFlightAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<PartProcessingJob>>(_jobs.Values
+        /// <summary>How long listing orphans takes, as a slow database would.</summary>
+        public TimeSpan ListDelay { get; init; }
+
+        public async Task<IReadOnlyList<PartProcessingJob>> ListOrphanedInFlightAsync(CancellationToken cancellationToken)
+        {
+            await Task.Delay(ListDelay, cancellationToken);
+            return _jobs.Values
                 .Where(j => j.Status == PartProcessingJobStatus.Processing
                     || (j.Status == PartProcessingJobStatus.ReadyForReview && j.PreviewEstimateStatus == EstimateStatus.Resolving))
-                .ToList());
+                .ToList();
+        }
 
         // Entities are mutated in place (shared reference), so there's nothing to flush.
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
