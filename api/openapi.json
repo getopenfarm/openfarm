@@ -10133,9 +10133,6 @@
           "publicUrl": {
             "type": "string",
             "nullable": true
-          },
-          "password": {
-            "type": "string"
           }
         }
       },
@@ -10148,9 +10145,6 @@
             "format": "guid"
           },
           "mode": {
-            "type": "string"
-          },
-          "password": {
             "type": "string"
           }
         }

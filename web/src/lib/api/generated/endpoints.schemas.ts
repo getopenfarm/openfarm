@@ -442,13 +442,11 @@ export interface UpdatePublicUrlRequest {
   revision?: string;
   /** @nullable */
   publicUrl?: string | null;
-  password?: string;
 }
 
 export interface UpdateMcpSettingsRequest {
   revision?: string;
   mode?: string;
-  password?: string;
 }
 
 export interface UpdateSlicingDefaultsRequest {

@@ -48,7 +48,7 @@ With an HTTPS origin, refresh cookies use the Secure attribute, even if the prox
 
 ## AI assistant sign-in
 
-MCP is disabled by default. Administrators can enable **Access tokens only** or **Sign-in and access tokens** under **Settings → AI assistants**. The second mode requires an HTTPS public URL, except for localhost development. UI changes require the administrator's current password and apply without restarting.
+MCP is disabled by default. Administrators can enable **Access tokens only** or **Sign-in and access tokens** under **Settings → AI assistants**. The second mode requires an HTTPS public URL, except for localhost development. Changes in Settings apply without restarting.
 
 For automated deployments, use:
 

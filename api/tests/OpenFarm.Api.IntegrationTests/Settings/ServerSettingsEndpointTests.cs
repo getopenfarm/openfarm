@@ -51,8 +51,8 @@ public sealed class ServerSettingsEndpointTests(ProductionTestFactory factory) :
     {
         var current = await ReadAsync(browser);
         using var response = mode is null
-            ? await browser.PutAsJsonAsync(ServerPath, new { current.Revision, publicUrl = url, password = "admin-openfarm" })
-            : await browser.PutAsJsonAsync(McpPath, new { current.Revision, mode, password = "admin-openfarm" });
+            ? await browser.PutAsJsonAsync(ServerPath, new { current.Revision, publicUrl = url })
+            : await browser.PutAsJsonAsync(McpPath, new { current.Revision, mode });
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         return (await response.Content.ReadFromJsonAsync<ServerSettingsResponse>())!;
     }
@@ -143,22 +143,21 @@ public sealed class ServerSettingsEndpointTests(ProductionTestFactory factory) :
     }
 
     [Fact]
-    public async Task PasswordValidationAndRevisionChecks_PreventPartialChangesAndAuditNeverContainsPasswords()
+    public async Task RevisionAndValidationChecks_PreventPartialChangesAndAuditSavedSettings()
     {
         using var browser = await BrowserAsync();
         var before = await ReadAsync(browser);
-        (await browser.PutAsJsonAsync(McpPath, new { before.Revision, mode = "AccessTokens", password = "incorrect-secret" })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await browser.PutAsJsonAsync(McpPath, new { before.Revision, mode = "SignIn", password = "admin-openfarm" })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await browser.PutAsJsonAsync(McpPath, new { before.Revision, mode = "SignIn" })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await ReadAsync(browser)).Should().Be(before);
         foreach (var url in new[] { "https://user:secret@farm.test", "https://farm.test/path", "https://farm.test?x=1", "https://farm.test/app/.." })
-            (await browser.PutAsJsonAsync(ServerPath, new { before.Revision, publicUrl = url, password = "admin-openfarm" })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            (await browser.PutAsJsonAsync(ServerPath, new { before.Revision, publicUrl = url })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         await SaveAsync(browser, mode: "AccessTokens");
-        (await browser.PutAsJsonAsync(McpPath, new { before.Revision, mode = "Disabled", password = "admin-openfarm" })).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await browser.PutAsJsonAsync(McpPath, new { before.Revision, mode = "Disabled" })).StatusCode.Should().Be(HttpStatusCode.Conflict);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var audit = await db.ActivityLogEntries.Where(a => a.EntityType == "ServerSettings").ToArrayAsync();
         audit.Should().Contain(a => a.EventType == "McpModeChanged");
-        JsonSerializer.Serialize(audit).Should().NotContain("admin-openfarm").And.NotContain("incorrect-secret");
+        JsonSerializer.Serialize(audit).Should().NotContain("user:secret");
     }
 
     [Fact]
@@ -212,7 +211,7 @@ public sealed class ServerSettingsEndpointTests(ProductionTestFactory factory) :
         settings.McpModeManaged.Should().BeTrue();
         settings.McpMode.Should().Be("AccessTokens");
         (await new OAuthKit(enabled).McpStatusAsync(token.Credential)).Should().Be(HttpStatusCode.OK);
-        (await admin.PutAsJsonAsync(McpPath, new { settings.Revision, mode = "Disabled", password = "admin-openfarm" }))
+        (await admin.PutAsJsonAsync(McpPath, new { settings.Revision, mode = "Disabled" }))
             .StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 
@@ -233,7 +232,7 @@ public sealed class ServerSettingsEndpointTests(ProductionTestFactory factory) :
         using var login = await delegated.PostAsJsonAsync("/api/v1/auth/login", new LoginCommand(name, "test-password"));
         delegated.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<LoginResponse>())!.Token);
         (await delegated.GetAsync(ServerPath)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await delegated.PutAsJsonAsync(McpPath, new { revision = Guid.NewGuid(), mode = "SignIn", password = "test-password" })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await delegated.PutAsJsonAsync(McpPath, new { revision = Guid.NewGuid(), mode = "SignIn" })).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         await SaveAsync(browser, mode: "AccessTokens");
         await using var locked = factory.WithWebHostBuilder(b => { b.UseSetting("MCP_ENABLED", "false"); b.UseSetting("ORIGIN", "https://managed.test"); });
@@ -243,7 +242,7 @@ public sealed class ServerSettingsEndpointTests(ProductionTestFactory factory) :
         managed.PublicUrlManaged.Should().BeTrue();
         managed.PublicUrl.Should().Be("https://managed.test");
         (await new OAuthKit(locked).McpStatusAsync(token.Credential)).Should().Be(HttpStatusCode.NotFound);
-        (await admin.PutAsJsonAsync(McpPath, new { managed.Revision, mode = "AccessTokens", password = "admin-openfarm" })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await admin.PutAsJsonAsync(ServerPath, new { managed.Revision, publicUrl = "https://bypass.test", password = "admin-openfarm" })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await admin.PutAsJsonAsync(McpPath, new { managed.Revision, mode = "AccessTokens" })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await admin.PutAsJsonAsync(ServerPath, new { managed.Revision, publicUrl = "https://bypass.test" })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
     }
 }

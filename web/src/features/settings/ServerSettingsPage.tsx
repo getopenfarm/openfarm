@@ -55,8 +55,8 @@ function InstallationSettings({ kind }: { kind: 'server' | 'mcp' }) {
       title={kind === 'server' ? 'Server' : 'AI assistants'}
       description={
         kind === 'server'
-          ? 'The public address of this OpenFarm installation.'
-          : 'Choose whether AI assistants can connect to your farm through MCP.'
+          ? 'Set the public address for OpenFarm.'
+          : 'Set access for AI assistants.'
       }
     >
       {query.data ? (
@@ -98,9 +98,8 @@ const schema = z.object({
       } catch {
         return false;
       }
-    }, 'Enter an HTTP or HTTPS URL without a path, query, credentials, or fragment.'),
+    }, 'Enter an HTTP or HTTPS server address.'),
   mode: z.enum(modes),
-  password: z.string().min(1, 'Enter your current password.').max(1024),
 });
 
 function InstallationForm({
@@ -117,7 +116,6 @@ function InstallationForm({
   const initial = {
     publicUrl: data.publicUrl ?? '',
     mode: (data.mcpMode ?? 'Disabled') as (typeof modes)[number],
-    password: '',
   };
   const form = useForm({
     resolver: zodResolver(schema),
@@ -133,7 +131,6 @@ function InstallationForm({
         method: 'PUT',
         body: JSON.stringify({
           revision: data.revision,
-          password: values.password,
           ...(kind === 'server'
             ? { publicUrl: values.publicUrl || null }
             : { mode: values.mode }),
@@ -143,22 +140,20 @@ function InstallationForm({
       form.reset({
         publicUrl: result.data.publicUrl ?? '',
         mode: (result.data.mcpMode ?? 'Disabled') as (typeof modes)[number],
-        password: '',
       });
       client.setQueryData([serverKey], result);
       client.setQueryData([mcpKey], result);
       void client.invalidateQueries({ queryKey: ['/api/v1/auth/apps'] });
-      toast.success('Server settings saved.');
+      toast.success('Settings saved.');
     },
     onError: async (failure) => {
       setError(
         await extractErrorDetail(
           failure,
-          'Could not save settings. Check your password and reload if settings changed.',
+          'Cannot save settings. Reload the page and try again.',
         ),
       );
     },
-    onSettled: () => form.resetField('password'),
   });
   const changed =
     kind === 'server'
@@ -178,10 +173,10 @@ function InstallationForm({
         <Alert role="status">
           <AlertDescription>
             {kind === 'server'
-              ? 'Public URL is managed by ORIGIN in the deployment.'
+              ? 'Set by ORIGIN.'
               : data.mcpEnabledOverride != null
-                ? `MCP access is managed by MCP_ENABLED=${data.mcpEnabledOverride} in the deployment.`
-                : 'MCP mode is managed by MCP_MODE in the deployment.'}
+                ? `Set by MCP_ENABLED=${data.mcpEnabledOverride}.`
+                : 'Set by MCP_MODE.'}
           </AlertDescription>
         </Alert>
       )}
@@ -195,9 +190,7 @@ function InstallationForm({
             invalid={!!form.formState.errors.publicUrl}
             help={
               <span id="public-url-help">
-                For example, https://farm.example.com. Leave blank for local
-                token access. HTTPS makes refresh cookies secure, so sign in
-                through this address after saving.
+                Use this address to sign in. Leave blank for local token access.
               </span>
             }
           >
@@ -206,6 +199,7 @@ function InstallationForm({
               type="text"
               inputMode="url"
               autoComplete="url"
+              placeholder="https://farm.example.com"
               disabled={managed || save.isPending}
               aria-invalid={!!form.formState.errors.publicUrl}
               aria-describedby="public-url-help public-url-error"
@@ -223,11 +217,19 @@ function InstallationForm({
             disabled={managed || save.isPending}
             help={
               <span id="mcp-mode-help">
-                Disabled blocks every MCP connection. Sign-in needs an HTTPS{' '}
-                <Link className="underline" to="/settings/server">
-                  public URL
-                </Link>
-                . Access tokens work with compatible local clients.
+                {form.watch('mode') === 'Disabled' ? (
+                  'AI assistants cannot connect.'
+                ) : form.watch('mode') === 'AccessTokens' ? (
+                  'Use a personal access token to connect.'
+                ) : (
+                  <>
+                    For remote sign-in, set an HTTPS{' '}
+                    <Link className="underline" to="/settings/server">
+                      public URL
+                    </Link>
+                    .
+                  </>
+                )}
               </span>
             }
           >
@@ -262,52 +264,15 @@ function InstallationForm({
             />
           </SettingsRow>
         )}
-        {!managed && (
-          <SettingsRow
-            label="Current password"
-            htmlFor="server-password"
-            wide
-            disabled={save.isPending}
-            invalid={!!form.formState.errors.password}
-            help={
-              <span id="server-password-help">
-                Confirm your administrator password to save this change.
-              </span>
-            }
-          >
-            <Input
-              id="server-password"
-              type="password"
-              autoComplete="current-password"
-              disabled={save.isPending}
-              aria-invalid={!!form.formState.errors.password}
-              aria-describedby="server-password-help server-password-error"
-              {...form.register('password')}
-            />
-            <FieldError id="server-password-error">
-              {form.formState.errors.password?.message}
-            </FieldError>
-          </SettingsRow>
-        )}
       </SettingsRows>
       <p className="text-sm text-muted-foreground">
-        Changes apply without restarting OpenFarm. Changing the URL or MCP mode
-        disconnects signed-in apps and cancels pending connection requests.
-        Personal access tokens remain available for REST integrations.
+        Changes disconnect signed-in apps. Connect the apps again.
       </p>
-      {kind === 'server' && (
-        <p className="text-sm text-muted-foreground">
-          Set up DNS, HTTPS, and your reverse proxy separately. Saving a URL
-          does not make this server reachable from the internet.
-        </p>
-      )}
-      {kind === 'mcp' && (
+      {kind === 'mcp' && data.mcpMode !== 'Disabled' && (
         <p className="text-sm">
           <Link className="underline" to="/profile?tab=apps">
             Connect an AI assistant
-          </Link>{' '}
-          after enabling MCP. Each user chooses the access their assistant
-          receives.
+          </Link>
         </p>
       )}
       {error && (

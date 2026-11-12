@@ -99,8 +99,7 @@ on the next request without restart; environment changes require container recre
 for sign-in after enabling secure cookies. Saved public URLs remain after an override is removed.
 
 Installation settings live separately from FarmSettings. Only actual administrator browser sessions can read or
-write `/api/v1/admin/settings/server` and `/api/v1/admin/settings/mcp`; writes recheck the current password, honor
-Identity lockout and require the latest Revision. MCP mode defaults to Disabled. MCP_ENABLED=false forces it off;
+write `/api/v1/admin/settings/server` and `/api/v1/admin/settings/mcp`; writes use the signed-in session and require the latest Revision. MCP mode defaults to Disabled. MCP_ENABLED=false forces it off;
 MCP_MODE overrides saved mode. Legacy OAUTH_ENABLED=true is imported once during ServerSettings bootstrap.
 See `dev-notes/MCP.md` for snapshot consistency, deployment fingerprints and grant invalidation.
 

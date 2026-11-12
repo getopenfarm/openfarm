@@ -1,9 +1,7 @@
 using System.Text.Json;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.Settings;
-using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.Auth;
@@ -11,28 +9,16 @@ namespace OpenFarm.Infrastructure.Auth;
 public sealed record ServerSettingsResponse(string? PublicUrl, string McpMode, Guid Revision,
     bool PublicUrlManaged, bool McpModeManaged, bool? McpEnabledOverride);
 
-/// <summary>Browser administrator settings. Passwords never enter audit metadata.</summary>
-public sealed class ServerSettingsService(OpenFarmDbContext db, ServerConfigurationOverrides policy,
-    UserManager<ApplicationUser> users)
+/// <summary>Settings changes use the permission-checked administrator browser session.</summary>
+public sealed class ServerSettingsService(OpenFarmDbContext db, ServerConfigurationOverrides policy)
 {
     public async Task<ServerSettingsResponse> ReadAsync(CancellationToken ct) =>
         Response(await db.ServerSettings.AsNoTracking().SingleAsync(s => s.Id == ServerSettings.SingletonId, ct));
 
-    public async Task<ServerSettingsResponse?> UpdateAsync(Guid actor, Guid revision, string password,
+    public async Task<ServerSettingsResponse> UpdateAsync(Guid actor, Guid revision,
         bool changeUrl, string? publicUrl, string? mode, CancellationToken ct)
     {
-        if (password is null || password.Length is 0 or > 1024) return null;
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        // Use the same user lock as login and password reset; failed checks use Identity lockout.
-        var user = await db.Users.FromSqlInterpolated($"SELECT * FROM \"AspNetUsers\" WHERE \"Id\" = {actor} FOR UPDATE").SingleAsync(ct);
-        if (!user.IsEnabled || await users.IsLockedOutAsync(user)) return null;
-        if (!await users.CheckPasswordAsync(user, password))
-        {
-            await users.AccessFailedAsync(user);
-            await transaction.CommitAsync(ct);
-            return null;
-        }
-        await users.ResetAccessFailedCountAsync(user);
         var saved = await db.ServerSettings.FromSqlInterpolated($"SELECT * FROM \"ServerSettings\" WHERE \"Id\" = {ServerSettings.SingletonId} FOR UPDATE").SingleAsync(ct);
         if (saved.Revision != revision) throw new ServerSettingsConflictException();
         var url = saved.PublicUrl;

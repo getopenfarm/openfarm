@@ -36,8 +36,8 @@ function setup({
       writes.push(body);
       if (failSave)
         return Response.json(
-          { detail: 'Password was not accepted.' },
-          { status: 422 },
+          { detail: 'Cannot save settings. Try again.' },
+          { status: 503 },
         );
       data = {
         ...data,
@@ -95,50 +95,34 @@ function setup({
   };
 }
 
-it('defaults to disabled, selects a mode by keyboard, requires reauthentication and clears the password after saving', async () => {
+it('selects a mode by keyboard and saves without a password', async () => {
   const user = userEvent.setup();
   const { writes } = setup();
   const mode = await screen.findByRole('combobox', { name: 'MCP access' });
   expect(mode).toHaveTextContent('Disabled');
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument();
   mode.focus();
   await user.keyboard('{ArrowDown}');
   await user.keyboard('{ArrowDown}{Enter}');
   expect(mode).toHaveTextContent('Access tokens only');
   await user.click(screen.getByRole('button', { name: 'Save' }));
-  expect(
-    await screen.findByText('Enter your current password.'),
-  ).toBeInTheDocument();
-  expect(writes).toHaveLength(0);
-  await user.type(
-    screen.getByLabelText('Current password'),
-    'administrator-password',
-  );
-  await user.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(writes).toHaveLength(1));
-  expect(writes[0]).toEqual({
-    revision: 'revision-one',
-    mode: 'AccessTokens',
-    password: 'administrator-password',
-  });
+  expect(writes[0]).toEqual({ revision: 'revision-one', mode: 'AccessTokens' });
   await waitFor(() =>
-    expect(screen.getByLabelText('Current password')).toHaveValue(''),
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
   );
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 });
 
-it('validates the public URL and saves it without changing MCP mode', async () => {
+it('validates and saves the public URL without a password or MCP mode change', async () => {
   const user = userEvent.setup();
   const { writes } = setup({ kind: 'server' });
   const input = await screen.findByLabelText('Public URL');
+  expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument();
   await user.type(input, 'https://farm.test/path');
-  await user.type(
-    screen.getByLabelText('Current password'),
-    'administrator-password',
-  );
   await user.click(screen.getByRole('button', { name: 'Save' }));
   expect(
-    await screen.findByText(/Enter an HTTP or HTTPS URL/),
+    await screen.findByText('Enter an HTTP or HTTPS server address.'),
   ).toBeInTheDocument();
   expect(writes).toHaveLength(0);
   await user.clear(input);
@@ -148,7 +132,6 @@ it('validates the public URL and saves it without changing MCP mode', async () =
   expect(writes[0]).toEqual({
     revision: 'revision-one',
     publicUrl: 'https://farm.test',
-    password: 'administrator-password',
   });
 });
 
@@ -157,37 +140,35 @@ it('keeps deployment-controlled fields read-only and names the enabled override'
   expect(
     await screen.findByRole('combobox', { name: 'MCP access' }),
   ).toBeDisabled();
-  expect(screen.getByRole('status')).toHaveTextContent('MCP_ENABLED=false');
-  expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'Set by MCP_ENABLED=false.',
+  );
   expect(
     screen.queryByRole('button', { name: 'Save' }),
   ).not.toBeInTheDocument();
 });
 
-it('reports a save failure, clears the password and permits a retry', async () => {
+it('keeps changes after a save failure and permits a retry', async () => {
   const user = userEvent.setup();
   const state = setup({ kind: 'server' });
   state.failSave();
-  await user.type(
-    await screen.findByLabelText('Public URL'),
-    'https://farm.test',
-  );
-  await user.type(screen.getByLabelText('Current password'), 'incorrect');
+  const input = await screen.findByLabelText('Public URL');
+  await user.type(input, 'https://farm.test');
   await user.click(screen.getByRole('button', { name: 'Save' }));
   expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Password was not accepted.',
+    'Cannot save settings. Try again.',
   );
-  await waitFor(() =>
-    expect(screen.getByLabelText('Current password')).toHaveValue(''),
-  );
+  expect(input).toHaveValue('https://farm.test');
   state.recover();
-  await user.type(screen.getByLabelText('Current password'), 'correct');
   await user.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(state.writes).toHaveLength(2));
-  expect(state.writes[1].password).toBe('correct');
+  expect(state.writes[1]).toEqual({
+    revision: 'revision-one',
+    publicUrl: 'https://farm.test',
+  });
 });
 
-it('reports loading errors and hides installation links for delegated non-administrators', async () => {
+it('reports loading errors and hides installation links for non-administrators', async () => {
   setup({ failLoad: true, administrator: false });
   expect(
     await screen.findByText('Could not load server settings'),

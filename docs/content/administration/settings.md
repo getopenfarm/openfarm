@@ -15,11 +15,11 @@ Failure allowance ranges from zero to below 100% and defaults to zero. It increa
 
 Administrators set the **Public URL** of the installation here. Leave it blank for local access. Sign-in for AI assistants needs an HTTPS URL, except for localhost development. With HTTPS configured, sign in through that address because refresh cookies become secure.
 
-Saving requires your current administrator password. The change applies without restarting and disconnects signed-in AI assistants. A deployment `ORIGIN` override makes this field read-only.
+The change applies without restarting and disconnects signed-in AI assistants. A deployment `ORIGIN` override makes this field read-only.
 
 ## AI assistants
 
-Administrators choose **Disabled**, **Access tokens only**, or **Sign-in and access tokens**. MCP is disabled by default. Changes require your current password and take effect without restarting. See [AI assistants](ai-assistants.md) for client setup and connection permissions.
+Administrators choose **Disabled**, **Access tokens only**, or **Sign-in and access tokens**. MCP is disabled by default. Changes take effect without restarting. See [AI assistants](ai-assistants.md) for client setup and connection permissions.
 
 ## Printer costs
 

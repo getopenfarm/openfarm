@@ -18,7 +18,7 @@ MCP is disabled by default. An administrator must enable it before any assistant
 
 1. Open **Settings → AI assistants**.
 2. Select **Access tokens only** for a compatible local client. For browser sign-in, first set the **Public URL** under **Settings → Server**, then select **Sign-in and access tokens**.
-3. Enter your current administrator password and select **Save**. Changes apply without restarting OpenFarm.
+3. Select **Save**. Changes apply without restarting OpenFarm.
 4. Open **My profile → Connected apps → Connect an AI assistant** and copy the setup for your client.
 
 Sign-in requires an HTTPS public URL. HTTP is allowed only for localhost development. Setting the public URL does not configure DNS, HTTPS, a tunnel, or a reverse proxy.

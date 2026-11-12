@@ -10,7 +10,7 @@ AI assistants reach OpenFarm through the Model Context Protocol at `POST /mcp`, 
 MCP defaults to Disabled; AccessTokens and SignIn are explicit modes. Administrators configure the public URL
 under Settings → Server and the mode under Settings → AI assistants. The endpoints are
 `GET/PUT /api/v1/admin/settings/server` and `/api/v1/admin/settings/mcp`: actual Administrators membership,
-a browser session, current-password verification (Identity lockout), optimistic revision checks and a transaction.
+a browser session, permission checks, optimistic revision checks and a transaction.
 Audits contain before/after settings, never passwords. Generic farm-settings access cannot change installation security.
 
 `ServerConfigurationOverrides` validates deployment policy: MCP_ENABLED=false disables access; true enables AccessTokens when the selected mode is Disabled.
