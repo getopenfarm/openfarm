@@ -11,7 +11,10 @@ public sealed record PartFilamentRequirementDetail(
     Guid? NarrowFilamentProfileId,
     bool NarrowFilamentVariantUnresolved,
     bool NarrowFilamentProfileUnresolved,
-    decimal? EstimatedGrams = null);
+    decimal? EstimatedGrams = null,
+    Guid? NarrowFilamentId = null,
+    bool AnyColor = false,
+    bool NarrowFilamentUnresolved = false);
 
 public sealed record PartDetail(
     Guid Id,

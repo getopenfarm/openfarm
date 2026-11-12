@@ -14,6 +14,10 @@ public sealed class FilamentRequirementOverrideRequest
     public int RequirementIndex { get; set; }
     public Guid? NarrowFilamentVariantId { get; set; }
     public Guid? NarrowFilamentProfileId { get; set; }
+    /// <summary>Any colour of this catalog filament.</summary>
+    public Guid? NarrowFilamentId { get; set; }
+    /// <summary>Any colour of the material, any brand.</summary>
+    public bool AnyColor { get; set; }
 }
 
 public sealed class RelatedPartPlateRequest
@@ -66,7 +70,7 @@ public sealed class ConfirmPartProcessingJobEndpoint(ConfirmHandler handler, Ope
         _ = Guid.TryParse(sub, out var userId);
 
         var overrides = req.FilamentRequirementOverrides?
-            .Select(o => new FilamentRequirementOverride(o.RequirementIndex, o.NarrowFilamentVariantId, o.NarrowFilamentProfileId))
+            .Select(o => new FilamentRequirementOverride(o.RequirementIndex, o.NarrowFilamentVariantId, o.NarrowFilamentProfileId, o.NarrowFilamentId, o.AnyColor))
             .ToList();
 
         var command = new ConfirmPartProcessingJobCommand(jobId, req.Name, req.Tags, overrides, userId, req.PlateNumbers,

@@ -4,6 +4,7 @@ using OpenFarm.Application.Parts;
 using OpenFarm.Application.Settings;
 using OpenFarm.Domain.Assemblies;
 using OpenFarm.Domain.Settings;
+using OpenFarm.Application.Production;
 
 namespace OpenFarm.Application.Assemblies;
 
@@ -130,20 +131,24 @@ public sealed class AssemblyQuoteService(
         var shipping = breakdown.GetValueOrDefault("Shipping");
         var costsPartial = missingCost > 0 || missingAdditional > 0;
 
-        // Filament at the colour's price per kilogram, else the filament's.
-        var variants = (await filaments.HandleAsync(new GetFilamentsQuery(), ct))
+        // Filament at the colour's price per kilogram, else the filament's. Any colour of a filament is at the filament's.
+        var filamentCatalog = await filaments.HandleAsync(new GetFilamentsQuery(), ct);
+        var variants = filamentCatalog
             .SelectMany(f => f.Variants.Select(v => (v.Id, Price: v.PricePerKg ?? f.PricePerKg, v.ColorHex,
-                Name: Join(" · ", Join(" ", f.VendorName, f.Material), v.ColorName))))
+                Name: FilamentChoiceLabel.Catalog(f.VendorName, f.Material, v.ColorName))))
             .ToDictionary(v => v.Id);
+        var anyColour = filamentCatalog.ToDictionary(f => f.Id, f => (f.Id, Price: f.PricePerKg, ColorHex: (string?)null,
+            Name: FilamentChoiceLabel.Catalog(f.VendorName, f.Material)));
         decimal filamentTotal = 0;
         int filamentPriced = 0, missingSelection = 0, missingPrice = 0, missingGrams = 0;
         var colors = new List<QuoteColor>();
         foreach (var c in print.Colors)
         {
-            var known = c.VariantId is { } vid && variants.TryGetValue(vid, out var v) ? v : default;
+            var known = c.VariantId is { } vid && variants.TryGetValue(vid, out var v) ? v
+                : c.VariantId is null && c.FilamentId is { } fid && anyColour.TryGetValue(fid, out var f) ? f : default;
             var price = known.Id == default ? null : known.Price;
             if (c.Grams is null || c.Missing > 0) missingGrams++;
-            if (c.VariantId is null) missingSelection++;
+            if (c.VariantId is null && c.FilamentId is null) missingSelection++;
             else if (price is null) missingPrice++;
             decimal cost = 0;
             var priced = 0;
@@ -155,11 +160,11 @@ public sealed class AssemblyQuoteService(
                 priced = 1;
             }
             var name = known.Id != default ? (known.Name.Length > 0 ? known.Name : "Filament unavailable")
-                : c.VariantId is not null ? "Filament unavailable"
-                : c.ColorHex is not null ? $"{c.MaterialType ?? "Any"} {c.ColorHex}"
+                : c.VariantId is not null || c.FilamentId is not null ? "Filament unavailable"
+                : c.ColorHex is not null || c.AnyColor ? FilamentChoiceLabel.Generic(c.MaterialType, c.ColorHex, c.AnyColor)
                 : "Unknown color";
             colors.Add(new QuoteColor(c.MaterialType, c.ColorHex, c.VariantId, c.Grams, c.Missing, name,
-                known.Id != default ? known.ColorHex : c.ColorHex, cost, priced, c.Grams is null || price is null || c.Missing > 0 ? 1 : 0));
+                known.ColorHex ?? c.ColorHex, cost, priced, c.Grams is null || price is null || c.Missing > 0 ? 1 : 0));
         }
         var filament = new QuoteFilament(filamentTotal, filamentPriced, missingSelection, missingPrice, missingGrams);
 

@@ -11,7 +11,8 @@ namespace OpenFarm.Infrastructure.Production;
 
 public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers, IPartRequirementRepository requirements,
     IPartRepository parts, ProductionDispatchQueryService dispatchQuery, IPrintJobRepository printJobs,
-    ProductionJobRequirements jobRequirements, IFilamentRepository filaments, ILogger<PrintJobEligibilityQuery> logger) : IPrintJobEligibilityQuery
+    ProductionJobRequirements jobRequirements, IFilamentRepository filaments, IVendorRepository vendors, ILogger<PrintJobEligibilityQuery> logger)
+    : IPrintJobEligibilityQuery
 {
     private readonly Dictionary<Guid, JobMatchingDiagnostics> _evaluations = [];
     private readonly Dictionary<Guid, (IReadOnlyList<LoadedProductionFilament> Loaded, IReadOnlyList<decimal> Nozzles, bool Reserved)> _printerFacts = [];
@@ -88,8 +89,12 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
         {
             var variant = spec.NarrowFilamentVariantId is { } id ? await filaments.FindVariantByIdAsync(id, ct) : null;
             var filament = variant is null ? null : await filaments.GetByIdAsync(variant.FilamentId, ct);
+            var anyColourOf = spec.NarrowFilamentId is { } filamentId ? await filaments.GetByIdAsync(filamentId, ct) : null;
+            async Task<string?> VendorAsync(Filament? f) => f is null ? null : (await vendors.GetByIdAsync(f.VendorId, ct))?.Name;
             display.Add(new(spec.MaterialType, spec.DetectedColorHex, spec.NarrowFilamentVariantId,
-                variant is null ? null : $"{filament?.Material} · {variant.ColorName}", variant?.ColorHex, spec.NarrowFilamentProfileId));
+                variant is null ? null : FilamentChoiceLabel.Catalog(await VendorAsync(filament), filament?.Material, variant.ColorName),
+                variant?.ColorHex, spec.NarrowFilamentProfileId, spec.NarrowFilamentId,
+                anyColourOf is null ? null : FilamentChoiceLabel.Catalog(await VendorAsync(anyColourOf), anyColourOf.Material), spec.AnyColor));
         }
         var results = new List<PrinterMatchingDiagnostics>();
         var fleet = _fleet ??= await printers.ListAsync(ct);
@@ -115,16 +120,15 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
                     $"{part.NozzleDiameterMm} mm", nozzles.Count == 0 ? "Unknown" : NozzleText(printer, model, nozzles), $"/printers/{printer.Id}")
             };
             static bool Fits(JobFilamentRequirementSpec spec, LoadedProductionFilament f) =>
-                (spec.MaterialType is null || f.MaterialType == spec.MaterialType)
-                && (spec.NarrowFilamentVariantId is { } variantId ? f.VariantId == variantId :
-                    spec.DetectedColorHex is null || string.Equals(f.ColorHex, spec.DetectedColorHex, StringComparison.OrdinalIgnoreCase));
+                spec.Accepts(f.VariantId, f.FilamentId, f.MaterialType, f.ColorHex);
             foreach (var spec in effective.Requirements)
             {
                 var matches = loaded.Any(f => Fits(spec, f));
                 var selected = display[checks.Count(c => c.Code == "filament")];
                 checks.Add(Check("filament", "Active loaded filament", matches,
-                    spec.NarrowFilamentVariantId is null ? $"{spec.MaterialType ?? "Any material"} · {spec.DetectedColorHex ?? "Any colour"}" :
-                        selected.SelectedVariantName ?? $"Missing selected variant {spec.NarrowFilamentVariantId}",
+                    spec.NarrowFilamentVariantId is not null ? selected.SelectedVariantName ?? $"Missing selected variant {spec.NarrowFilamentVariantId}"
+                    : spec.NarrowFilamentId is not null ? selected.SelectedFilamentName ?? $"Missing selected filament {spec.NarrowFilamentId}"
+                    : FilamentChoiceLabel.Generic(spec.MaterialType, spec.DetectedColorHex, spec.AnyColor),
                     loaded.Count == 0 ? "No tracked spool on an active feed path" :
                         string.Join(", ", loaded.Select(f => $"{f.MaterialType} · {f.ColorName} ({f.ColorHex})")),
                     $"/printers/{printer.Id}"));

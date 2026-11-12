@@ -133,11 +133,9 @@ it('preserves a saved catalog choice and can explicitly clear it on a queued job
   await user.click(
     await screen.findByRole('button', { name: 'Edit filament' }),
   );
-  await waitFor(() =>
-    expect(screen.getAllByRole('combobox')[0]).toHaveTextContent(
-      'Acme PLA Basic · Black',
-    ),
-  );
+  await screen.findByRole('button', {
+    name: /Production filament for .*: Acme PLA Basic · Black/,
+  });
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => {
     const put = requests.mock.calls.find(([, init]) => init?.method === 'PUT');
@@ -150,10 +148,13 @@ it('preserves a saved catalog choice and can explicitly clear it on a queued job
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
   );
   await user.click(screen.getByRole('button', { name: 'Edit filament' }));
-  await user.click(screen.getAllByRole('combobox')[0]);
   await user.click(
-    screen.getByRole('option', { name: 'Use file material and color' }),
+    await screen.findByRole('button', {
+      name: /Production filament for .*: Acme PLA Basic · Black/,
+    }),
   );
+  await user.click(screen.getByRole('radio', { name: 'Any PLA · Any color' }));
+  await user.click(screen.getByRole('button', { name: 'Done' }));
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => {
     const puts = requests.mock.calls.filter(

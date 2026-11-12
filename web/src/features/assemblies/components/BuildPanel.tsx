@@ -128,7 +128,7 @@ export function BuildPanel({
               <TableBody>
                 {(quote?.colors ?? []).map((c) => (
                   <TableRow
-                    key={`${c.variantId ?? ''}|${c.materialType ?? ''}|${c.colorHex ?? ''}`}
+                    key={`${c.variantId ?? ''}|${c.name ?? ''}|${c.materialType ?? ''}|${c.colorHex ?? ''}`}
                   >
                     <TableCell className="whitespace-normal">
                       <span className="flex items-center gap-2">

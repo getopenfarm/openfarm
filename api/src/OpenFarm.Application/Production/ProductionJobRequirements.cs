@@ -22,7 +22,7 @@ public sealed class ProductionJobRequirements(IProductionRunRepository runs, IPa
 
     public static IReadOnlyList<JobFilamentRequirementSpec> FromPart(Part part) => part.FilamentRequirements
         .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex,
-            r.NarrowFilamentVariantId, r.NarrowFilamentProfileId)).ToList();
+            r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, r.NarrowFilamentId, r.AnyColor)).ToList();
 
     public static IReadOnlyList<JobFilamentRequirementSpec> Resolve(PrintJob job, Part part, RevisionMode mode) =>
         !job.HasFilamentRequirementOverride && job.DispatchedAtUtc is null && mode == RevisionMode.FollowLatest

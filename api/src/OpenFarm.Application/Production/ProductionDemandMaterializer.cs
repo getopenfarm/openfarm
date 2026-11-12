@@ -107,9 +107,7 @@ internal sealed class ProductionDemandMaterializer(
                     ?? throw new PartNotFoundException(requirement.PartId);
 
                 var platesNeeded = plateCounts?.GetValueOrDefault(part.Id) ?? checked((int)Math.Ceiling(requirement.Quantity!.Value / part.UnitsPerPrint));
-                var filamentSpecs = part.FilamentRequirements
-                    .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId))
-                    .ToList();
+                var filamentSpecs = ProductionJobRequirements.FromPart(part);
 
                 var manifest = planner is null ? null : await planner.ReadObjectsAsync(part, cancellationToken);
                 var jobs = new List<PrintJob>(platesNeeded);

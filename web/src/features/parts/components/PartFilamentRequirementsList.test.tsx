@@ -122,19 +122,147 @@ describe('PartFilamentRequirementsList (US4 narrowing control)', () => {
         />
       </QueryClientProvider>,
     );
-    await waitFor(() =>
-      expect(screen.getByRole('combobox')).toHaveTextContent(
-        'Acme PETG Basic · Black',
-      ),
-    );
-    await user.click(screen.getByRole('combobox'));
+    const trigger = await screen.findByRole('button', {
+      name: /Production filament for PETG: Acme PETG Basic · Black/,
+    });
+    await user.click(trigger);
+    // Done without a change keeps the caller's value, which may hold a profile.
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onNarrow).not.toHaveBeenCalled();
+    await user.click(trigger);
+    expect(screen.queryByText(/PLA Basic/)).not.toBeInTheDocument();
+    // The chosen colour's filament opens with it checked.
     expect(
-      screen.queryByRole('option', { name: /PLA Basic/ }),
+      screen.getByRole('radio', { name: 'Acme PETG Basic · Black' }),
+    ).toBeChecked();
+    await user.click(screen.getByRole('radio', { name: 'Any PETG · #000000' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onNarrow).toHaveBeenCalledWith('req-1', {
+      variantId: null,
+      filamentId: null,
+      anyColor: false,
+    });
+  });
+
+  it('chooses any color of a filament, and Cancel keeps the choice', async () => {
+    const user = userEvent.setup();
+    stubFetch({
+      '/filaments': {
+        filaments: [
+          {
+            id: 'filament-1',
+            vendorName: 'Aliz',
+            material: 'PETG Basic',
+            materialType: 'PETG',
+            variants: [
+              { id: 'variant-1', colorName: 'Black', colorHex: '#000000' },
+              { id: 'variant-2', colorName: 'Grey', colorHex: '#888888' },
+            ],
+          },
+        ],
+      },
+    });
+    const onNarrow = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PartFilamentRequirementsList
+          requirements={[
+            {
+              key: 'req-1',
+              materialType: 'PETG',
+              detectedColorHex: '#000000',
+              detectedSubBrand: null,
+              narrowFilamentId: 'filament-1',
+            },
+          ]}
+          onNarrow={onNarrow}
+        />
+      </QueryClientProvider>,
+    );
+    const trigger = await screen.findByRole('button', {
+      name: /Aliz PETG Basic · Any color/,
+    });
+    await user.click(trigger);
+    expect(
+      screen.getByRole('radio', { name: 'Aliz PETG Basic · Any color' }),
+    ).toBeChecked();
+    await user.click(screen.getByRole('radio', { name: 'Any PETG · #000000' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onNarrow).not.toHaveBeenCalled();
+
+    await user.click(trigger);
+    await user.type(
+      screen.getByRole('searchbox', { name: 'Search filament or color' }),
+      'grey',
+    );
+    expect(
+      screen.queryByRole('radio', { name: 'Aliz PETG Basic · Black' }),
     ).not.toBeInTheDocument();
     await user.click(
-      screen.getByRole('option', { name: 'Use file material and color' }),
+      screen.getByRole('radio', { name: 'Aliz PETG Basic · Grey' }),
     );
-    expect(onNarrow).toHaveBeenCalledWith('req-1', null);
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onNarrow).toHaveBeenCalledWith('req-1', {
+      variantId: 'variant-2',
+      filamentId: null,
+      anyColor: false,
+    });
+  });
+
+  it('names the default by material and file color, and picks any color of the material', async () => {
+    const user = userEvent.setup();
+    stubFetch({
+      '/filaments': {
+        filaments: [
+          {
+            id: 'filament-1',
+            vendorName: 'Aliz',
+            material: 'PETG Basic',
+            materialType: 'PETG',
+            variants: [],
+          },
+        ],
+      },
+    });
+    const onNarrow = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PartFilamentRequirementsList
+          requirements={[
+            {
+              key: 'req-1',
+              materialType: 'PETG',
+              detectedColorHex: '000000',
+              detectedSubBrand: null,
+            },
+          ]}
+          onNarrow={onNarrow}
+        />
+      </QueryClientProvider>,
+    );
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Production filament for PETG: Any PETG · #000000',
+      }),
+    );
+    expect(
+      screen.getByRole('radio', { name: 'Any PETG · #000000' }),
+    ).toBeChecked();
+    await user.click(
+      screen.getByRole('radio', { name: 'Any PETG · Any color' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onNarrow).toHaveBeenCalledWith('req-1', {
+      variantId: null,
+      filamentId: null,
+      anyColor: true,
+    });
   });
 
   it('lets an already-narrowed requirement be cleared back to "None"', async () => {

@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { filamentGrams, PartEstimate } from './PartEstimate';
 import {
   type DisplayFilamentRequirement,
+  type FilamentChoice,
   PartFilamentRequirementsList,
 } from './PartFilamentRequirementsList';
 import { PartThumbnailGallery, plateLabel } from './PartThumbnailGallery';
@@ -22,11 +23,8 @@ interface PartProcessingReviewSectionProps {
   status: string | undefined;
   preview: PartProcessingJobPreviewResponse | null | undefined;
   errorMessage?: string | null;
-  overrides: Record<number, string | null>;
-  onNarrow: (
-    requirementIndex: number,
-    filamentVariantId: string | null,
-  ) => void;
+  overrides: Record<number, FilamentChoice>;
+  onNarrow: (requirementIndex: number, choice: FilamentChoice) => void;
   /** The plate the part prints; asked only when the file offers several. */
   plateNumbers: number[];
   onPlateNumbersChange: (plateNumbers: number[]) => void;
@@ -83,24 +81,30 @@ export function PartProcessingReviewSection({
     checked.length > 1
       ? combineRequirements(checked)
       : (shown?.filamentRequirements ?? [])
-  ).map((requirement) => ({
-    key: requirement.requirementIndex ?? 0,
-    estimatedGrams: requirement.estimatedGrams,
-    materialType: requirement.materialType,
-    detectedColorHex: requirement.detectedColorHex,
-    detectedSubBrand: requirement.detectedSubBrand,
-    narrowFilamentVariantId:
-      requirement.requirementIndex !== undefined
-        ? Object.hasOwn(overrides, requirement.requirementIndex)
-          ? overrides[requirement.requirementIndex]
-          : requirement.narrowFilamentVariantId
-        : requirement.narrowFilamentVariantId,
-    narrowFilamentProfileId:
+  ).map((requirement) => {
+    const override =
       requirement.requirementIndex !== undefined &&
       Object.hasOwn(overrides, requirement.requirementIndex)
+        ? overrides[requirement.requirementIndex]
+        : undefined;
+    return {
+      key: requirement.requirementIndex ?? 0,
+      estimatedGrams: requirement.estimatedGrams,
+      materialType: requirement.materialType,
+      detectedColorHex: requirement.detectedColorHex,
+      detectedSubBrand: requirement.detectedSubBrand,
+      narrowFilamentVariantId: override
+        ? override.variantId
+        : requirement.narrowFilamentVariantId,
+      narrowFilamentId: override
+        ? override.filamentId
+        : requirement.narrowFilamentId,
+      anyColor: override ? override.anyColor : requirement.anyColor,
+      narrowFilamentProfileId: override
         ? null
         : requirement.narrowFilamentProfileId,
-  }));
+    };
+  });
 
   const estimateStatus = preview.estimateStatus;
 
@@ -207,9 +211,7 @@ export function PartProcessingReviewSection({
           )}
           <PartFilamentRequirementsList
             requirements={requirements}
-            onNarrow={(key, filamentVariantId) =>
-              onNarrow(Number(key), filamentVariantId)
-            }
+            onNarrow={(key, choice) => onNarrow(Number(key), choice)}
           />
         </div>
       )}

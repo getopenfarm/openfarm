@@ -360,6 +360,8 @@ describe('PartDetailPage', () => {
         {
           requirementId: 'req-a',
           narrowFilamentVariantId: null,
+          narrowFilamentId: null,
+          anyColor: false,
           narrowFilamentProfileId: null,
         },
       ],

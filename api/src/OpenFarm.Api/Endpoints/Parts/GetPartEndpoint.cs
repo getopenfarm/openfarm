@@ -17,6 +17,11 @@ public sealed class PartFilamentRequirementResponse
     public Guid? NarrowFilamentProfileId { get; set; }
     public bool NarrowFilamentVariantUnresolved { get; set; }
     public bool NarrowFilamentProfileUnresolved { get; set; }
+    /// <summary>Any colour of this catalog filament; exclusive with the variant and profile.</summary>
+    public Guid? NarrowFilamentId { get; set; }
+    /// <summary>Any colour of the material, any brand.</summary>
+    public bool AnyColor { get; set; }
+    public bool NarrowFilamentUnresolved { get; set; }
     /// <summary>Estimated grams per plate set, purge included; null until known.</summary>
     public decimal? EstimatedGrams { get; set; }
 }
@@ -66,8 +71,8 @@ public sealed class PartResponse
         ProcessingWarnings = detail.ProcessingWarnings?.ToList() ?? [],
         EstimateUnavailableReason = detail.EstimateUnavailableReason,
         Estimation = detail.Estimation,
-        PrintEstimate = PrintEstimates.Calculate(detail.UnitsPerPrint, detail.UnitsPerPrint, detail.EstimatedPrintTimeMinutes, detail.EstimatedFilamentWeightGrams, detail.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams)).ToArray()),
-        UnitEstimate = PrintEstimates.Calculate(1, detail.UnitsPerPrint, detail.EstimatedPrintTimeMinutes, detail.EstimatedFilamentWeightGrams, detail.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams)).ToArray()),
+        PrintEstimate = PrintEstimates.Calculate(detail.UnitsPerPrint, detail.UnitsPerPrint, detail.EstimatedPrintTimeMinutes, detail.EstimatedFilamentWeightGrams, detail.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams, FilamentId: r.NarrowFilamentId, AnyColor: r.AnyColor)).ToArray()),
+        UnitEstimate = PrintEstimates.Calculate(1, detail.UnitsPerPrint, detail.EstimatedPrintTimeMinutes, detail.EstimatedFilamentWeightGrams, detail.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams, FilamentId: r.NarrowFilamentId, AnyColor: r.AnyColor)).ToArray()),
         EstimateStatus = detail.EstimateStatus,
         EstimatedPrintTimeMinutes = detail.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = detail.EstimatedFilamentWeightGrams,
@@ -88,6 +93,9 @@ public sealed class PartResponse
             NarrowFilamentProfileId = r.NarrowFilamentProfileId,
             NarrowFilamentVariantUnresolved = r.NarrowFilamentVariantUnresolved,
             NarrowFilamentProfileUnresolved = r.NarrowFilamentProfileUnresolved,
+            NarrowFilamentId = r.NarrowFilamentId,
+            AnyColor = r.AnyColor,
+            NarrowFilamentUnresolved = r.NarrowFilamentUnresolved,
             EstimatedGrams = r.EstimatedGrams,
         }).ToList(),
         Thumbnails = detail.Thumbnails.Select(t => new ThumbnailResponse { PlateIndex = t.PlateIndex, ThumbnailBase64 = t.ThumbnailBase64 }).ToList(),
@@ -131,6 +139,8 @@ public sealed class PartResponse
             DetectedSubBrand = r.DetectedSubBrand,
             NarrowFilamentVariantId = r.NarrowFilamentVariantId,
             NarrowFilamentProfileId = r.NarrowFilamentProfileId,
+            NarrowFilamentId = r.NarrowFilamentId,
+            AnyColor = r.AnyColor,
             EstimatedGrams = r.EstimatedGrams,
         }).ToList(),
         Thumbnails = part.Thumbnails.OrderBy(t => t.PlateIndex).Select(t => new ThumbnailResponse { PlateIndex = t.PlateIndex, ThumbnailBase64 = Convert.ToBase64String(t.Bytes) }).ToList(),

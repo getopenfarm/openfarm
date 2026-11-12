@@ -167,7 +167,12 @@ function PartProcessingNotes({ part }: { part: PartResponse }) {
   );
 }
 
-type Narrowing = { variantId: string | null; profileId: string | null };
+type Narrowing = {
+  variantId: string | null;
+  filamentId: string | null;
+  anyColor: boolean;
+  profileId: string | null;
+};
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -180,6 +185,8 @@ const schema = z.object({
     z.string(),
     z.object({
       variantId: z.string().nullable(),
+      filamentId: z.string().nullable(),
+      anyColor: z.boolean(),
       profileId: z.string().nullable(),
     }),
   ),
@@ -197,6 +204,8 @@ function toFormValues(part: PartResponse | undefined): FormValues {
         requirement.id ?? '',
         {
           variantId: requirement.narrowFilamentVariantId ?? null,
+          filamentId: requirement.narrowFilamentId ?? null,
+          anyColor: requirement.anyColor ?? false,
           profileId: requirement.narrowFilamentProfileId ?? null,
         },
       ]),
@@ -277,6 +286,8 @@ export function PartDetailPage() {
         return (
           draft &&
           (draft.variantId !== (requirement.narrowFilamentVariantId ?? null) ||
+            draft.filamentId !== (requirement.narrowFilamentId ?? null) ||
+            draft.anyColor !== (requirement.anyColor ?? false) ||
             draft.profileId !== (requirement.narrowFilamentProfileId ?? null))
         );
       })
@@ -285,6 +296,8 @@ export function PartDetailPage() {
         return {
           requirementId: requirement.id,
           narrowFilamentVariantId: draft.variantId,
+          narrowFilamentId: draft.filamentId,
+          anyColor: draft.anyColor,
           narrowFilamentProfileId: draft.profileId,
         };
       });
@@ -302,9 +315,12 @@ export function PartDetailPage() {
   const requirements: DisplayFilamentRequirement[] =
     part?.filamentRequirements?.map((requirement) => {
       const serverVariant = requirement.narrowFilamentVariantId ?? null;
+      const serverFilament = requirement.narrowFilamentId ?? null;
       const serverProfile = requirement.narrowFilamentProfileId ?? null;
       const draft = narrowing?.[requirement.id ?? ''] ?? {
         variantId: serverVariant,
+        filamentId: serverFilament,
+        anyColor: requirement.anyColor ?? false,
         profileId: serverProfile,
       };
       return {
@@ -317,6 +333,11 @@ export function PartDetailPage() {
         narrowFilamentVariantUnresolved:
           draft.variantId === serverVariant &&
           requirement.narrowFilamentVariantUnresolved,
+        narrowFilamentId: draft.filamentId,
+        anyColor: draft.anyColor,
+        narrowFilamentUnresolved:
+          draft.filamentId === serverFilament &&
+          requirement.narrowFilamentUnresolved,
         narrowFilamentProfileId: draft.profileId,
         narrowFilamentProfileUnresolved:
           draft.profileId === serverProfile &&
@@ -598,15 +619,14 @@ export function PartDetailPage() {
                   <PartFilamentRequirementsList
                     layout="grid"
                     requirements={requirements}
-                    onNarrow={(key, variantId) =>
-                      setNarrowing(String(key), {
-                        variantId,
-                        profileId: null,
-                      })
+                    onNarrow={(key, choice) =>
+                      setNarrowing(String(key), { ...choice, profileId: null })
                     }
                     onNarrowToProfile={(requirementId, profileId) =>
                       setNarrowing(requirementId, {
                         variantId: null,
+                        filamentId: null,
+                        anyColor: false,
                         profileId,
                       })
                     }

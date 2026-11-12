@@ -13,7 +13,9 @@ public sealed record PreviewFilamentRequirement(
     string? DetectedSubBrand,
     Guid? NarrowFilamentVariantId = null,
     Guid? NarrowFilamentProfileId = null,
-    decimal? EstimatedGrams = null)
+    decimal? EstimatedGrams = null,
+    Guid? NarrowFilamentId = null,
+    bool AnyColor = false)
 {
     /// <summary>Returns <paramref name="requirements"/> with grams from <see cref="FilamentGrams.Distribute"/>; null when none resolve.</summary>
     public static IReadOnlyList<PreviewFilamentRequirement> WithGrams(

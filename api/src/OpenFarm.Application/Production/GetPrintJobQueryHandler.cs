@@ -26,7 +26,7 @@ public sealed class GetPrintJobQueryHandler(IPrintJobRepository jobRepository, I
             job.DispatchedAtUtc, job.StartedAtUtc, job.EndedAtUtc, job.ActualDurationMinutes,
             job.CancelRequestedAtUtc, job.RequeuedAsJobId,
             job.Filaments
-                .Select(c => new JobFilamentConsumptionDetail(c.Id, c.MaterialType, c.DetectedColorHex, c.SpoolId, c.GramsConsumed, c.NarrowFilamentVariantId, c.NarrowFilamentProfileId, c.ToolIndex, c.EstimatedGrams, c.PricePerKg, c.PriceSource, c.Cost))
+                .Select(c => new JobFilamentConsumptionDetail(c.Id, c.MaterialType, c.DetectedColorHex, c.SpoolId, c.GramsConsumed, c.NarrowFilamentVariantId, c.NarrowFilamentProfileId, c.ToolIndex, c.EstimatedGrams, c.PricePerKg, c.PriceSource, c.Cost, c.NarrowFilamentId, c.AnyColor))
                 .ToList(),
             job.CreatedAtUtc, job.GetSnapshotState(), job.SnapshotRecoveryReason, job.Source, job.Name,
             job.LastBlockReason, job.LastBlockedAtUtc, DispatchProvenance.FromJson(job.DispatchProvenanceJson), job.WrittenOffAtUtc, job.EffectiveTargetUnits, job.ProducedUnits, job.MissingUnits, canResolve,

@@ -24,10 +24,13 @@ public sealed class GetPartQueryHandler(
                 && await filamentRepository.FindVariantByIdAsync(variantId, cancellationToken) is null;
             var profileUnresolved = r.NarrowFilamentProfileId is { } profileId
                 && await filamentProfileRepository.GetByIdAsync(profileId, cancellationToken) is null;
+            var filamentUnresolved = r.NarrowFilamentId is { } filamentId
+                && await filamentRepository.GetByIdAsync(filamentId, cancellationToken) is null;
 
             requirements.Add(new PartFilamentRequirementDetail(
                 r.Id, r.MaterialType, r.DetectedColorHex, r.DetectedSubBrand,
-                r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, variantUnresolved, profileUnresolved, r.EstimatedGrams));
+                r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, variantUnresolved, profileUnresolved, r.EstimatedGrams,
+                r.NarrowFilamentId, r.AnyColor, filamentUnresolved));
         }
 
         var slicer = part.SlicerEngineOverride is { } engine && part.SlicerVersionUsed is { } version

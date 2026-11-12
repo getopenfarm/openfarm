@@ -11,7 +11,9 @@ public sealed record FilamentRequirementSpec(
     string? DetectedSubBrand,
     Guid? NarrowFilamentVariantId,
     Guid? NarrowFilamentProfileId,
-    decimal? EstimatedGrams = null);
+    decimal? EstimatedGrams = null,
+    Guid? NarrowFilamentId = null,
+    bool AnyColor = false);
 
 /// <summary>
 /// One of a <see cref="Part"/>'s one-or-more material needs — one row per distinct
@@ -30,7 +32,9 @@ public sealed class PartFilamentRequirement
         Guid? narrowFilamentVariantId,
         Guid? narrowFilamentProfileId,
         decimal? estimatedGrams,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        Guid? narrowFilamentId,
+        bool anyColor)
     {
         Id = id;
         PartId = partId;
@@ -41,6 +45,8 @@ public sealed class PartFilamentRequirement
         NarrowFilamentProfileId = narrowFilamentProfileId;
         EstimatedGrams = estimatedGrams;
         CreatedAtUtc = createdAtUtc;
+        NarrowFilamentId = narrowFilamentId;
+        AnyColor = anyColor;
     }
 
     public Guid Id { get; private set; }
@@ -57,6 +63,12 @@ public sealed class PartFilamentRequirement
 
     public Guid? NarrowFilamentProfileId { get; private set; }
 
+    /// <summary>Any colour of this catalog filament; exclusive with <see cref="NarrowFilamentVariantId"/> and <see cref="NarrowFilamentProfileId"/>.</summary>
+    public Guid? NarrowFilamentId { get; private set; }
+
+    /// <summary>Any colour of the material, any brand; exclusive with the other choices.</summary>
+    public bool AnyColor { get; private set; }
+
     /// <summary>This colour's estimated grams per plate set, start-of-print purge included; null until the file's per-filament usage is known.</summary>
     public decimal? EstimatedGrams { get; private set; }
 
@@ -72,19 +84,22 @@ public sealed class PartFilamentRequirement
             spec.NarrowFilamentVariantId,
             spec.NarrowFilamentProfileId,
             spec.EstimatedGrams,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            spec.NarrowFilamentId,
+            spec.AnyColor);
 
     internal void SetEstimatedGrams(decimal? grams) => EstimatedGrams = grams;
 
     /// <summary>
     /// FR-012 (US4) — narrow/change/clear this requirement's filament choice at any time after
-    /// confirm, from the part detail page. Mutually-exclusive enforcement (at most one of the two
-    /// ids set) is the caller's validator's job (mirrors <c>ConfirmPartProcessingJobCommandValidator</c>),
-    /// not re-checked here.
+    /// confirm, from the part detail page. At most one choice is set: <c>PartFilamentSelectionValidator</c>
+    /// checks every input before it gets here.
     /// </summary>
-    public void Narrow(Guid? narrowFilamentVariantId, Guid? narrowFilamentProfileId)
+    public void Narrow(Guid? narrowFilamentVariantId, Guid? narrowFilamentProfileId, Guid? narrowFilamentId = null, bool anyColor = false)
     {
         NarrowFilamentVariantId = narrowFilamentVariantId;
         NarrowFilamentProfileId = narrowFilamentProfileId;
+        NarrowFilamentId = narrowFilamentId;
+        AnyColor = anyColor;
     }
 }

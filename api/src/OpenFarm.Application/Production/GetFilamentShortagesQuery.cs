@@ -36,8 +36,8 @@ public sealed record QueuedDemand(IReadOnlyDictionary<Guid, decimal> ByVariant, 
 /// <summary>
 /// What finite jobs still to print (queued, printing or paused: nothing is deducted until a print ends) take of each colour,
 /// against its grams on hand. A line narrowed to a colour counts against it; otherwise against every colour of the same
-/// material and hex, so a shortage may be over-reported but never missed. A line with no known grams, unlimited work and
-/// "any material" lines are left out.
+/// material and hex, so a shortage may be over-reported but never missed. A line with no known grams, unlimited work,
+/// "any material" lines and any-colour lines (of one filament, or of the material) are left out.
 /// </summary>
 public sealed class GetFilamentShortagesQueryHandler(
     IPrintJobRepository jobs, IQueryHandler<GetFilamentStockQuery, IReadOnlyList<VariantStock>> stockQuery)
@@ -77,6 +77,8 @@ public sealed class GetFilamentShortagesQueryHandler(
             foreach (var requirement in requirements)
             {
                 if (ProductionJobRequirements.EstimatedGrams(part, requirement, requirements.Count, job, job.FileRevisionHash) is not { } grams) continue;
+                // ponytail: any-colour lines are left out like "any material"; pool them per filament/material if farms rely on them.
+                if (requirement.NarrowFilamentId is not null || requirement.AnyColor) continue;
                 if (requirement.NarrowFilamentVariantId is { } id) byVariant[id] = byVariant.GetValueOrDefault(id) + grams;
                 else if (requirement.MaterialType is { } material && requirement.DetectedColorHex is { } hex)
                     byColour[ColourKey.Of(material, hex)] = byColour.GetValueOrDefault(ColourKey.Of(material, hex)) + grams;

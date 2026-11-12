@@ -3,6 +3,7 @@ using OpenFarm.Application.Printers;
 using OpenFarm.Domain.FilamentTracking;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
+using OpenFarm.Domain.Production;
 using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Profiles;
@@ -26,9 +27,13 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
     /// (<see cref="FilamentCover.Rank"/>) instead of the first in feed order.</param>
     /// <param name="nozzleMm">The job's nozzle: only spools on an extruder with that nozzle confirmed count. Without one, each
     /// spool's own extruder nozzle is used.</param>
+    /// <param name="narrowedFilamentId">Any colour of this catalog filament; like <paramref name="narrowedVariantId"/>, it replaces <paramref name="colorHex"/>.</param>
+    /// <param name="takenSpoolIds">Spools other lines of the same print already use: chosen only when no other spool fits.</param>
     public async Task<ProductionFilamentSelection> ResolveLoadedAsync(Guid printerId, string? materialType, string? colorHex,
-        Guid? narrowedVariantId, Guid? narrowedProfileId, CancellationToken ct, decimal? estimatedGrams = null, decimal? nozzleMm = null)
+        Guid? narrowedVariantId, Guid? narrowedProfileId, CancellationToken ct, decimal? estimatedGrams = null, decimal? nozzleMm = null,
+        Guid? narrowedFilamentId = null, IReadOnlySet<Guid>? takenSpoolIds = null)
     {
+        var required = new JobFilamentRequirementSpec(materialType, colorHex, narrowedVariantId, narrowedProfileId, narrowedFilamentId);
         var printer = await printers.GetByIdAsync(printerId, ct) ?? throw new PrinterNotFoundException(printerId);
         var machine = printer.MachineProfileId is { } machineId ? await machines.GetByIdAsync(machineId, ct) : null;
         try
@@ -54,10 +59,9 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
             if (spool.FeedSlotId is not { } slotId) continue;
             if (!activeSlotIds.Contains(slotId)) continue;
             var variant = await filaments.FindVariantByIdAsync(spool.FilamentVariantId, ct);
-            if (variant is null || narrowedVariantId is { } variantId && variant.Id != variantId
-                || narrowedVariantId is null && colorHex is not null && !string.Equals(variant.ColorHex, colorHex, StringComparison.OrdinalIgnoreCase)) continue;
+            if (variant is null) continue;
             var filament = await filaments.GetByIdAsync(variant.FilamentId, ct);
-            if (filament is null || materialType is not null && filament.MaterialType != materialType) continue;
+            if (filament is null || !required.Accepts(variant.Id, filament.Id, filament.MaterialType, variant.ColorHex)) continue;
             if (units.FirstOrDefault(u => u.FeedSlots.Any(s => s.Id == slotId)) is not { } unit) continue;
             if (printer.ConfirmedNozzleMm(unit.FeedSlots.First(s => s.Id == slotId).ExtruderIndex) is not { } nozzle
                 || nozzleMm is { } wanted && nozzle != wanted)
@@ -68,7 +72,8 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
             candidates.Add((spool, variant, filament, unit, nozzle, Available(printer, unit, spool, nozzle, loaded)));
         }
         foreach (var (spool, variant, filament, unit, nozzle, available) in candidates
-            .OrderBy(c => FilamentCover.Rank(estimatedGrams, c.Spool.RemainingWeightGrams, c.Available))
+            .OrderBy(c => takenSpoolIds?.Contains(c.Spool.Id) == true)
+            .ThenBy(c => FilamentCover.Rank(estimatedGrams, c.Spool.RemainingWeightGrams, c.Available))
             .ThenBy(c => feedOrder[c.Spool.FeedSlotId!.Value]).ThenBy(c => c.Spool.Id))
         {
             try
@@ -87,7 +92,10 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
             catch (SlicingProfileUnconfiguredException ex) { issue ??= new SlicingProfileUnconfiguredException($"{ex.Message} Configure in /filament/{filament.Id}/edit."); }
         }
         if (issue is not null) throw issue;
-        throw new SlicingProfileUnconfiguredException($"Register and load a tracked spool for '{materialType ?? "the required material"}'{(colorHex is null ? "" : $" ({colorHex})")} on printer '{printer.Name}'.{(otherNozzle && nozzleMm is { } needed ? $" Load it on an extruder with a {needed} mm nozzle." : FeedPathHint(units, externalIsActive))}");
+        var wantedName = narrowedFilamentId is { } anyColourOf
+            ? $"'{(await filaments.GetByIdAsync(anyColourOf, ct))?.Material ?? "the chosen filament"}' (any color)"
+            : $"'{materialType ?? "the required material"}'{(colorHex is null ? "" : $" ({colorHex})")}";
+        throw new SlicingProfileUnconfiguredException($"Register and load a tracked spool for {wantedName} on printer '{printer.Name}'.{(otherNozzle && nozzleMm is { } needed ? $" Load it on an extruder with a {needed} mm nozzle." : FeedPathHint(units, externalIsActive))}");
     }
 
     // What a print could draw from this spool before it runs out: its own grams plus what its feed unit continues onto —

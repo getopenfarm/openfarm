@@ -22,6 +22,7 @@ public sealed record PartSummary(
     IReadOnlyList<PartColorGrams>? FilamentByColor = null, Guid? FolderId = null);
 
 /// <summary>One requirement's grams for the Build panel's by-colour totals (per plate set, purge included; null when unknown).</summary>
-public sealed record PartColorGrams(string? MaterialType, string? ColorHex, decimal? Grams, Guid? NarrowFilamentVariantId = null);
+public sealed record PartColorGrams(string? MaterialType, string? ColorHex, decimal? Grams, Guid? NarrowFilamentVariantId = null,
+    Guid? NarrowFilamentId = null, bool AnyColor = false);
 
 public sealed record PartsPage(IReadOnlyList<PartSummary> Parts, int TotalCount);

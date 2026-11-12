@@ -15,6 +15,10 @@ public sealed class JobFilamentRequirementRequest
     public string? DetectedColorHex { get; set; }
     public Guid? NarrowFilamentVariantId { get; set; }
     public Guid? NarrowFilamentProfileId { get; set; }
+    /// <summary>Any colour of this catalog filament.</summary>
+    public Guid? NarrowFilamentId { get; set; }
+    /// <summary>Any colour of the material, any brand.</summary>
+    public bool AnyColor { get; set; }
 }
 
 public sealed class SetPrintJobFilamentRequirementsRequest : IActivityLoggable
@@ -29,8 +33,6 @@ public sealed class SetPrintJobFilamentRequirementsRequestValidator : AbstractVa
     public SetPrintJobFilamentRequirementsRequestValidator()
     {
         RuleFor(r => r.Requirements).NotEmpty();
-        RuleForEach(r => r.Requirements).Must(r => r.NarrowFilamentVariantId is null || r.NarrowFilamentProfileId is null)
-            .WithMessage("Choose a catalog variant or a direct profile constraint, not both.");
     }
 }
 
@@ -43,7 +45,7 @@ public sealed class SetPrintJobFilamentRequirementsEndpoint(SetHandler handler, 
     {
         req.Id = Route<Guid>("id");
         var job = await handler.HandleAsync(new SetPrintJobFilamentRequirementsCommand(req.Id,
-            req.Requirements.Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId)).ToList()), ct);
+            req.Requirements.Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, r.NarrowFilamentId, r.AnyColor)).ToList()), ct);
         Response = PrintJobResponse.FromDetail((await detail.HandleAsync(new GetPrintJobQuery(job.Id), ct))!);
     }
 }

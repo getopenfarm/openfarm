@@ -70,4 +70,17 @@ public class PrintEstimatesTests
         total.Filament.Should().Be(new EstimateMetric(2, 1));
         total.Colors.Single().Missing.Should().Be(1);
     }
+
+    [Fact]
+    public void AColourFreeChoice_IsOneRowAcrossFileColours()
+    {
+        var aliz = Guid.NewGuid();
+        var total = PrintEstimates.Sum([
+            PrintEstimates.Calculate(1, 1, 10, null, [new("PETG", "#000000", null, 2, FilamentId: aliz), new("PLA", "#000000", null, 1, AnyColor: true)]),
+            PrintEstimates.Calculate(1, 1, 10, null, [new("PETG", "#FFFFFF", null, 3, FilamentId: aliz), new("PLA", "#FFFFFF", null, 4, AnyColor: true)])]);
+
+        total.Colors.Should().BeEquivalentTo([
+            new EstimateColor("PETG", null, null, 5, FilamentId: aliz),
+            new EstimateColor("PLA", null, null, 5, AnyColor: true)]);
+    }
 }

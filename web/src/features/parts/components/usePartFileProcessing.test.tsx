@@ -166,7 +166,11 @@ describe('usePartFileProcessing', () => {
     await waitFor(() => expect(result.current.jobId).toBe('job-1'));
 
     act(() => {
-      result.current.handleNarrow(0, 'variant-1');
+      result.current.handleNarrow(0, {
+        variantId: 'variant-1',
+        filamentId: null,
+        anyColor: false,
+      });
     });
 
     act(() => {

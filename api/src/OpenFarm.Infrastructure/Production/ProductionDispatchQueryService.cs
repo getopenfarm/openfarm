@@ -270,7 +270,7 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
             .GroupBy(r => r.PartId)
             .ToDictionaryAsync(
                 g => g.Key,
-                g => (IReadOnlyList<(string?, string?)>)g.Select(r => (r.MaterialType, r.NarrowFilamentVariantId == null ? r.DetectedColorHex : null)).ToList(),
+                g => (IReadOnlyList<(string?, string?)>)g.Select(r => (r.MaterialType, r.NarrowFilamentVariantId == null && r.NarrowFilamentId == null && !r.AnyColor ? r.DetectedColorHex : null)).ToList(),
                 cancellationToken);
 
         var occupancyByLine = new Dictionary<Guid, int>();

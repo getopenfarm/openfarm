@@ -57,7 +57,8 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         var specs = requirements.Select(r =>
         {
             var narrowing = part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == r.MaterialType && n.DetectedColorHex == r.ColorHex);
-            return new JobFilamentRequirementSpec(r.MaterialType, r.ColorHex, narrowing?.NarrowFilamentVariantId, narrowing?.NarrowFilamentProfileId);
+            return new JobFilamentRequirementSpec(r.MaterialType, r.ColorHex, narrowing?.NarrowFilamentVariantId, narrowing?.NarrowFilamentProfileId,
+                narrowing?.NarrowFilamentId, narrowing?.AnyColor ?? false);
         }).ToList();
         return await ResolveAsync(printerId, part, specs, ct, revisionHash);
     }
@@ -79,11 +80,15 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         var requiresSlicing = await RequiresSlicingAsync(part, revisionHash, ct);
         if (!requiresSlicing) await EnsureSlicedForPrinterAsync(printerId, part, revisionHash, ct);
         var estimates = requirements.Select(r => ProductionJobRequirements.EstimatedGrams(part, r, requirements.Count, job, revisionHash)).ToList();
-        var selections = new List<ProductionFilamentSelection>();
-        for (var i = 0; i < requirements.Count; i++)
-            selections.Add(await resolver.ResolveLoadedAsync(printerId, requirements[i].MaterialType,
-                requirements[i].NarrowFilamentVariantId is null ? requirements[i].DetectedColorHex : null,
-                requirements[i].NarrowFilamentVariantId, requirements[i].NarrowFilamentProfileId, ct, estimates[i], part.NozzleDiameterMm));
+        // Narrowest choice first, each line preferring a spool no other line took: two "any colour" lines take two spools,
+        // and neither takes the one spool a fixed colour needs. A spool is shared only when no other one fits.
+        // ponytail: greedy by narrowness, not a full matching; enough for the few lines one print has
+        var resolved = new ProductionFilamentSelection?[requirements.Count];
+        foreach (var i in Enumerable.Range(0, requirements.Count).OrderBy(i => Breadth(requirements[i])))
+            resolved[i] = await resolver.ResolveLoadedAsync(printerId, requirements[i].MaterialType, requirements[i].MatchingValues.ColorHex,
+                requirements[i].NarrowFilamentVariantId, requirements[i].NarrowFilamentProfileId, ct, estimates[i], part.NozzleDiameterMm,
+                requirements[i].NarrowFilamentId, resolved.OfType<ProductionFilamentSelection>().Select(s => s.SpoolId).ToHashSet());
+        var selections = resolved.OfType<ProductionFilamentSelection>().ToList();
         if (selections.Count == 0) throw new SlicingProfileUnconfiguredException("No production filament requirements are available.");
         var feeds = new List<FeedSlotRef>();
         foreach (var selection in selections)
@@ -95,6 +100,12 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         await EnsureEnoughFilamentAsync(printerId, selections, estimates, ct);
         return new(selections, profiles);
     }
+
+    /// <summary>How many loaded colours a line accepts: one colour, any colour of one filament, any colour of the material.</summary>
+    private static int Breadth(JobFilamentRequirementSpec line) =>
+        line.NarrowFilamentVariantId is not null ? 0
+        : line.NarrowFilamentId is not null ? 1
+        : line.AnyColor || line.DetectedColorHex is null ? 2 : 0;
 
     private async Task EnsureEnoughFilamentAsync(Guid printerId, List<ProductionFilamentSelection> selections,
         List<decimal?> estimates, CancellationToken ct)
@@ -191,9 +202,12 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
 
     public Task<string> GetConfigurationStampAsync(Guid printerId, Part part,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, string? revisionHash = null) =>
-        GetConfigurationStampAsync(printerId, part, requirements.Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.ColorHex,
-            part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == r.MaterialType && n.DetectedColorHex == r.ColorHex)?.NarrowFilamentVariantId,
-            part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == r.MaterialType && n.DetectedColorHex == r.ColorHex)?.NarrowFilamentProfileId)).ToList(), ct, revisionHash);
+        GetConfigurationStampAsync(printerId, part, requirements.Select(r =>
+        {
+            var narrowing = part.FilamentRequirements.FirstOrDefault(n => n.MaterialType == r.MaterialType && n.DetectedColorHex == r.ColorHex);
+            return new JobFilamentRequirementSpec(r.MaterialType, r.ColorHex, narrowing?.NarrowFilamentVariantId, narrowing?.NarrowFilamentProfileId,
+                narrowing?.NarrowFilamentId, narrowing?.AnyColor ?? false);
+        }).ToList(), ct, revisionHash);
 
     public async Task<string> GetConfigurationStampAsync(Guid printerId, Part part,
         IReadOnlyList<JobFilamentRequirementSpec> requirements, CancellationToken ct, string? revisionHash = null, PrintJob? job = null) =>

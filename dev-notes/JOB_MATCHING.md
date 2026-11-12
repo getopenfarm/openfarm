@@ -1,11 +1,32 @@
 # Job filament matching and diagnostics
 
-A selected catalog filament colour variant is the effective production identity.
-An active tracked spool of that exact variant satisfies the requirement even when
-the uploaded file reports a different colour. The file's detected colour remains
-visible as metadata. Without a catalog choice, existing material and colour
-requirements apply (hexadecimal colour comparison is case-insensitive).
-Selecting a different material from a known file requirement is rejected.
+Each filament requirement has at most one catalog choice, and it replaces the file's
+detected colour:
+
+- **One colour** (`narrowFilamentVariantId`): an active tracked spool of that exact
+  variant satisfies the requirement, even when the file reports a different colour.
+- **Any colour of one filament** (`narrowFilamentId`): a spool of any variant of that
+  catalog filament satisfies it.
+- **Any colour of the material** (`anyColor`): a spool of any brand and colour of the
+  required material satisfies it.
+
+  Shortage and forecast numbers leave both any-colour kinds out, like "any material"
+  lines; dispatch still checks the loaded spool's grams.
+- **No choice**: the file's material and colour apply, from any brand (hexadecimal
+  colour comparison is case-insensitive).
+
+The file's detected colour remains visible as metadata. The rule lives once in
+`JobFilamentRequirementSpec.Accepts`. Every place that names a choice uses
+`FilamentChoiceLabel` (web: `genericLabel`/`catalogLabel`): `Any PETG · #000000`,
+`Any PETG · Any color`, `Aliz PETG Basic · Any color`, `Aliz PETG Basic · Black`. Selecting a different material from a known
+file requirement is rejected.
+
+A print's lines pick spools narrowest first (one colour, then any colour of a filament, then
+any colour), each preferring a spool no other line took, so two any-colour lines print in two
+spools and neither takes the one a fixed colour needs. Lines share a spool only when no other
+fits (`ProductionProfileReadiness.ResolveAsync`). Re-slicing keeps a choice for the same
+material and colour; an any-colour choice also survives a one-for-one colour swap of its
+material (`Part.PreviousRequirementFor`).
 
 Production still needs an available printer, confirmed nozzle telemetry, an active
 loaded spool, and compatible machine and filament profile assignments. Each
@@ -76,9 +97,10 @@ effective filament requirements, job checks, and per-printer results. Checks hav
 stable codes and Passed/Failed/NotEvaluated status. Configuration links are
 separate from explanatory messages.
 
-Job filament-requirement updates accept optional `narrowFilamentVariantId` or
-`narrowFilamentProfileId` (mutually exclusive) per requirement; job detail returns
-these constraints alongside the existing material, colour and consumption fields.
+Part and job filament-requirement updates accept optional `narrowFilamentVariantId`,
+`narrowFilamentId`, `narrowFilamentProfileId` or `anyColor` (at most one) per requirement; part
+and job detail return these constraints alongside the existing material, colour and
+consumption fields.
 
 The migration is applied by the API's normal startup migration flow. Deploy the
 backend and regenerated web client together. Existing data needs no manual rewrite.

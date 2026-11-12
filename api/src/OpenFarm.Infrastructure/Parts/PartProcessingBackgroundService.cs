@@ -167,14 +167,19 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
                 {
                     FilamentRequirements = materialResolution.FilamentRequirements.Select(r =>
                     {
-                        var previous = source.FilamentRequirements.FirstOrDefault(p => p.MaterialType == r.MaterialType
-                            && p.DetectedColorHex == r.DetectedColorHex && (p.DetectedSubBrand == r.DetectedSubBrand || p.DetectedSubBrand is null));
-                        return r with { NarrowFilamentVariantId = previous?.NarrowFilamentVariantId, NarrowFilamentProfileId = previous?.NarrowFilamentProfileId };
+                        var previous = source.PreviousRequirementFor(r, materialResolution.FilamentRequirements);
+                        return r with
+                        {
+                            NarrowFilamentVariantId = previous?.NarrowFilamentVariantId,
+                            NarrowFilamentProfileId = previous?.NarrowFilamentProfileId,
+                            NarrowFilamentId = previous?.NarrowFilamentId,
+                            AnyColor = previous?.AnyColor ?? false,
+                        };
                     }).ToList(),
                 };
         }
 
-        if (materialResolution.FilamentRequirements.Any(r => r.NarrowFilamentVariantId is null && r.DetectedColorHex is not null))
+        if (materialResolution.FilamentRequirements.Any(r => r.NarrowFilamentVariantId is null && r.NarrowFilamentId is null && !r.AnyColor && r.DetectedColorHex is not null))
         {
             var vendors = (await services.GetRequiredService<IVendorRepository>().ListAsync(stoppingToken)).ToDictionary(v => v.Id, v => v.Name);
             var catalog = (await services.GetRequiredService<IFilamentRepository>().ListAsync(stoppingToken))
