@@ -15,6 +15,11 @@ public sealed class EditPartFilamentRequirementRequest
     public Guid? NarrowFilamentVariantId { get; set; }
 
     public Guid? NarrowFilamentProfileId { get; set; }
+
+    /// <summary>Any colour of this catalog filament.</summary>
+    public Guid? NarrowFilamentId { get; set; }
+    /// <summary>Any colour of the material, any brand.</summary>
+    public bool AnyColor { get; set; }
 }
 
 public sealed class EditPartRequest : IActivityLoggable
@@ -40,9 +45,6 @@ public sealed class EditPartRequestValidator : AbstractValidator<EditPartRequest
     {
         RuleFor(x => x.Name).NotEmpty();
         RuleFor(x => x.UnitsPerPrint).GreaterThanOrEqualTo(1);
-        RuleForEach(x => x.FilamentRequirements)
-            .Must(r => r.NarrowFilamentVariantId is null || r.NarrowFilamentProfileId is null)
-            .WithMessage("At most one of narrowFilamentVariantId/narrowFilamentProfileId may be set.");
     }
 }
 
@@ -65,7 +67,7 @@ public sealed class EditPartEndpoint(EditPartHandler handler, IQueryHandler<GetP
             req.Name,
             req.Tags,
             req.UnitsPerPrint,
-            req.FilamentRequirements.Select(r => new PartFilamentRequirementNarrowingInput(r.RequirementId, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId)).ToList());
+            req.FilamentRequirements.Select(r => new PartFilamentRequirementNarrowingInput(r.RequirementId, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, r.NarrowFilamentId, r.AnyColor)).ToList());
         await handler.HandleAsync(command, ct);
 
         var detail = await getPart.HandleAsync(new GetPartQuery(req.Id), ct);

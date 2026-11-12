@@ -2,8 +2,10 @@ namespace OpenFarm.Application.Production;
 
 public sealed record MatchingCheck(string Code, string Label, string Status, string? Required, string? Actual,
     string? Message = null, string? ConfigurationUrl = null);
+/// <param name="SelectedFilamentId">Set when any colour of one catalog filament is accepted; <paramref name="SelectedFilamentName"/> names it.</param>
 public sealed record MatchingFilamentRequirement(string? MaterialType, string? DetectedColorHex,
-    Guid? SelectedVariantId, string? SelectedVariantName, string? SelectedColorHex, Guid? ProfileConstraintId);
+    Guid? SelectedVariantId, string? SelectedVariantName, string? SelectedColorHex, Guid? ProfileConstraintId,
+    Guid? SelectedFilamentId = null, string? SelectedFilamentName = null, bool AnyColor = false);
 public sealed record PrinterMatchingDiagnostics(Guid PrinterId, string PrinterName, bool Eligible,
     IReadOnlyList<MatchingCheck> Checks, string? SchedulingNote);
 public sealed record JobMatchingDiagnostics(Guid JobId, DateTimeOffset EvaluatedAtUtc, string RequirementSource,

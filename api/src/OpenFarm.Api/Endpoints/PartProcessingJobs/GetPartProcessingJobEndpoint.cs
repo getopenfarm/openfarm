@@ -9,6 +9,10 @@ public sealed class PreviewFilamentRequirementResponse
 {
     public Guid? NarrowFilamentVariantId { get; set; }
     public Guid? NarrowFilamentProfileId { get; set; }
+    /// <summary>Any colour of this catalog filament.</summary>
+    public Guid? NarrowFilamentId { get; set; }
+    /// <summary>Any colour of the material, any brand.</summary>
+    public bool AnyColor { get; set; }
     public int RequirementIndex { get; set; }
     public string? MaterialType { get; set; }
     public string? DetectedColorHex { get; set; }
@@ -128,6 +132,8 @@ public sealed class PartProcessingJobResponse
         RequirementIndex = r.RequirementIndex,
         NarrowFilamentVariantId = r.NarrowFilamentVariantId,
         NarrowFilamentProfileId = r.NarrowFilamentProfileId,
+        NarrowFilamentId = r.NarrowFilamentId,
+        AnyColor = r.AnyColor,
         MaterialType = r.MaterialType,
         DetectedColorHex = r.DetectedColorHex,
         DetectedSubBrand = r.DetectedSubBrand,

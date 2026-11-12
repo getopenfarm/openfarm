@@ -67,6 +67,8 @@ public sealed class FarmHubPartEventPublisher(IFarmEventClients clients, IPartFi
         detectedSubBrand = r.DetectedSubBrand,
         narrowFilamentVariantId = r.NarrowFilamentVariantId,
         narrowFilamentProfileId = r.NarrowFilamentProfileId,
+        narrowFilamentId = r.NarrowFilamentId,
+        anyColor = r.AnyColor,
         estimatedGrams = r.EstimatedGrams,
     };
 

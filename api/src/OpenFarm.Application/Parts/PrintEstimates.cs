@@ -4,7 +4,10 @@ namespace OpenFarm.Application.Parts;
 
 /// <summary>Known subtotal plus the number of source contributions that are unknown. Zero is a known value.</summary>
 public sealed record EstimateMetric(decimal? Value, int Missing);
-public sealed record EstimateColor(string? MaterialType, string? ColorHex, Guid? VariantId, decimal? Grams, int Missing = 0);
+/// <param name="FilamentId">Any colour of this catalog filament, when that is the line's choice instead of <paramref name="VariantId"/>.</param>
+/// <param name="AnyColor">Any colour of the material, any brand: the file's colour is not the line's.</param>
+public sealed record EstimateColor(string? MaterialType, string? ColorHex, Guid? VariantId, decimal? Grams, int Missing = 0, Guid? FilamentId = null,
+    bool AnyColor = false);
 public sealed record PrintEstimate(EstimateMetric Time, EstimateMetric Filament, bool Approximate, IReadOnlyList<EstimateColor> Colors);
 
 /// <summary>Canonical planning estimates; proportional partial plates are approximate, never actual usage.</summary>
@@ -12,7 +15,8 @@ public static class PrintEstimates
 {
     public static PrintEstimate ForPart(Part? part, decimal units) => Calculate(units, part?.UnitsPerPrint ?? 1,
         part?.EstimatedPrintTimeMinutes, part?.EstimatedFilamentWeightGrams,
-        part?.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams)).ToArray() ?? []);
+        part?.FilamentRequirements.Select(r => new EstimateColor(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.EstimatedGrams, FilamentId: r.NarrowFilamentId,
+            AnyColor: r.AnyColor)).ToArray() ?? []);
 
     public static PrintEstimate Calculate(decimal units, int unitsPerPlate, decimal? minutesPerPlate, decimal? fallbackGrams, IReadOnlyList<EstimateColor> colors)
     {
@@ -38,7 +42,10 @@ public static class PrintEstimates
     {
         var rows = estimates.ToArray();
         var colors = rows.SelectMany(e => e.Colors)
-            .GroupBy(c => c.VariantId is { } id ? $"variant:{id}" : $"{c.MaterialType}|{c.ColorHex?.ToUpperInvariant()}")
+            // A colour-free choice (any colour of a filament, or any colour) has no colour of its own: one row, whatever the files' colours.
+            .Select(c => c.VariantId is null && (c.FilamentId is not null || c.AnyColor) ? c with { ColorHex = null } : c)
+            .GroupBy(c => c.VariantId is { } id ? $"variant:{id}" : c.FilamentId is { } filament ? $"filament:{filament}"
+                : $"{c.MaterialType}|{c.ColorHex?.ToUpperInvariant()}|{c.AnyColor}")
             .Select(group => group.First() with { Grams = Metric(group.Select(c => c.Grams)).Value, Missing = group.Sum(c => c.Missing) }).ToArray();
         return new(SumMetric(rows.Select(e => e.Time)), SumMetric(rows.Select(e => e.Filament)), rows.Any(e => e.Approximate), colors);
     }

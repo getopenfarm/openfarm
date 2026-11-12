@@ -95,7 +95,7 @@ public class SnapmakerMdnsDiscoveryServiceTests
         var query = await ReceiveAsync(responder);
         query.Buffer.Should().Equal(ExpectedQuery);
         await responder.SendAsync(U1Reply(), query.RemoteEndPoint);
-        service.GetRecent(); // a stalled CI runner must not let the idle window lapse before the re-query is sent
+        service.GetRecent(); // an unanswered read: re-queried even if a stalled runner wakes the service after the idle window
         (await ReceiveAsync(responder)).Buffer.Should().Equal(ExpectedQuery, "a browse re-queries");
 
         await Task.Delay(2500);
@@ -107,6 +107,21 @@ public class SnapmakerMdnsDiscoveryServiceTests
         await Task.Delay(1000);
         responder.Available.Should().Be(0, "queries stop once nobody reads the list");
         service.GetRecent().Should().ContainSingle().Which.SerialNumber.Should().Be("SNU1TEST0001");
+    }
+
+    [Fact]
+    public async Task ARead_IsAnsweredByOneQuery_EvenWhenTheServiceWakesAfterTheIdleWindow()
+    {
+        // An idle window shorter than any wake-up: what a busy CI runner does to the real 1 s one.
+        using var responder = Bind();
+        var options = Loopback(responder) with { FirstRequery = TimeSpan.FromMilliseconds(100), BrowseIdle = TimeSpan.FromTicks(1) };
+        using var service = await StartAsync(options);
+
+        service.GetRecent();
+        (await ReceiveAsync(responder)).Buffer.Should().Equal(ExpectedQuery);
+
+        await Task.Delay(500);
+        responder.Available.Should().Be(0, "the read was answered and nobody read again");
     }
 
     [Fact]

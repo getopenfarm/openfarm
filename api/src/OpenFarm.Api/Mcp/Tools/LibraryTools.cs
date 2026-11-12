@@ -222,12 +222,14 @@ public static class LibraryTools
                         FilamentRequirements = [.. part.FilamentRequirements.Select(r => new EditPartFilamentRequirementRequest
                         {
                             RequirementId = r.Id, NarrowFilamentVariantId = r.NarrowFilamentVariantId, NarrowFilamentProfileId = r.NarrowFilamentProfileId,
+                            NarrowFilamentId = r.NarrowFilamentId,
+                            AnyColor = r.AnyColor,
                         })],
                     };
                     await request.WriteAsync(dto, async () =>
                     {
                         await handler.HandleAsync(new EditPartCommand(dto.Id, dto.Name, dto.Tags, dto.UnitsPerPrint,
-                            dto.FilamentRequirements.Select(r => new PartFilamentRequirementNarrowingInput(r.RequirementId, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId)).ToList()), ct);
+                            dto.FilamentRequirements.Select(r => new PartFilamentRequirementNarrowingInput(r.RequirementId, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, r.NarrowFilamentId, r.AnyColor)).ToList()), ct);
                         return PartResponse.FromDetail(await PartAsync(request, dto.Id, ct));
                     }, ct);
                     saved.Add(new McpLibraryItem("part", dto.Id, dto.Name, "", dto.Tags));

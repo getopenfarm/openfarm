@@ -1,6 +1,7 @@
 namespace OpenFarm.Application.Parts;
 
-public sealed record FilamentRequirementOverride(int RequirementIndex, Guid? NarrowFilamentVariantId, Guid? NarrowFilamentProfileId);
+public sealed record FilamentRequirementOverride(int RequirementIndex, Guid? NarrowFilamentVariantId, Guid? NarrowFilamentProfileId,
+    Guid? NarrowFilamentId = null, bool AnyColor = false);
 
 /// <summary>Another part sharing the replaced part's file, and the plate of the new file it prints.</summary>
 public sealed record RelatedPartPlate(Guid PartId, int PlateNumber);

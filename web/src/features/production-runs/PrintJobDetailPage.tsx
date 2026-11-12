@@ -53,6 +53,8 @@ const schema = z.object({
         materialType: z.string(),
         color: z.string(),
         variantId: z.string().nullable().optional(),
+        filamentId: z.string().nullable().optional(),
+        anyColor: z.boolean().optional(),
         profileId: z.string().nullable().optional(),
       }),
     )
@@ -91,6 +93,8 @@ function JobFilamentForm({
         materialType: c.materialType ?? '',
         color: c.detectedColorHex ?? '',
         variantId: c.narrowFilamentVariantId ?? null,
+        filamentId: c.narrowFilamentId ?? null,
+        anyColor: c.anyColor ?? false,
         profileId: c.narrowFilamentProfileId ?? null,
       })),
     },
@@ -142,6 +146,8 @@ function JobFilamentForm({
                 materialType: line.materialType || null,
                 detectedColorHex: line.color || null,
                 narrowFilamentVariantId: line.variantId ?? null,
+                narrowFilamentId: line.filamentId ?? null,
+                anyColor: line.anyColor ?? false,
                 narrowFilamentProfileId: line.profileId ?? null,
               })),
             },
@@ -156,14 +162,22 @@ function JobFilamentForm({
               detectedColorHex: line.color || null,
               detectedSubBrand: null,
               narrowFilamentVariantId: line.variantId,
+              narrowFilamentId: line.filamentId,
+              anyColor: line.anyColor,
               narrowFilamentProfileId: line.profileId,
             }))}
-            onNarrow={(key, variantId) => {
+            onNarrow={(key, choice) => {
               const index = fields.fields.findIndex(
                 (field) => field.id === key,
               );
               if (index < 0) return;
-              form.setValue(`lines.${index}.variantId`, variantId, {
+              form.setValue(`lines.${index}.variantId`, choice.variantId, {
+                shouldDirty: true,
+              });
+              form.setValue(`lines.${index}.filamentId`, choice.filamentId, {
+                shouldDirty: true,
+              });
+              form.setValue(`lines.${index}.anyColor`, choice.anyColor, {
                 shouldDirty: true,
               });
               form.setValue(`lines.${index}.profileId`, null, {
@@ -179,6 +193,12 @@ function JobFilamentForm({
                 shouldDirty: true,
               });
               form.setValue(`lines.${index}.variantId`, null, {
+                shouldDirty: true,
+              });
+              form.setValue(`lines.${index}.filamentId`, null, {
+                shouldDirty: true,
+              });
+              form.setValue(`lines.${index}.anyColor`, false, {
                 shouldDirty: true,
               });
             }}

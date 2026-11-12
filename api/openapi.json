@@ -11492,6 +11492,14 @@
           "missing": {
             "type": "integer",
             "format": "int32"
+          },
+          "filamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
           }
         }
       },
@@ -12267,6 +12275,14 @@
             "format": "guid",
             "nullable": true
           },
+          "narrowFilamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
+          },
           "spoolId": {
             "type": "string",
             "format": "guid",
@@ -12432,6 +12448,18 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "selectedFilamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "selectedFilamentName": {
+            "type": "string",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
           }
         }
       },
@@ -12990,6 +13018,14 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "narrowFilamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
           }
         }
       },
@@ -13964,6 +14000,17 @@
           "narrowFilamentProfileUnresolved": {
             "type": "boolean"
           },
+          "narrowFilamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
+          },
+          "narrowFilamentUnresolved": {
+            "type": "boolean"
+          },
           "estimatedGrams": {
             "type": "number",
             "format": "decimal",
@@ -14026,6 +14073,14 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "narrowFilamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
           }
         }
       },
@@ -14184,6 +14239,14 @@
             "format": "guid",
             "nullable": true
           },
+          "narrowFilamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
+          },
           "materialType": {
             "type": "string",
             "nullable": true
@@ -14296,6 +14359,14 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "narrowFilamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
           }
         }
       },
@@ -14445,6 +14516,14 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "narrowFilamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
           },
           "requirementIndex": {
             "type": "integer",

@@ -355,9 +355,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var freshCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken, printer.Id);
         if (!freshCandidates.Any(c => c.PartRequirementId == requirement.Id && c.CurrentOccupancy < c.BackfillPrinterCap)) return;
         var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(cancellationToken) ?? 0) + 1024;
-        var filamentSpecs = part.FilamentRequirements
-            .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex, r.NarrowFilamentVariantId, r.NarrowFilamentProfileId))
-            .ToList();
+        var filamentSpecs = ProductionJobRequirements.FromPart(part);
 
         var newJob = PrintJob.Create(
             part.Name, requirement.Id, nextQueuePosition, part.UnitsPerPrint,

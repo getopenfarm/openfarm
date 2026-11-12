@@ -70,6 +70,8 @@ public sealed class PrintFilamentConfiguration : IEntityTypeConfiguration<PrintF
         builder.Property(f => f.SpoolId);
         builder.Property(f => f.NarrowFilamentVariantId);
         builder.Property(f => f.NarrowFilamentProfileId);
+        builder.Property(f => f.NarrowFilamentId);
+        builder.Property(f => f.AnyColor);
         builder.Ignore(f => f.Requirement);
         builder.Property(f => f.SkippedReason).HasConversion<string>();
         builder.Property(f => f.GramsConsumed).HasColumnType("numeric");

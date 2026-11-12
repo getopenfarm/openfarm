@@ -1,15 +1,10 @@
-import { ArrowRightIcon } from 'lucide-react';
+import { ArrowRightIcon, ChevronsUpDownIcon } from 'lucide-react';
+import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state/EmptyState';
+import { Swatch } from '@/components/swatch/Swatch';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import type {
   FilamentResponse,
@@ -17,6 +12,15 @@ import type {
 } from '@/lib/api/generated/endpoints.schemas';
 import { useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint } from '@/lib/api/generated/filaments/filaments';
 import { formatGrams } from '@/lib/formatUnits';
+import {
+  catalogLabel,
+  type FilamentChoice,
+  FilamentChoiceDialog,
+  genericLabel,
+  hex,
+} from './FilamentChoiceDialog';
+
+export type { FilamentChoice } from './FilamentChoiceDialog';
 
 export interface DisplayFilamentRequirement {
   /** Stable key — `id` for a saved Part's requirement, `requirementIndex` for a still-in-review
@@ -27,6 +31,11 @@ export interface DisplayFilamentRequirement {
   detectedSubBrand: string | null | undefined;
   narrowFilamentVariantId?: string | null;
   narrowFilamentVariantUnresolved?: boolean;
+  /** Any color of this catalog filament. */
+  narrowFilamentId?: string | null;
+  narrowFilamentUnresolved?: boolean;
+  /** Any color of the material, any brand. */
+  anyColor?: boolean;
   /** Only meaningful together with onNarrowToProfile (PartDetailPage, US4). */
   narrowFilamentProfileId?: string | null;
   narrowFilamentProfileUnresolved?: boolean;
@@ -36,8 +45,8 @@ export interface DisplayFilamentRequirement {
 
 interface PartFilamentRequirementsListProps {
   requirements: DisplayFilamentRequirement[];
-  /** Shared catalog color-variant selector for preview, saved parts and queued jobs. */
-  onNarrow?: (key: string | number, filamentVariantId: string | null) => void;
+  /** Shared catalog filament choice for preview, saved parts and queued jobs. */
+  onNarrow?: (key: string | number, choice: FilamentChoice) => void;
   /** Allows changing or clearing an existing legacy direct profile constraint. */
   onNarrowToProfile?: (
     requirementId: string,
@@ -46,8 +55,6 @@ interface PartFilamentRequirementsListProps {
   /** `grid` lays requirements out two-up on wide screens. */
   layout?: 'list' | 'grid';
 }
-
-const NO_NARROW_VALUE = '__any__';
 
 function requirementLabel(requirement: DisplayFilamentRequirement): string {
   if (!requirement.materialType) {
@@ -84,9 +91,39 @@ export function PartFilamentRequirementsList({
   const variants = filaments.flatMap((f) =>
     (f.variants ?? []).map((v) => ({
       ...v,
-      name: `${f.vendorName} ${f.material} · ${v.colorName}`,
+      name: catalogLabel(f, v.colorName),
     })),
   );
+
+  /** What the requirement prints with, as the trigger and the read-only view show it. */
+  function chosen(requirement: DisplayFilamentRequirement) {
+    if (requirement.narrowFilamentVariantId) {
+      const variant = variants.find(
+        (v) => v.id === requirement.narrowFilamentVariantId,
+      );
+      return variant
+        ? { label: variant.name, colorHex: hex(variant.colorHex) }
+        : { label: 'Filament unavailable' };
+    }
+    if (requirement.narrowFilamentId) {
+      const filament = filaments.find(
+        (f) => f.id === requirement.narrowFilamentId,
+      );
+      return filament
+        ? { label: catalogLabel(filament), auto: true }
+        : { label: 'Filament unavailable' };
+    }
+    const anyColor = requirement.anyColor || !requirement.detectedColorHex;
+    return {
+      label: genericLabel(
+        requirement.materialType,
+        requirement.detectedColorHex,
+        requirement.anyColor,
+      ),
+      colorHex: anyColor ? undefined : hex(requirement.detectedColorHex),
+      auto: anyColor,
+    };
+  }
 
   return (
     <ul
@@ -103,10 +140,12 @@ export function PartFilamentRequirementsList({
               className="size-4 shrink-0 rounded-full border"
               style={{
                 backgroundColor:
-                  variants.find(
-                    (v) => v.id === requirement.narrowFilamentVariantId,
-                  )?.colorHex ??
-                  requirement.detectedColorHex ??
+                  hex(
+                    variants.find(
+                      (v) => v.id === requirement.narrowFilamentVariantId,
+                    )?.colorHex,
+                  ) ??
+                  hex(requirement.detectedColorHex) ??
                   undefined,
               }}
               aria-hidden
@@ -117,67 +156,31 @@ export function PartFilamentRequirementsList({
                 {formatGrams(requirement.estimatedGrams)}
               </span>
             )}
-            {(onNarrow || requirement.narrowFilamentVariantId) && (
+            {(onNarrow ||
+              requirement.narrowFilamentVariantId ||
+              requirement.narrowFilamentId ||
+              requirement.anyColor) && (
               <ArrowRightIcon
                 className="size-4 shrink-0 text-muted-foreground"
                 aria-hidden
               />
             )}
             {onNarrow ? (
-              <Select
-                value={requirement.narrowFilamentVariantId ?? NO_NARROW_VALUE}
-                onValueChange={(value) =>
-                  onNarrow(
-                    requirement.key,
-                    value === NO_NARROW_VALUE ? null : value,
-                  )
-                }
+              <FilamentChoiceButton
+                requirement={requirement}
+                requirementLabel={requirementLabel(requirement)}
+                current={chosen(requirement)}
+                filaments={filaments}
                 disabled={filamentsQuery.isLoading || filamentsQuery.isError}
-              >
-                <SelectTrigger
-                  className="w-full sm:w-auto sm:min-w-64 sm:flex-1"
-                  aria-label={`Production filament for ${requirementLabel(requirement)}`}
-                >
-                  <SelectValue placeholder="Choose catalog filament" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value={NO_NARROW_VALUE}>
-                      Use file material and color
-                    </SelectItem>
-                    {requirement.narrowFilamentVariantId &&
-                      !variants.some(
-                        (v) => v.id === requirement.narrowFilamentVariantId,
-                      ) && (
-                        <SelectItem value={requirement.narrowFilamentVariantId}>
-                          Filament unavailable
-                        </SelectItem>
-                      )}
-                    {filaments
-                      .filter(
-                        (f) =>
-                          !requirement.materialType ||
-                          f.materialType === requirement.materialType,
-                      )
-                      .flatMap((filament) =>
-                        (filament.variants ?? []).map((variant) => (
-                          <SelectItem key={variant.id} value={variant.id ?? ''}>
-                            {filament.vendorName} {filament.material} ·{' '}
-                            {variant.colorName}
-                          </SelectItem>
-                        )),
-                      )}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            ) : requirement.narrowFilamentVariantId ? (
-              <span className="text-sm">
-                {variants.find(
-                  (v) => v.id === requirement.narrowFilamentVariantId,
-                )?.name ?? 'Filament unavailable'}
-              </span>
+                onChange={(choice) => onNarrow(requirement.key, choice)}
+              />
+            ) : requirement.narrowFilamentVariantId ||
+              requirement.narrowFilamentId ||
+              requirement.anyColor ? (
+              <span className="text-sm">{chosen(requirement).label}</span>
             ) : null}
-            {requirement.narrowFilamentVariantUnresolved && (
+            {(requirement.narrowFilamentVariantUnresolved ||
+              requirement.narrowFilamentUnresolved) && (
               <Badge variant="destructive">Narrowed filament removed</Badge>
             )}
             {requirement.narrowFilamentProfileUnresolved && (
@@ -225,5 +228,55 @@ export function PartFilamentRequirementsList({
         </li>
       ))}
     </ul>
+  );
+}
+
+function FilamentChoiceButton({
+  requirement,
+  requirementLabel,
+  current,
+  filaments,
+  disabled,
+  onChange,
+}: {
+  requirement: DisplayFilamentRequirement;
+  requirementLabel: string;
+  current: { label: string; colorHex?: string; auto?: boolean };
+  filaments: FilamentResponse[];
+  disabled: boolean;
+  onChange: (choice: FilamentChoice) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          className="w-full justify-start sm:w-auto sm:min-w-64 sm:flex-1"
+          aria-label={`Production filament for ${requirementLabel}: ${current.label}`}
+        >
+          <Swatch colorHex={current.colorHex} auto={current.auto} />
+          <span className="flex-1 truncate text-left">{current.label}</span>
+          <ChevronsUpDownIcon className="text-muted-foreground" aria-hidden />
+        </Button>
+      </DialogTrigger>
+      {/* Mounted only while open, so each open starts from the saved choice. */}
+      {open && (
+        <FilamentChoiceDialog
+          requirementLabel={requirementLabel}
+          materialType={requirement.materialType}
+          detectedColorHex={requirement.detectedColorHex}
+          filaments={filaments}
+          value={{
+            variantId: requirement.narrowFilamentVariantId ?? null,
+            filamentId: requirement.narrowFilamentId ?? null,
+            anyColor: requirement.anyColor ?? false,
+          }}
+          onValueChange={onChange}
+        />
+      )}
+    </Dialog>
   );
 }

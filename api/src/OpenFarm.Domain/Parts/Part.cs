@@ -408,13 +408,29 @@ public sealed class Part
         }
     }
 
+    /// <summary>
+    /// The requirement a new file's <paramref name="next"/> continues, to carry its filament choice over: the same material
+    /// and colour; else, when the file swapped one colour of that material for another, the one it replaced — only if its
+    /// choice ignores the colour (any colour of a filament, or any color). <paramref name="file"/> is every requirement of the new file.
+    /// </summary>
+    public PartFilamentRequirement? PreviousRequirementFor(PreviewFilamentRequirement next, IReadOnlyList<PreviewFilamentRequirement> file)
+    {
+        static bool Same(PartFilamentRequirement p, PreviewFilamentRequirement r) => p.MaterialType == r.MaterialType
+            && p.DetectedColorHex == r.DetectedColorHex && (p.DetectedSubBrand == r.DetectedSubBrand || p.DetectedSubBrand is null);
+        if (_filamentRequirements.FirstOrDefault(p => Same(p, next)) is { } same) return same;
+        var gone = _filamentRequirements.Where(p => p.MaterialType == next.MaterialType && !file.Any(r => Same(p, r))).ToList();
+        var came = file.Count(r => r.MaterialType == next.MaterialType && !_filamentRequirements.Any(p => Same(p, r)));
+        return gone is [var replaced] && came == 1 && (replaced.NarrowFilamentId is not null || replaced.AnyColor) ? replaced : null;
+    }
+
     /// <summary>FR-012 (US4) — standalone narrow/change/clear of one filament requirement's choice, reachable at any time after confirm.</summary>
-    public PartFilamentRequirement NarrowFilamentRequirement(Guid requirementId, Guid? narrowFilamentVariantId, Guid? narrowFilamentProfileId)
+    public PartFilamentRequirement NarrowFilamentRequirement(Guid requirementId, Guid? narrowFilamentVariantId, Guid? narrowFilamentProfileId,
+        Guid? narrowFilamentId = null, bool anyColor = false)
     {
         var requirement = _filamentRequirements.FirstOrDefault(r => r.Id == requirementId)
             ?? throw new PartFilamentRequirementNotFoundException(Id, requirementId);
 
-        requirement.Narrow(narrowFilamentVariantId, narrowFilamentProfileId);
+        requirement.Narrow(narrowFilamentVariantId, narrowFilamentProfileId, narrowFilamentId, anyColor);
         UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         return requirement;

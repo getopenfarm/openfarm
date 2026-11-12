@@ -22,6 +22,7 @@ import {
   useOpenFarmApiEndpointsPartsReprocessPartEndpoint,
 } from '@/lib/api/generated/parts/parts';
 import { useOpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint } from '@/lib/api/generated/settings/settings';
+import type { FilamentChoice } from './FilamentChoiceDialog';
 
 export const ACCEPTED_EXTENSIONS = '.stl,.3mf,.gcode,.gco,.g';
 
@@ -119,7 +120,9 @@ export function usePartFileProcessing({
 }: UsePartFileProcessingOptions) {
   const [file, setFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [overrides, setOverrides] = useState<Record<number, string | null>>({});
+  const [overrides, setOverrides] = useState<Record<number, FilamentChoice>>(
+    {},
+  );
   const [chosenPlates, setPlateNumbers] = useState<number[] | null>(null);
   const [chosenRelated, setChosenRelated] = useState<Record<
     string,
@@ -326,22 +329,21 @@ export function usePartFileProcessing({
     }
   }
 
-  function handleNarrow(
-    requirementIndex: number,
-    filamentVariantId: string | null,
-  ) {
+  function handleNarrow(requirementIndex: number, choice: FilamentChoice) {
     setOverrides((prev) => ({
       ...prev,
-      [requirementIndex]: filamentVariantId,
+      [requirementIndex]: choice,
     }));
   }
 
   function buildOverridesPayload() {
     const entries = Object.entries(overrides);
     return entries.length > 0
-      ? entries.map(([requirementIndex, narrowFilamentVariantId]) => ({
+      ? entries.map(([requirementIndex, choice]) => ({
           requirementIndex: Number(requirementIndex),
-          narrowFilamentVariantId: narrowFilamentVariantId ?? undefined,
+          narrowFilamentVariantId: choice.variantId ?? undefined,
+          narrowFilamentId: choice.filamentId ?? undefined,
+          anyColor: choice.anyColor || undefined,
         }))
       : undefined;
   }

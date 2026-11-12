@@ -32,7 +32,9 @@ public sealed class PrintFilament : IFilamentUsageLine
 
     public Guid? NarrowFilamentVariantId { get; private set; }
     public Guid? NarrowFilamentProfileId { get; private set; }
-    public JobFilamentRequirementSpec Requirement => new(MaterialType, DetectedColorHex, NarrowFilamentVariantId, NarrowFilamentProfileId);
+    public Guid? NarrowFilamentId { get; private set; }
+    public bool AnyColor { get; private set; }
+    public JobFilamentRequirementSpec Requirement => new(MaterialType, DetectedColorHex, NarrowFilamentVariantId, NarrowFilamentProfileId, NarrowFilamentId, AnyColor);
 
     public Guid? SpoolId { get; private set; }
 
@@ -63,7 +65,9 @@ public sealed class PrintFilament : IFilamentUsageLine
         new(Guid.NewGuid(), printId, toolIndex, requirement.MaterialType, requirement.DetectedColorHex)
         {
             NarrowFilamentVariantId = requirement.NarrowFilamentVariantId,
-            NarrowFilamentProfileId = requirement.NarrowFilamentProfileId
+            NarrowFilamentProfileId = requirement.NarrowFilamentProfileId,
+            NarrowFilamentId = requirement.NarrowFilamentId,
+            AnyColor = requirement.AnyColor
         };
 
     internal static PrintFilament Create(Guid printId, ExternalFilamentSpec spec) =>

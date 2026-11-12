@@ -6,7 +6,8 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Parts;
 
-public sealed record PartFilamentRequirementNarrowingInput(Guid RequirementId, Guid? NarrowFilamentVariantId, Guid? NarrowFilamentProfileId);
+public sealed record PartFilamentRequirementNarrowingInput(Guid RequirementId, Guid? NarrowFilamentVariantId, Guid? NarrowFilamentProfileId,
+    Guid? NarrowFilamentId = null, bool AnyColor = false);
 
 public sealed record EditPartCommand(
     Guid PartId,
@@ -45,7 +46,9 @@ public sealed class EditPartCommandHandler(
             var requirement = part.FilamentRequirements.FirstOrDefault(r => r.Id == input.RequirementId)
                 ?? throw new PartFilamentRequirementNotFoundException(part.Id, input.RequirementId);
             if (requirement.NarrowFilamentVariantId == input.NarrowFilamentVariantId
-                && requirement.NarrowFilamentProfileId == input.NarrowFilamentProfileId)
+                && requirement.NarrowFilamentProfileId == input.NarrowFilamentProfileId
+                && requirement.NarrowFilamentId == input.NarrowFilamentId
+                && requirement.AnyColor == input.AnyColor)
             {
                 continue;
             }
@@ -56,7 +59,8 @@ public sealed class EditPartCommandHandler(
                 throw new InvalidProfileReferenceException("filament", profileId);
             }
 
-            await filamentValidator.ValidateAsync(requirement.MaterialType, input.NarrowFilamentVariantId, cancellationToken);
+            await filamentValidator.ValidateAsync(requirement.MaterialType, input.NarrowFilamentVariantId, cancellationToken, input.NarrowFilamentId,
+                input.NarrowFilamentProfileId, input.AnyColor);
             changedNarrowing.Add(input);
         }
 
@@ -83,7 +87,8 @@ public sealed class EditPartCommandHandler(
 
         foreach (var input in changedNarrowing)
         {
-            part.NarrowFilamentRequirement(input.RequirementId, input.NarrowFilamentVariantId, input.NarrowFilamentProfileId);
+            part.NarrowFilamentRequirement(input.RequirementId, input.NarrowFilamentVariantId, input.NarrowFilamentProfileId, input.NarrowFilamentId,
+                input.AnyColor);
         }
 
         await partRepository.SaveChangesAsync(cancellationToken);

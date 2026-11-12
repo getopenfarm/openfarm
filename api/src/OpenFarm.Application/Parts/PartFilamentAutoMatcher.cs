@@ -19,7 +19,7 @@ public static class PartFilamentAutoMatcher
     {
         return requirements.Select(requirement =>
         {
-            if (requirement.NarrowFilamentVariantId is not null || requirement.NarrowFilamentProfileId is not null
+            if (requirement.NarrowFilamentVariantId is not null || requirement.NarrowFilamentProfileId is not null || requirement.NarrowFilamentId is not null || requirement.AnyColor
                 || requirement.MaterialType is null) return requirement;
 
             var trays = catalog

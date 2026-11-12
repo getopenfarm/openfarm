@@ -46,7 +46,7 @@ const hex = (value: string) => `#${value.replace(/^#/, '')}`;
  * Every typed word must appear somewhere in the option, in any order ("matte bambu"). cmdk's own scoring also accepts
  * scattered letters, so "matte" would list colors that merely contain an m, an a, two t's and an e.
  */
-function matchesEveryWord(value: string, search: string) {
+export function matchesEveryWord(value: string, search: string) {
   const haystack = value.toLowerCase();
   return search
     .toLowerCase()

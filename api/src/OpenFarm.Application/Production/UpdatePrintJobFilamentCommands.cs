@@ -16,7 +16,8 @@ public sealed class SetPrintJobFilamentRequirementsCommandHandler(IPrintJobRepos
         var job = await repository.GetByIdAsync(command.JobId, cancellationToken) ?? throw new PrintJobNotFoundException(command.JobId);
         if (filamentValidator is not null)
             foreach (var selection in command.Requirements)
-                await filamentValidator.ValidateAsync(selection.MaterialType, selection.NarrowFilamentVariantId, cancellationToken);
+                await filamentValidator.ValidateAsync(selection.MaterialType, selection.NarrowFilamentVariantId, cancellationToken, selection.NarrowFilamentId,
+                    selection.NarrowFilamentProfileId, selection.AnyColor);
         if (profiles is not null)
             foreach (var selection in command.Requirements)
                 if (selection.NarrowFilamentProfileId is { } id && await profiles.GetByIdAsync(id, cancellationToken) is null)

@@ -22,6 +22,9 @@ public sealed class ListPartsRequest
 public sealed class PartColorGramsResponse
 {
     public Guid? NarrowFilamentVariantId { get; set; }
+    public Guid? NarrowFilamentId { get; set; }
+    /// <summary>Any colour of the material, any brand.</summary>
+    public bool AnyColor { get; set; }
 
     public string? MaterialType { get; set; }
     public string? ColorHex { get; set; }
@@ -65,7 +68,7 @@ public sealed class PartSummaryResponse
         Estimation = p.Estimation,
         EstimationPrinterBrand = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.Brand.ToString(),
         EstimationPrinterModelCode = OpenFarm.Domain.Printers.PrinterModelCatalog.TryResolveSlicedModel(p.Estimation?.MachineModel)?.ModelCode,
-        PrintEstimate = PrintEstimates.Calculate(p.UnitsPerPrint, p.UnitsPerPrint, p.EstimatedPrintTimeMinutes, p.EstimatedFilamentWeightGrams, (p.FilamentByColor ?? []).Select(c => new EstimateColor(c.MaterialType, c.ColorHex, c.NarrowFilamentVariantId, c.Grams)).ToArray()),
+        PrintEstimate = PrintEstimates.Calculate(p.UnitsPerPrint, p.UnitsPerPrint, p.EstimatedPrintTimeMinutes, p.EstimatedFilamentWeightGrams, (p.FilamentByColor ?? []).Select(c => new EstimateColor(c.MaterialType, c.ColorHex, c.NarrowFilamentVariantId, c.Grams, FilamentId: c.NarrowFilamentId, AnyColor: c.AnyColor)).ToArray()),
         EstimateStatus = p.EstimateStatus,
         EstimatedPrintTimeMinutes = p.EstimatedPrintTimeMinutes,
         EstimatedFilamentWeightGrams = p.EstimatedFilamentWeightGrams,
@@ -73,7 +76,7 @@ public sealed class PartSummaryResponse
         ThumbnailBase64 = p.ThumbnailBase64,
         MaterialTypes = p.MaterialTypes.ToList(),
         Tags = p.Tags.ToList(),
-        FilamentByColor = (p.FilamentByColor ?? []).Select(c => new PartColorGramsResponse { MaterialType = c.MaterialType, ColorHex = c.ColorHex, Grams = c.Grams, NarrowFilamentVariantId = c.NarrowFilamentVariantId }).ToList(),
+        FilamentByColor = (p.FilamentByColor ?? []).Select(c => new PartColorGramsResponse { MaterialType = c.MaterialType, ColorHex = c.ColorHex, Grams = c.Grams, NarrowFilamentVariantId = c.NarrowFilamentVariantId, NarrowFilamentId = c.NarrowFilamentId, AnyColor = c.AnyColor }).ToList(),
     };
 }
 

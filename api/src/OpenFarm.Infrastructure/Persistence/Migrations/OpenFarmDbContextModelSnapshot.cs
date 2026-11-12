@@ -1037,6 +1037,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AnyColor")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1051,6 +1054,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("MaterialType")
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("NarrowFilamentId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("NarrowFilamentProfileId")
                         .HasColumnType("uuid");
@@ -1531,6 +1537,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AnyColor")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("DetectedColorHex")
                         .HasColumnType("text");
 
@@ -1542,6 +1551,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("MaterialType")
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("NarrowFilamentId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("NarrowFilamentProfileId")
                         .HasColumnType("uuid");

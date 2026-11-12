@@ -59,6 +59,18 @@ public sealed class RepresentativeFilamentResolverTests
     }
 
     [Fact]
+    public async Task AnyColourOfAFilament_TakesALoadedSpoolOfAnotherColour_ButNotAnotherFilament()
+    {
+        var f = new Fixture(); await f.LoadAsync(); await f.AssignAsync();
+
+        var result = await f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, null, null, default, narrowedFilamentId: f.Filament.Id);
+        result.FilamentVariantId.Should().Be(f.Black.Id);
+
+        await ((Func<Task>)(() => f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, null, null, default, narrowedFilamentId: Guid.NewGuid())))
+            .Should().ThrowAsync<SlicingProfileUnconfiguredException>().WithMessage("*(any color)*");
+    }
+
+    [Fact]
     public async Task SelectedVariantOverridesFileColourButStillRequiresThatExactVariant()
     {
         var f = new Fixture(); await f.LoadAsync(); await f.AssignAsync();
@@ -228,6 +240,18 @@ public sealed class RepresentativeFilamentResolverTests
         var chosen = await f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, f.Black.Id, null, default);
 
         chosen.SpoolId.Should().Be(spools[0].Id);
+    }
+
+    [Fact]
+    public async Task ASpoolAnotherLineTook_IsUsedOnlyWhenNoOtherFits()
+    {
+        var f = new Fixture(); await f.AssignAsync();
+        var (_, spools) = await LoadAmsAsync(f, 1000, 1000);
+
+        (await f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, null, null, default, takenSpoolIds: new HashSet<Guid> { spools[0].Id }))
+            .SpoolId.Should().Be(spools[1].Id);
+        (await f.Resolver.ResolveLoadedAsync(f.Printer.Id, "PLA", null, null, null, default,
+            takenSpoolIds: new HashSet<Guid> { spools[0].Id, spools[1].Id })).SpoolId.Should().Be(spools[0].Id);
     }
 
     private static FilamentProfile SystemPla(string version, string externalId = "GFSA00") => FilamentProfile.CreateSystemProfile(

@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { genericLabel } from '@/features/parts/components/FilamentChoiceDialog';
 import { stripConfigurationLink } from '@/features/slicing/stripConfigurationLink';
 import type {
   MatchingCheck,
@@ -174,12 +175,16 @@ function RequirementChip({
   const color = requirement.selectedColorHex ?? requirement.detectedColorHex;
   const name = requirement.selectedVariantId
     ? (requirement.selectedVariantName ?? 'Variant unavailable')
-    : [requirement.materialType ?? 'Any material', color ?? 'any color'].join(
-        ' · ',
-      );
+    : requirement.selectedFilamentId
+      ? (requirement.selectedFilamentName ?? 'Filament unavailable')
+      : genericLabel(requirement.materialType, color, requirement.anyColor);
   const notes = [
     requirement.selectedVariantId &&
       `Catalog color ${requirement.selectedColorHex ?? 'unavailable'} replaces file color ${requirement.detectedColorHex ?? 'unspecified'}.`,
+    requirement.selectedFilamentId &&
+      `Any color of this filament replaces file color ${requirement.detectedColorHex ?? 'unspecified'}.`,
+    requirement.anyColor &&
+      `Any color replaces file color ${requirement.detectedColorHex ?? 'unspecified'}.`,
     requirement.profileConstraintId && 'Filament profile is also fixed.',
   ].filter(Boolean);
   return (

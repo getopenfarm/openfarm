@@ -22,6 +22,8 @@ public sealed class PartFilamentRequirementConfiguration : IEntityTypeConfigurat
         // degrades this requirement's narrow override gracefully rather than cascading.
         builder.Property(r => r.NarrowFilamentVariantId);
         builder.Property(r => r.NarrowFilamentProfileId);
+        builder.Property(r => r.NarrowFilamentId);
+        builder.Property(r => r.AnyColor);
 
         builder.Property(r => r.EstimatedGrams);
 

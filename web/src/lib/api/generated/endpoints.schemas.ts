@@ -876,6 +876,9 @@ export interface EstimateColor {
   /** @nullable */
   grams?: number | null;
   missing?: number;
+  /** @nullable */
+  filamentId?: string | null;
+  anyColor?: boolean;
 }
 
 export interface PrintEstimate {
@@ -1195,6 +1198,9 @@ export interface JobFilamentConsumptionResponse {
   /** @nullable */
   narrowFilamentProfileId?: string | null;
   /** @nullable */
+  narrowFilamentId?: string | null;
+  anyColor?: boolean;
+  /** @nullable */
   spoolId?: string | null;
   /** @nullable */
   gramsConsumed?: number | null;
@@ -1310,6 +1316,11 @@ export interface MatchingFilamentRequirement {
   selectedColorHex?: string | null;
   /** @nullable */
   profileConstraintId?: string | null;
+  /** @nullable */
+  selectedFilamentId?: string | null;
+  /** @nullable */
+  selectedFilamentName?: string | null;
+  anyColor?: boolean;
 }
 
 export interface MatchingCheck {
@@ -1548,6 +1559,9 @@ export interface JobFilamentRequirementRequest {
   narrowFilamentVariantId?: string | null;
   /** @nullable */
   narrowFilamentProfileId?: string | null;
+  /** @nullable */
+  narrowFilamentId?: string | null;
+  anyColor?: boolean;
 }
 
 export interface SetPrintJobFilamentRequirementsRequest {
@@ -1882,6 +1896,10 @@ export interface PartFilamentRequirementResponse {
   narrowFilamentVariantUnresolved?: boolean;
   narrowFilamentProfileUnresolved?: boolean;
   /** @nullable */
+  narrowFilamentId?: string | null;
+  anyColor?: boolean;
+  narrowFilamentUnresolved?: boolean;
+  /** @nullable */
   estimatedGrams?: number | null;
 }
 
@@ -1935,6 +1953,9 @@ export interface EditPartFilamentRequirementRequest {
   narrowFilamentVariantId?: string | null;
   /** @nullable */
   narrowFilamentProfileId?: string | null;
+  /** @nullable */
+  narrowFilamentId?: string | null;
+  anyColor?: boolean;
 }
 
 export interface EditPartRequest {
@@ -1956,6 +1977,9 @@ export interface EstimatePrintedPartsRequest {
 export interface PartColorGramsResponse {
   /** @nullable */
   narrowFilamentVariantId?: string | null;
+  /** @nullable */
+  narrowFilamentId?: string | null;
+  anyColor?: boolean;
   /** @nullable */
   materialType?: string | null;
   /** @nullable */
@@ -2024,6 +2048,9 @@ export interface FilamentRequirementOverrideRequest {
   narrowFilamentVariantId?: string | null;
   /** @nullable */
   narrowFilamentProfileId?: string | null;
+  /** @nullable */
+  narrowFilamentId?: string | null;
+  anyColor?: boolean;
 }
 
 export interface RelatedPartPlateRequest {
@@ -2055,6 +2082,9 @@ export interface PreviewFilamentRequirementResponse {
   narrowFilamentVariantId?: string | null;
   /** @nullable */
   narrowFilamentProfileId?: string | null;
+  /** @nullable */
+  narrowFilamentId?: string | null;
+  anyColor?: boolean;
   requirementIndex?: number;
   /** @nullable */
   materialType?: string | null;

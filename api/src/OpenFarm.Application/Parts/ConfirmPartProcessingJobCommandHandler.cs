@@ -68,7 +68,8 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
         var relatedValues = related.Select(r => ValuesOf(job, r.Plate, overridesByIndex, r.Part)).ToList();
         if (filamentValidator is not null)
             foreach (var selection in values.Concat(relatedValues).SelectMany(v => v.Requirements))
-                await filamentValidator.ValidateAsync(selection.MaterialType, selection.NarrowFilamentVariantId, cancellationToken);
+                await filamentValidator.ValidateAsync(selection.MaterialType, selection.NarrowFilamentVariantId, cancellationToken, selection.NarrowFilamentId,
+                    selection.NarrowFilamentProfileId, selection.AnyColor);
 
         // The file was already saved under a content-hash-keyed path (research.md R6) by the
         // Add/Replace submit step (AddPartCommandHandler/ReplacePartFileCommandHandler) — the hash
@@ -235,19 +236,27 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
     private static PlateValues ValuesOf(PartProcessingJob job, PreviewPlate? plate,
         Dictionary<int, FilamentRequirementOverride> overrides, Part? existingPart)
     {
-        var requirements = (plate is null ? job.PreviewFilamentRequirements : job.PlateRequirements(plate))
+        var file = plate is null ? job.PreviewFilamentRequirements : job.PlateRequirements(plate);
+        var requirements = file
             .Select(preview =>
             {
                 overrides.TryGetValue(preview.RequirementIndex, out var overrideEntry);
-                var previous = existingPart?.FilamentRequirements.FirstOrDefault(r => r.MaterialType == preview.MaterialType
-                    && r.DetectedColorHex == preview.DetectedColorHex && (r.DetectedSubBrand == preview.DetectedSubBrand || r.DetectedSubBrand is null));
+                var previous = existingPart?.PreviousRequirementFor(preview, file);
+                // One source supplies the whole choice, so the three exclusive ids never mix.
+                var (variant, profile, filament, anyColor) = overrideEntry is not null
+                    ? (overrideEntry.NarrowFilamentVariantId, overrideEntry.NarrowFilamentProfileId, overrideEntry.NarrowFilamentId, overrideEntry.AnyColor)
+                    : preview.AnyColor || (preview.NarrowFilamentVariantId ?? preview.NarrowFilamentProfileId ?? preview.NarrowFilamentId) is not null
+                        ? (preview.NarrowFilamentVariantId, preview.NarrowFilamentProfileId, preview.NarrowFilamentId, preview.AnyColor)
+                        : (previous?.NarrowFilamentVariantId, previous?.NarrowFilamentProfileId, previous?.NarrowFilamentId, previous?.AnyColor ?? false);
                 return new FilamentRequirementSpec(
                     preview.MaterialType,
                     preview.DetectedColorHex,
                     preview.DetectedSubBrand,
-                    overrideEntry is not null ? overrideEntry.NarrowFilamentVariantId : preview.NarrowFilamentVariantId ?? previous?.NarrowFilamentVariantId,
-                    overrideEntry is not null ? overrideEntry.NarrowFilamentProfileId : preview.NarrowFilamentProfileId ?? previous?.NarrowFilamentProfileId,
-                    preview.EstimatedGrams);
+                    variant,
+                    profile,
+                    preview.EstimatedGrams,
+                    filament,
+                    anyColor);
             })
             .ToList();
 

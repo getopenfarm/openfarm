@@ -21,9 +21,16 @@ The farm's default slicer determines which catalog appears in profile selection 
 
 ## Choose production filament on a part
 
-Select **Production filament** for the part's material requirement. OpenFarm then matches the job to a loaded, tracked spool of that catalog color variant. The material and color detected in the file remain visible as source metadata.
+Select **Production filament** for the part's material requirement. The dialog shows the material first, then the catalog filaments of that material. Each choice is named `<scope> · <color>`:
 
-You can choose another color of the same material. OpenFarm rejects a different known material type. A loaded spool of the exact selected variant satisfies the identity check. Review [matching diagnostics](../production/matching.md) for profile constraints or missing assignments.
+| Choice | Example | A loaded spool matches when it is |
+|---|---|---|
+| File color (default) | Any PETG · #000000 | any brand of PETG in the file's color |
+| Any color of the material | Any PETG · Any color | any brand and any color of PETG |
+| Any color of one filament | Aliz PETG Basic · Any color | any color of that filament |
+| One color | Aliz PETG Basic · Black | that color of that filament |
+
+Use an **Any color** choice for parts you print in several colors. The material and color detected in the file remain visible as source metadata. OpenFarm rejects a different known material type. Filament shortage warnings do not count jobs set to an **Any color** choice. Review [matching diagnostics](../production/matching.md) for profile constraints or missing assignments.
 
 ## Review stock and use
 

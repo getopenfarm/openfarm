@@ -172,6 +172,8 @@ public sealed partial class SnapmakerMdnsDiscoveryService : BackgroundService, I
                 await _reads.Reader.ReadAsync(stoppingToken);
                 for (var wait = _options.FirstRequery; Browsing(); wait = wait * 2 < _options.MaxRequery ? wait * 2 : _options.MaxRequery)
                 {
+                    // Stamped before sending, so a read that lands during the send still counts as unanswered.
+                    Volatile.Write(ref _lastQueryTicks, DateTimeOffset.UtcNow.UtcTicks);
                     try
                     {
                         await udp.SendAsync(Query, _options.QueryTo, stoppingToken);
@@ -181,7 +183,6 @@ public sealed partial class SnapmakerMdnsDiscoveryService : BackgroundService, I
                         LogQueryFailed(ex);
                     }
 
-                    Volatile.Write(ref _lastQueryTicks, DateTimeOffset.UtcNow.UtcTicks);
                     await Task.Delay(wait, stoppingToken);
                 }
             }
@@ -191,7 +192,16 @@ public sealed partial class SnapmakerMdnsDiscoveryService : BackgroundService, I
         }
     }
 
-    private bool Browsing() => DateTimeOffset.UtcNow.UtcTicks - Volatile.Read(ref _lastReadTicks) < _options.BrowseIdle.Ticks;
+    /// <summary>
+    /// A read no query has followed yet always gets one, however late this loop wakes (a busy thread pool can hold it past
+    /// <see cref="SnapmakerMdnsOptions.BrowseIdle"/>); after that, re-query only while the list is still being read. A read
+    /// signal left over from a browse that already queried after it starts nothing.
+    /// </summary>
+    private bool Browsing()
+    {
+        var lastRead = Volatile.Read(ref _lastReadTicks);
+        return lastRead > Volatile.Read(ref _lastQueryTicks) || DateTimeOffset.UtcNow.UtcTicks - lastRead < _options.BrowseIdle.Ticks;
+    }
 
     /// <summary>
     /// The Snapmaker printers in one mDNS response, each flagged when it's a goodbye (TTL 0). A printer is a TXT record with

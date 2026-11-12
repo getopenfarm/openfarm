@@ -100,6 +100,10 @@ public sealed class JobFilamentConsumptionResponse
 
     public Guid? NarrowFilamentVariantId { get; set; }
     public Guid? NarrowFilamentProfileId { get; set; }
+    /// <summary>Any colour of this catalog filament.</summary>
+    public Guid? NarrowFilamentId { get; set; }
+    /// <summary>Any colour of the material, any brand.</summary>
+    public bool AnyColor { get; set; }
     public Guid? SpoolId { get; set; }
 
     public decimal? GramsConsumed { get; set; }
@@ -124,6 +128,8 @@ public sealed class JobFilamentConsumptionResponse
         DetectedColorHex = detail.DetectedColorHex,
         NarrowFilamentVariantId = detail.NarrowFilamentVariantId,
         NarrowFilamentProfileId = detail.NarrowFilamentProfileId,
+        NarrowFilamentId = detail.NarrowFilamentId,
+        AnyColor = detail.AnyColor,
         SpoolId = detail.SpoolId,
         GramsConsumed = detail.GramsConsumed,
         EstimatedGrams = detail.EstimatedGrams,

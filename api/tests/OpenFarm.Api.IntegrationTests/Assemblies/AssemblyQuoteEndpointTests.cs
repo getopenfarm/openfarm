@@ -127,7 +127,7 @@ public sealed class AssemblyQuoteEndpointTests(CustomWebApplicationFactory facto
         quote.Colors.Should().HaveCount(3);
         quote.Colors.Single(c => c.ColorHex == "00FF00").Should().Match<QuoteColor>(c => c.CostPriced == 1 && c.CostMissing == 0);
         quote.Colors.Single(c => c.ColorHex == "FF0000").Should().Match<QuoteColor>(c => c.CostPriced == 0 && c.CostMissing == 1);
-        quote.Colors.Single(c => c.ColorHex == "0000FF").Name.Should().Be("PLA 0000FF");
+        quote.Colors.Single(c => c.ColorHex == "0000FF").Name.Should().Be("Any PLA · #0000FF");
         quote.Depreciation.Should().Be(new QuoteMetric(3, 3, 0));
         quote.Electricity.Should().Be(new QuoteMetric(0, 0, 3));
         quote.Total.Should().Be(new QuoteTotal(quote.Total.Amount, true, true));

@@ -21,7 +21,7 @@ See [When profiles apply](profile-behavior.md) for the file decision tree and th
 4. Review the extracted plates, material requirements, nozzle, quantity, and estimates.
 5. For a multi-plate file, select the plates to save.
 6. Complete missing requirements.
-7. Choose **Production filament** for each material line.
+7. Choose **Production filament** for each material line: the file color (default), any color of the material, any color of one filament, or one color.
 8. Confirm the review to save the part records.
 
 For sliced 3MF and G-code, OpenFarm reads estimates stored in the file. For unsliced project 3MF, it can calculate estimates from embedded settings or supported named presets. You can review and save STL and geometry-only 3MF without estimates. Unknown time or filament weight stays unknown. It does not become zero.

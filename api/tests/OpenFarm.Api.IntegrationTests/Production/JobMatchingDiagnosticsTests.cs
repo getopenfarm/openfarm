@@ -112,6 +112,124 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
     }
 
     [Fact]
+    public async Task AnyColourOfAFilament_MatchesALoadedSpoolOfAnotherColour()
+    {
+        var client = await ClientAsync();
+        var source = await PartAsync();
+        var printer = await PrinterAsync();
+        Guid filamentId;
+        Guid processingId;
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            filamentId = await (from spool in db.Spools
+                                join slot in db.FeedSlots on spool.FeedSlotId equals slot.Id
+                                join unit in db.FeedUnits on slot.FeedUnitId equals unit.Id
+                                join variant in db.FilamentVariants on spool.FilamentVariantId equals variant.Id
+                                where unit.PrinterId == printer.Id
+                                select variant.FilamentId).SingleAsync();
+            // The file's colour is one no loaded spool has: only "any colour of the filament" can match.
+            var processing = PartProcessingJob.CreateAdd(source.FileFormat,
+                source.OriginalFileName, source.StoragePath, source.FileSizeBytes, false, null, null, null, null, null);
+            processing.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", "#123456", null)],
+                [], EstimateStatus.Available, 60, 20, []);
+            await scope.ServiceProvider.GetRequiredService<IPartProcessingJobRepository>().AddAsync(processing, default);
+            processingId = processing.Id;
+        }
+
+        // Two valid choices at once: only the at-most-one rule can refuse it.
+        var both = await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{processingId}/confirm", new
+        {
+            name = "Any colour",
+            filamentRequirementOverrides = new[] { new { requirementIndex = 0, narrowFilamentId = filamentId, anyColor = true } },
+        });
+        both.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var confirm = await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{processingId}/confirm", new
+        {
+            name = "Any colour",
+            filamentRequirementOverrides = new[] { new { requirementIndex = 0, narrowFilamentId = filamentId } },
+        });
+        confirm.StatusCode.Should().Be(HttpStatusCode.Created);
+        var saved = (await confirm.Content.ReadFromJsonAsync<PartResponse>())!;
+        var reopened = (await client.GetFromJsonAsync<PartResponse>($"/api/v1/parts/{saved.Id}"))!;
+        reopened.FilamentRequirements.Single().Should().BeEquivalentTo(new { NarrowFilamentId = filamentId, NarrowFilamentVariantId = (Guid?)null, NarrowFilamentUnresolved = false });
+
+        var run = await RunAsync(client, saved.Id, quantity: 1, pinned: printer.Id);
+        var job = (await JobsAsync(run.Id)).Single();
+        job.Filaments.Single().NarrowFilamentId.Should().Be(filamentId);
+        var diagnostics = await client.GetFromJsonAsync<JobMatchingDiagnostics>($"/api/v1/print-jobs/{job.Id}/matching-diagnostics");
+        diagnostics!.Printers.Single(p => p.PrinterId == printer.Id).Eligible.Should().BeTrue();
+        diagnostics.Requirements.Single().SelectedFilamentId.Should().Be(filamentId);
+        diagnostics.Requirements.Single().SelectedFilamentName.Should().MatchRegex("^Vendor .* PLA · Any color$");
+        // Not dispatched here: other tests in this class leave unpinned "any PLA" jobs that may take the printer first.
+        // Eligibility runs the same ProductionProfileReadiness check dispatch does.
+    }
+
+    [Fact]
+    public async Task AnyColorOfTheMaterial_MatchesALoadedSpoolOfAnotherColour_AndUsesTheStandardLabel()
+    {
+        var client = await ClientAsync();
+        var source = await PartAsync();
+        var printer = await PrinterAsync();
+        Guid processingId;
+        using (var scope = Factory.Services.CreateScope())
+        {
+            // The file's colour is one no loaded spool has: only "any colour" can match the white PLA spool.
+            var processing = PartProcessingJob.CreateAdd(source.FileFormat,
+                source.OriginalFileName, source.StoragePath, source.FileSizeBytes, false, null, null, null, null, null);
+            processing.MarkReadyForReview(0.4m, [new PreviewFilamentRequirement(0, "PLA", "#123456", null)],
+                [], EstimateStatus.Available, 60, 20, []);
+            await scope.ServiceProvider.GetRequiredService<IPartProcessingJobRepository>().AddAsync(processing, default);
+            processingId = processing.Id;
+        }
+
+        var confirm = await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{processingId}/confirm", new
+        {
+            name = "Any PLA",
+            filamentRequirementOverrides = new[] { new { requirementIndex = 0, anyColor = true } },
+        });
+        confirm.StatusCode.Should().Be(HttpStatusCode.Created);
+        var saved = (await confirm.Content.ReadFromJsonAsync<PartResponse>())!;
+        (await client.GetFromJsonAsync<PartResponse>($"/api/v1/parts/{saved.Id}"))!.FilamentRequirements.Single().AnyColor.Should().BeTrue();
+
+        var run = await RunAsync(client, saved.Id, quantity: 1, pinned: printer.Id);
+        var job = (await JobsAsync(run.Id)).Single();
+        job.Filaments.Single().AnyColor.Should().BeTrue();
+        var diagnostics = await client.GetFromJsonAsync<JobMatchingDiagnostics>($"/api/v1/print-jobs/{job.Id}/matching-diagnostics");
+        var result = diagnostics!.Printers.Single(p => p.PrinterId == printer.Id);
+        result.Eligible.Should().BeTrue();
+        result.Checks.Single(c => c.Code == "filament").Required.Should().Be("Any PLA · Any color");
+        diagnostics.Requirements.Single().AnyColor.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AnyColourSelectionRejectsAFilamentOfAnotherMaterial()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        Guid otherMaterial;
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            var material = part.FilamentRequirements.Single().MaterialType;
+            var vendor = OpenFarm.Domain.FilamentTracking.Vendor.Create($"Vendor {Guid.NewGuid():N}");
+            db.Vendors.Add(vendor);
+            var filament = OpenFarm.Domain.FilamentTracking.Filament.Create(vendor.Id, "Other", material == "PETG" ? "PLA" : "PETG");
+            db.Filaments.Add(filament);
+            await db.SaveChangesAsync();
+            otherMaterial = filament.Id;
+        }
+        var response = await client.PutAsJsonAsync($"/api/v1/parts/{part.Id}", new
+        {
+            name = part.Name,
+            tags = Array.Empty<string>(),
+            unitsPerPrint = part.UnitsPerPrint,
+            filamentRequirements = new[] { new { requirementId = part.FilamentRequirements.Single().Id, narrowFilamentId = otherMaterial } },
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task MixedNozzleU1_NamesTheHeadWithTheWrongNozzle()
     {
         var client = await ClientAsync();

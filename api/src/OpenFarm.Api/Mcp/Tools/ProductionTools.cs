@@ -125,11 +125,15 @@ public static class ProductionTools
                 decimal ShortOf(QueuedDemand demand, ColourKey key) => FilamentForecasts
                     .Compute([.. stock.Where(s => ColourKey.Of(s.MaterialType, s.ColorHex) == key)], demand, noPurchases, 0, today).Sum(f => f.ShortGrams);
                 var filament = new List<McpPlanFilament>();
-                foreach (var g in planned.SelectMany(p => p.Plan.Estimate?.Colors ?? []).GroupBy(c => (c.VariantId, c.MaterialType, Hex: c.ColorHex?.ToUpperInvariant())))
+                foreach (var g in planned.SelectMany(p => p.Plan.Estimate?.Colors ?? []).GroupBy(c => (c.VariantId, c.FilamentId, c.AnyColor, c.MaterialType, Hex: c.ColorHex?.ToUpperInvariant())))
                 {
                     var grams = g.Any(c => c.Grams is null) ? null : g.Sum(c => c.Grams);
-                    var label = $"{g.Key.MaterialType ?? "Any material"} {g.Key.Hex}";
-                    if (!seesStock) { filament.Add(new(label, g.Key.MaterialType, g.Key.Hex, grams, null, null, null)); continue; }
+                    var label = FilamentChoiceLabel.Generic(g.Key.MaterialType, g.Key.Hex, g.Key.AnyColor || g.Key.FilamentId is not null);
+                    if (g.Key.FilamentId is { } anyColourOf)
+                        label = stock.FirstOrDefault(s => s.FilamentId == anyColourOf) is { } of
+                            ? FilamentChoiceLabel.Catalog(of.VendorName, of.Material) : $"{label} (one filament)";
+                    // ponytail: an any-colour line has no single colour to count against, so no stock numbers, as shortages leave it out.
+                    if (!seesStock || g.Key.FilamentId is not null || g.Key.AnyColor) { filament.Add(new(label, g.Key.MaterialType, g.Key.Hex, grams, null, null, null)); continue; }
                     var matches = GetFilamentShortagesQueryHandler.Matching(stock, g.Key.VariantId, g.Key.MaterialType, g.Key.Hex).ToList();
                     if (matches.Count == 0) { filament.Add(new($"{label} (not in stock)", g.Key.MaterialType, g.Key.Hex, grams, 0, 0, grams)); continue; }
                     // The plan's grams join the queue in order, so each row's shortfall is what it adds.

@@ -193,7 +193,9 @@ describe('PartProcessingReviewSection', () => {
     const estimate = screen.getByText('Estimated print')
       .parentElement as HTMLElement;
     expect(within(estimate).getByText('30m · 9 g')).toBeInTheDocument();
-    expect(screen.getByText(/PETG/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /^Production filament for PETG/ }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText('Units per print').nextElementSibling,
     ).toHaveTextContent('2');
@@ -269,9 +271,13 @@ describe('PartProcessingReviewSection', () => {
     expect(screen.queryByText(/unavailable/)).not.toBeInTheDocument();
 
     // Each filament once, its grams summed over the checked plates.
-    expect(screen.getAllByText(/PLA/)).toHaveLength(1);
+    expect(
+      screen.getAllByRole('button', { name: /^Production filament for PLA/ }),
+    ).toHaveLength(1);
     expect(screen.getByText('8 g')).toBeInTheDocument();
-    expect(screen.getByText(/PETG/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /^Production filament for PETG/ }),
+    ).toBeInTheDocument();
 
     await userEvent.click(
       screen.getByRole('checkbox', { name: /Plate 2 · Handle/ }),

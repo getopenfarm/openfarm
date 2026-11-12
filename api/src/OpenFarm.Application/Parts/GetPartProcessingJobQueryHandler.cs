@@ -22,8 +22,10 @@ public sealed class GetPartProcessingJobQueryHandler(IPartProcessingJobRepositor
         if (showPreview && job.Kind == PartProcessingJobKind.Reprocess && partRepository is not null && job.PartId is { } partId)
         {
             var source = await partRepository.GetByIdAsync(partId, cancellationToken);
-            if (source?.FilamentRequirements.Any(r => (r.NarrowFilamentProfileId is not null || r.NarrowFilamentVariantId is not null)
-                && !job.PreviewFilamentRequirements.Any(p => p.MaterialType == r.MaterialType && p.DetectedColorHex == r.DetectedColorHex && p.DetectedSubBrand == r.DetectedSubBrand)) == true)
+            var carried = source is null ? [] : job.PreviewFilamentRequirements
+                .Select(p => source.PreviousRequirementFor(p, job.PreviewFilamentRequirements)).OfType<PartFilamentRequirement>().ToHashSet();
+            if (source?.FilamentRequirements.Any(r => (r.NarrowFilamentProfileId is not null || r.NarrowFilamentVariantId is not null || r.NarrowFilamentId is not null || r.AnyColor)
+                && !carried.Contains(r)) == true)
                 warnings.Add("Some previous filament selections no longer match the extracted requirements and will be cleared when you save.");
         }
         var quantities = showPreview ? await PartProcessingQuantity.ReadAsync(job, fileStorage, cancellationToken) : null;
