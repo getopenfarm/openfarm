@@ -139,6 +139,7 @@ describe('Connected apps', () => {
             data: {
               mcpUrl: 'https://farm.example.com/mcp',
               signInEnabled: false,
+              mcpEnabled: true,
             },
             status: 200,
             headers: new Headers(),
@@ -158,6 +159,7 @@ describe('Connected apps', () => {
       data: {
         mcpUrl: 'https://farm.example.com/mcp',
         signInEnabled: true,
+        mcpEnabled: true,
         apps: [{ id: 'a1', clientName: 'Claude', access: [] }],
       },
       status: 200,

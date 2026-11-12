@@ -10,7 +10,7 @@ using OpenFarm.Infrastructure.Persistence;
 namespace OpenFarm.Api.IntegrationTests.Mcp;
 
 /// <summary>Brands of one material and colour share stock for jobs that name only the colour; a need is suggested once.</summary>
-public sealed class McpFilamentForecastTests(ProductionTestFactory factory) : ProductionTestContext(factory), IClassFixture<ProductionTestFactory>
+public sealed class McpFilamentForecastTests(McpTestFactory factory) : ProductionTestContext(factory), IClassFixture<McpTestFactory>
 {
     private const string Hex = "12AB34";
 

@@ -19,7 +19,7 @@ using OpenFarm.Api.Security;
 
 namespace OpenFarm.Api.IntegrationTests.Mcp;
 
-public sealed class McpReadToolsTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
+public sealed class McpReadToolsTests(McpTestFactory factory) : IClassFixture<McpTestFactory>
 {
     /// <summary>
     /// The REST endpoints each tool does the work of. A tool needs exactly the union of their permissions, so MCP never reaches

@@ -33,6 +33,10 @@ export const apiQueryPermissions = [
     permissions: ['spools:list'],
   },
   {
+    pattern: '^/api/v1/admin/settings/server$',
+    permissions: ['users:manage'],
+  },
+  {
     pattern: '^/api/v1/reports/daily\\-usage$',
     permissions: ['spools:list'],
   },
@@ -55,6 +59,10 @@ export const apiQueryPermissions = [
   {
     pattern: '^/api/v1/auth/oauth/consent$',
     permissions: [],
+  },
+  {
+    pattern: '^/api/v1/admin/settings/mcp$',
+    permissions: ['users:manage'],
   },
   {
     pattern: '^/api/v1/admin/permissions$',

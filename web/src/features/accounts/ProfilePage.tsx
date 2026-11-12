@@ -124,6 +124,7 @@ function ConnectedAppsTab() {
         <div className="flex flex-col gap-4">
           <ConnectAssistantCard
             mcpUrl={apps.mcpUrl}
+            mcpEnabled={apps.mcpEnabled ?? false}
             signInEnabled={apps.signInEnabled ?? false}
             defaultOpen={!apps.apps?.length}
           />

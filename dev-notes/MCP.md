@@ -4,6 +4,35 @@ AI assistants reach OpenFarm through the Model Context Protocol at `POST /mcp`, 
 (`ModelContextProtocol.AspNetCore`, pinned in `OpenFarm.Api.csproj`). Plan and rationale:
 `dev-notes/plans/MCP_OAUTH.md`. User guide: `docs/content/administration/ai-assistants.md`.
 
+## Activation and installation settings
+
+`ServerSecuritySettings` adds a singleton `ServerSettings` row and `BrowserSessions.OAuthConfigurationIdentity`.
+MCP defaults to Disabled; AccessTokens and SignIn are explicit modes. Administrators configure the public URL
+under Settings → Server and the mode under Settings → AI assistants. The endpoints are
+`GET/PUT /api/v1/admin/settings/server` and `/api/v1/admin/settings/mcp`: actual Administrators membership,
+a browser session, current-password verification (Identity lockout), optimistic revision checks and a transaction.
+Audits contain before/after settings, never passwords. Generic farm-settings access cannot change installation security.
+
+`ServerConfigurationOverrides` validates deployment policy: MCP_ENABLED=false disables access; true enables AccessTokens when the selected mode is Disabled.
+MCP_MODE otherwise wins over saved mode. Explicit true with MCP_MODE=Disabled is rejected.
+An explicit availability override locks the MCP mode control, as does MCP_MODE. ORIGIN wins over saved URL. Overridden UI fields are read-only. OAUTH_ENABLED is a
+one-time bootstrap import only: explicit true with ORIGIN preserves existing OAuth grants on upgrade.
+Token-only installations now require activation. Initial seeding serializes on an advisory lock.
+
+`ServerConfiguration` reads one authoritative database snapshot at the start of each API/protocol request.
+PublicOrigin, CORS, auth origin checks, cookies, JWT issuer/audience validators, challenges, discovery and OAuth
+services use that snapshot. No request-host/forwarded-header inference; no global mutable token-validation options.
+Disabled mode gates /mcp, /oauth and /.well-known before authentication/registration/body processing (404).
+Consent APIs additionally require SignIn. Profile list/revoke operations remain available when disabled.
+Static files and liveness do not read installation settings.
+
+A settings change rotates Revision and revokes app sessions in the same transaction. OAuth grants bind to a
+hash of Revision and effective public URL; requests and codes bind through DataProtection purposes v2.
+Pending requests, codes and refresh/access credentials cannot survive a change or become valid when switching back.
+A persisted deployment-policy fingerprint rotates the revision and revokes grants when environment overrides
+change at startup. All replicas must share the same deployment policy. PATs are never revoked by these changes;
+MCP gates access while REST remains available. Accepted operations already in flight are not undone.
+
 ## Transport and auth
 
 - Stateless Streamable HTTP (`HttpServerSessionMode.Stateless`): POST only, no `Mcp-Session-Id`, no GET stream.
@@ -25,8 +54,7 @@ AI assistants reach OpenFarm through the Model Context Protocol at `POST /mcp`, 
 - Both protocol eras work: 2025 `initialize` and 2026-07-28 `server/discover` (per-request `_meta`, `Mcp-Method`
   header). On 2026-07-28 the SDK answers an unknown method with HTTP 404, which MCP Inspector 2.x treats as a broken
   connection and then drops the `tools/list` it sent alongside. So `McpSetup` answers `resources/list`,
-  `resources/templates/list` and `prompts/list` with empty lists (tested). The startup log states `ORIGIN` and
-  whether OAuth is on.
+  `resources/templates/list` and `prompts/list` with empty lists (tested). The startup log states the effective public URL, MCP mode and force-off policy.
 
 ### Which credential reaches what
 
@@ -42,10 +70,10 @@ Each "no" has two guards: the audiences differ per scheme, and `BrowserSessionSe
 
 ## OAuth sign-in (off by default)
 
-`OAUTH_ENABLED=true` + an HTTPS `ORIGIN` (HTTP only for localhost) turns on a hand-rolled OAuth 2.1 server for
-the `/mcp` audience (`Infrastructure/Auth/OAuthSettings.cs` validates at startup). Off: every protocol path
-answers 404 `{"error":"OAuth is disabled"}`, `/oauth/authorize` redirects to `/connect/error?code=disabled`, and
-apps are kept but refused until it is on again. Issuer, resource and every metadata URL come only from `ORIGIN`.
+SignIn mode with an HTTPS public URL (HTTP only for localhost) enables the OAuth 2.1 server for `/mcp`.
+In AccessTokens mode, protocol handlers return 404 and authorize redirects to the disabled error page.
+In Disabled mode, the master gate returns 404 for all protocol routes. Issuer, resource and metadata URLs
+come only from the request's validated installation configuration.
 
 - Protocol routes (`Api/OAuth/OAuthProtocolEndpoints.cs`, minimal API, excluded from OpenAPI): RFC 9728 PRM at
   `/.well-known/oauth-protected-resource[/mcp]`, RFC 8414 metadata, RFC 7591 DCR at `/oauth/register`,
@@ -57,13 +85,13 @@ apps are kept but refused until it is on again. Issuer, resource and every metad
 - Pure rules live in `OAuthRules` (redirect classes and matching, PKCE, client names, state, parameters; TDD).
   State and flow live in `OAuthService`. Expiries use the injected `TimeProvider`.
 - Authorize validates and 302s to the SPA consent page `/connect?request=<payload>`: a DataProtection
-  time-limited payload (10 min, purpose `OpenFarm.OAuthRequest.v1`) with a random `rid`. Every failure goes to
+  time-limited payload (10 min, configuration-bound purpose `OpenFarm.OAuthRequest.v2`) with a random `rid`. Every failure goes to
   `/connect/error?code=…` on OpenFarm, never to the client's redirect URI. `resource` may be omitted; another
   value is `invalid_target`. Requested scopes are ignored: the user chooses on the consent page.
 - Consent (`GET`/`POST /api/v1/auth/oauth/consent`, browser session only) re-checks client and redirect on
   every call. Approve creates the pending app with `Id = Guid(rid)` and the redirect URI it consented to, so a
-  request is approved at most once (primary key), and returns a 120 s code payload (purpose
-  `OpenFarm.OAuthCode.v1`). Deny inserts the same row already revoked, so a denied request is used up too.
+  request is approved at most once (primary key), and returns a 120 s code payload (configuration-bound purpose
+  `OpenFarm.OAuthCode.v2`). Deny inserts the same row already revoked, so a denied request is used up too.
 - Exchange locks the pending app and checks PKCE first. A code whose app already has a credential is a replay:
   with the right verifier it revokes the app, the first exchange's tokens included (RFC 6749 §4.1.2), so two
   concurrent exchanges of one code leave no working app; with a wrong or missing verifier it is refused and

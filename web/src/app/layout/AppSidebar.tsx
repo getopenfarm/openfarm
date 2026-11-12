@@ -22,7 +22,11 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { AccessContext, useAllowed } from '@/lib/auth/AccessContext';
+import {
+  AccessContext,
+  AdministratorContext,
+  useAllowed,
+} from '@/lib/auth/AccessContext';
 import { routePermission, settingsPath } from '@/lib/auth/permissions';
 import { Logo } from './Logo';
 import {
@@ -121,7 +125,8 @@ export function AppSidebar() {
     .map(allowed)
     .filter((section) => section.items.length > 0);
   const admin = allowed(adminNavSection);
-  const settings = settingsPath(can);
+  const administrator = useContext(AdministratorContext);
+  const settings = settingsPath(can, administrator !== false);
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>

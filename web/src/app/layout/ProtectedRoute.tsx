@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { ErrorState } from '@/components/empty-state/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AccessContext } from '@/lib/auth/AccessContext';
+import { AccessContext, AdministratorContext } from '@/lib/auth/AccessContext';
 import {
   routePermission,
   settingsPath,
@@ -40,14 +40,23 @@ export function ProtectedRoute() {
   if (!identity.data) return <Skeleton className="m-4 h-40" />;
   const permissions = new Set(identity.data.permissions);
   const can = (key: string | null) => key === null || permissions.has(key);
-  if (!can(routePermission(location.pathname))) {
+  if (
+    !can(routePermission(location.pathname)) ||
+    ((location.pathname.startsWith('/settings/server') ||
+      location.pathname.startsWith('/settings/integrations')) &&
+      !identity.data.isAdministrator)
+  ) {
     const fallback =
-      (can(routePermission('/')) ? '/' : settingsPath(can)) ?? '/profile';
+      (can(routePermission('/'))
+        ? '/'
+        : settingsPath(can, identity.data.isAdministrator)) ?? '/profile';
     return <Navigate to={fallback} replace />;
   }
   return (
     <AccessContext.Provider value={permissions}>
-      <Outlet />
+      <AdministratorContext.Provider value={identity.data.isAdministrator}>
+        <Outlet />
+      </AdministratorContext.Provider>
     </AccessContext.Provider>
   );
 }

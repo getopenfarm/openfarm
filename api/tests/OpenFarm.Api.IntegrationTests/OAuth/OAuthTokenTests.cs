@@ -136,6 +136,7 @@ public sealed class OAuthTokenTests(OAuthFactory factory)
         var request = await _kit.RequestAsync(client, challenge);
         using var scope = factory.Services.CreateScope();
         var admin = await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Users.SingleAsync(u => u.UserName == "admin");
+        await scope.ServiceProvider.GetRequiredService<OpenFarm.Infrastructure.Auth.ServerConfiguration>().InitializeAsync(CancellationToken.None);
         var past = ActivatorUtilities.CreateInstance<OAuthService>(scope.ServiceProvider, new PastTime(TimeSpan.FromMinutes(3)));
         var outcome = await past.DecideAsync(request, admin.Id, true, ["printers.read"], CancellationToken.None);
         var code = outcome.Query.Single(p => p.Key == "code").Value!;

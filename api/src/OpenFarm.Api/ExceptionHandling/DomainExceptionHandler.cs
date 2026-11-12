@@ -137,6 +137,7 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             OpenFarm.Application.Maintenance.MaintenanceNotFoundException => (StatusCodes.Status404NotFound, "Maintenance not found"),
             RunLineNotEligibleForBackfillLimitsException => (StatusCodes.Status409Conflict, "Run line is not unlimited, so backfill limits don't apply"),
             // Backstop for domain invariant guards (blank names, weight above capacity, ...) not caught by a request validator.
+            OpenFarm.Infrastructure.Auth.ServerSettingsConflictException => (StatusCodes.Status409Conflict, "Server settings changed"),
             ArgumentException => (StatusCodes.Status422UnprocessableEntity, "Invalid request"),
             _ => (0, null),
         };

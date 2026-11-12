@@ -64,7 +64,7 @@ Back up the database before deployment. No existing account receives a personal 
 
 ## Connected apps (OAuth)
 
-With `OAUTH_ENABLED=true` and an HTTPS `ORIGIN`, MCP clients can sign in instead of using a token (rules and
+With SignIn mode and an HTTPS public URL, MCP clients can sign in instead of using a token (rules and
 protocol: `dev-notes/MCP.md`). A connected app is a `BrowserSessions` row with `ClientId` and `Scopes` set, so
 it reuses refresh rotation, the 10-second retry, reuse revocation and every revocation trigger. Its access
 token has issuer `ORIGIN` and audience `ORIGIN/mcp` and works only on `/mcp`; its refresh credential (`ofr_` +
@@ -82,7 +82,7 @@ Consent and app management happen only in a browser session.
 - `GET/POST /api/v1/auth/oauth/consent`: the consent page's request details and decision.
 
 The additive `ConnectedApps` migration adds the `OAuthClients` table and two nullable `BrowserSessions`
-columns. With `OAUTH_ENABLED` unset nothing else changes.
+columns. `ServerSecuritySettings` subsequently adds installation configuration and app identity binding. MCP now defaults to Disabled.
 
 ## Upgrade
 
@@ -92,27 +92,34 @@ Migrations run at server startup. Back up the database before deployment and kee
 
 ## Deployment
 
-Same-origin hosting is the default and Vite proxies /api and /hubs in development. For Cloudflare Tunnel or another reverse proxy, configure the public address:
+Same-origin hosting is the default. Configure the installation public URL under Settings → Server, or supply
+ORIGIN as a deployment override. The URL is normalized and validated without trusting request Host or forwarded
+headers. It supplies trusted browser origins, CORS, Secure refresh cookies and MCP/OAuth identity. UI changes apply
+on the next request without restart; environment changes require container recreation. Use the HTTPS hostname
+for sign-in after enabling secure cookies. Saved public URLs remain after an override is removed.
 
-```dotenv
-ORIGIN=https://farm.example.com
-```
+Installation settings live separately from FarmSettings. Only actual administrator browser sessions can read or
+write `/api/v1/admin/settings/server` and `/api/v1/admin/settings/mcp`; writes recheck the current password, honor
+Identity lockout and require the latest Revision. MCP mode defaults to Disabled. MCP_ENABLED=false forces it off;
+MCP_MODE overrides saved mode. Legacy OAUTH_ENABLED=true is imported once during ServerSettings bootstrap.
+See `dev-notes/MCP.md` for snapshot consistency, deployment fingerprints and grant invalidation.
 
-`ORIGIN` is optional. Unset or blank preserves existing behavior. A configured value must be an absolute HTTP/HTTPS origin, optionally ending in `/`, with no credentials, non-root path, query, or fragment. Invalid values stop startup with an `ORIGIN` configuration error. Host casing and default ports are normalized.
+The public URL does not configure DNS, TLS or proxy routing. Route the whole hostname to OpenFarm, including
+/api, /hubs, /mcp, /oauth and /.well-known. The built frontend uses relative API/hub URLs.
 
-The configured origin is added to the trusted authentication origins and CORS allowlist alongside explicitly configured additional origins. HTTPS `ORIGIN` enables Secure refresh cookies even when the proxy connects to OpenFarm over HTTP. Cookie deletion uses the same settings. Antiforgery validation remains required, and this setting does not rewrite request schemes or enable trust in forwarded headers. Use the configured HTTPS hostname for sign-in; direct HTTP LAN sign-in is not supported with Secure refresh cookies.
+Without a public URL, HTTPS requests still set Secure refresh cookies automatically. Auth__SecureCookies=true
+remains available. Keep HTTP development limited to trusted local networks. Explicit Cors__AllowedOrigins remain
+additive; for cross-site cookies retain Auth__CrossSiteCookies=true and Auth__SecureCookies=true. Prefer a
+same-origin reverse proxy because browsers may block third-party cookies.
 
-The built frontend continues to use relative API/hub URLs, so this requires no frontend rebuild. With the supplied Compose deployment, set `ORIGIN` in `.env` and run `docker compose up -d --force-recreate openfarm`. Route the entire public hostname to OpenFarm, including `/api` and `/hubs`.
+Refresh and cookie-based logout require the antiforgery token obtained from GET /api/v1/auth/csrf in
+X-CSRF-TOKEN. Browser authentication POSTs also validate Origin. APIs return 401 for invalid sessions and 403
+for missing permissions; clients must not treat network failures or 403 as logout. Session and permission changes
+are recorded without password/token contents.
 
-The normalized public origin also gives the MCP server URL shown in My profile › Connected apps (`ORIGIN/mcp`) and is the only value a browser `Origin` header on `/mcp` may carry. With `ORIGIN` unset, `/mcp` refuses every browser `Origin`; native MCP clients send none. It does not change the browser JWT issuer/audience; with `OAUTH_ENABLED=true` it is the issuer of connected-app access tokens.
-
-Without `ORIGIN`, HTTPS requests still set Secure refresh cookies automatically. The existing `Auth__SecureCookies=true` setting remains available for other reverse-proxy configurations. Keep HTTP development limited to trusted local networks.
-
-For a frontend on another origin, set the exact `Cors__AllowedOrigins__0` (and additional numbered origins). Credentialed requests and antiforgery headers are required. If frontend and API are on different *sites*, also set `Auth__CrossSiteCookies=true` and `Auth__SecureCookies=true`; both must use HTTPS. Browsers that block third-party cookies may still prevent this setup; prefer a same-origin reverse proxy.
-
-Refresh and cookie-based logout require the antiforgery token obtained from GET /api/v1/auth/csrf in the X-CSRF-TOKEN header. Browser authentication POSTs also validate Origin. APIs return 401 for invalid sessions and 403 for missing permissions; clients must not treat network failures or 403 as logout. Session and permission changes are recorded in the activity log without password/token contents.
-
-An administrator can reset a forgotten password through Users & Groups. Email recovery and self-registration are not included. Keep more than one trusted administrator. If all administrators lose their passwords, use the installation's database/Identity recovery procedure with a backup; changing seed settings does not overwrite an existing account password.
+An administrator can reset a forgotten password through Users & Groups. Email recovery and self-registration
+are not included. Keep more than one administrator. If every administrator loses access, recover through the
+installation's database/Identity procedure with a backup; seed settings never overwrite an existing password.
 
 ## Verification
 

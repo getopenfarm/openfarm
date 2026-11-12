@@ -14,7 +14,7 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Api.IntegrationTests.Mcp;
 
-public sealed class McpWriteToolsTests(ProductionTestFactory factory) : ProductionTestContext(factory), IClassFixture<ProductionTestFactory>
+public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestContext(factory), IClassFixture<McpTestFactory>
 {
     private async Task<McpClient> ConnectAsync(HttpClient browser, params string[] permissions) =>
         await McpTestClient.ConnectAsync(Factory, (await McpTestClient.TokenAsync(browser, permissions)).Credential);

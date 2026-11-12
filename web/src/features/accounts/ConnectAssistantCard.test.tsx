@@ -11,6 +11,7 @@ function setup(props: Partial<Parameters<typeof ConnectAssistantCard>[0]>) {
       <ConnectAssistantCard
         mcpUrl="https://farm.example.com/mcp"
         signInEnabled={false}
+        mcpEnabled
         defaultOpen
         {...props}
       />
@@ -26,7 +27,7 @@ describe('ConnectAssistantCard', () => {
       screen.getByText('https://farm.example.com/mcp'),
     ).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Sign-in is off. Use an access token, or set OAUTH_ENABLED=true and an HTTPS ORIGIN, then restart OpenFarm.',
+      'Sign-in is off. Use an access token, or ask an administrator to enable sign-in under Settings → AI assistants.',
     );
     expect(
       screen.getByRole('link', { name: 'How to turn on sign-in' }),
@@ -46,6 +47,19 @@ describe('ConnectAssistantCard', () => {
     );
     await user.click(screen.getByRole('tab', { name: 'Claude' }));
     expect(screen.getByText('Needs sign-in.')).toBeInTheDocument();
+  });
+
+  it('shows the disabled state without connection snippets', () => {
+    setup({ mcpEnabled: false });
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'MCP is disabled for this installation.',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Copy server URL' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Add token' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows both ways when sign-in is on', () => {

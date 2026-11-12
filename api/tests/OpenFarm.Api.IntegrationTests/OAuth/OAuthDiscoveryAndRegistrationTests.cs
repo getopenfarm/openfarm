@@ -107,7 +107,7 @@ public sealed class OAuthDiscoveryAndRegistrationTests(OAuthFactory factory)
     [Fact]
     public async Task DisabledMode_AnswersEveryProtocolPathWith404Json_AndAuthorizeWithTheDisabledPage()
     {
-        await using var off = factory.WithWebHostBuilder(b => b.UseSetting("OAUTH_ENABLED", "false"));
+        await using var off = factory.WithWebHostBuilder(b => b.UseSetting("MCP_MODE", "AccessTokens"));
         var kit = new OAuthKit(off);
         foreach (var path in new[] { "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-protected-resource", "/.well-known/oauth-authorization-server" })
         {

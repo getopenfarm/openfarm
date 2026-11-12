@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using ModelContextProtocol.Client;
 using OpenFarm.Api.Endpoints.Auth;
 using OpenFarm.Application.Auth;
@@ -8,7 +9,7 @@ namespace OpenFarm.Api.IntegrationTests.Mcp;
 
 public static class McpTestClient
 {
-    public static async Task<HttpClient> BrowserAsync(CustomWebApplicationFactory factory)
+    public static async Task<HttpClient> BrowserAsync(WebApplicationFactory<Program> factory)
     {
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Forwarded-For", $"10.9.{Random.Shared.Next(255)}.{Random.Shared.Next(255)}");

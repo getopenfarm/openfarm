@@ -66,6 +66,7 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
             Id = id,
             UserId = userId,
             ClientId = client.Id,
+            OAuthConfigurationIdentity = oauth.ConfigurationIdentity,
             Scopes = scopes,
             RedirectUri = redirectUri,
             RevokedAtUtc = revoked ? now : null,
@@ -100,6 +101,7 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         var session = await db.BrowserSessions.FromSqlInterpolated($"SELECT * FROM \"BrowserSessions\" WHERE \"Id\" = {row.SessionId} FOR UPDATE").SingleAsync(ct);
         var now = time.GetUtcNow();
         if (session.ClientId != clientId) return null;
+        if (clientId is not null && (!oauth.Enabled || session.OAuthConfigurationIdentity != oauth.ConfigurationIdentity)) return null;
         if (session.RevokedAtUtc is not null || session.ExpiresAtUtc <= now || !await db.Users.AnyAsync(u => u.Id == session.UserId && u.IsEnabled, ct)) return null;
         if (row.UsedAtUtc is not null)
         {
@@ -147,9 +149,10 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
     /// <summary>Apps only: the grant behind an access token, while the app, its client and its user are all live.</summary>
     public async Task<AppGrant?> ResolveAppAsync(Guid userId, Guid sessionId, string clientId, CancellationToken ct)
     {
+        if (!oauth.Enabled) return null;
         var now = time.GetUtcNow();
         var app = await db.BrowserSessions.AsNoTracking()
-            .Where(s => s.Id == sessionId && s.UserId == userId && s.ClientId == clientId && s.RevokedAtUtc == null && s.ExpiresAtUtc > now)
+            .Where(s => s.Id == sessionId && s.UserId == userId && s.ClientId == clientId && s.OAuthConfigurationIdentity == oauth.ConfigurationIdentity && s.RevokedAtUtc == null && s.ExpiresAtUtc > now)
             .Select(s => new { s.Scopes, s.Device, s.LastSeenAtUtc }).SingleOrDefaultAsync(ct);
         if (app?.Scopes is null || !await db.Users.AnyAsync(u => u.Id == userId && u.IsEnabled, ct)) return null;
         var minuteAgo = now.AddMinutes(-1);

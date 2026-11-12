@@ -84,8 +84,8 @@ public sealed partial class OAuthService(OpenFarmDbContext db, OAuthSettings set
         [property: JsonPropertyName("ruri")] string Ruri,
         [property: JsonPropertyName("ch")] string Ch);
 
-    private readonly ITimeLimitedDataProtector _requests = protection.CreateProtector("OpenFarm.OAuthRequest.v1").ToTimeLimitedDataProtector();
-    private readonly ITimeLimitedDataProtector _codes = protection.CreateProtector("OpenFarm.OAuthCode.v1").ToTimeLimitedDataProtector();
+    private readonly ITimeLimitedDataProtector _requests = protection.CreateProtector("OpenFarm.OAuthRequest.v2", settings.ConfigurationIdentity ?? "", settings.Issuer ?? "").ToTimeLimitedDataProtector();
+    private readonly ITimeLimitedDataProtector _codes = protection.CreateProtector("OpenFarm.OAuthCode.v2", settings.ConfigurationIdentity ?? "", settings.Issuer ?? "").ToTimeLimitedDataProtector();
 
     private string Issuer => settings.Issuer ?? throw new OAuthException("invalid_request", 404);
 
@@ -302,7 +302,7 @@ public sealed partial class OAuthService(OpenFarmDbContext db, OAuthSettings set
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var session = await db.BrowserSessions.FromSqlInterpolated($"SELECT * FROM \"BrowserSessions\" WHERE \"Id\" = {code.Sid} FOR UPDATE").SingleOrDefaultAsync(ct);
-        if (session is null || session.ClientId != client.Id) throw new OAuthException("invalid_grant");
+        if (session is null || session.ClientId != client.Id || session.OAuthConfigurationIdentity != settings.ConfigurationIdentity) throw new OAuthException("invalid_grant");
         var verified = OAuthRules.VerifyPkce(form.GetValueOrDefault("code_verifier"), code.Ch);
         if (await db.SessionCredentials.AnyAsync(c => c.SessionId == session.Id, ct))
         {

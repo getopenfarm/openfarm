@@ -43,18 +43,36 @@ export function Can({
 }
 const settingsPaths = [
   '/settings',
+  '/settings/server',
+  '/settings/integrations/ai-assistants',
   '/settings/fees',
   '/settings/printer-costs',
   '/settings/slicing-defaults',
 ];
 /** First settings page the user can read, or null when none. */
-export function settingsPath(can: (key: string) => boolean): string | null {
-  return settingsPaths.find((path) => can(routePermission(path) ?? '')) ?? null;
+export function settingsPath(
+  can: (key: string) => boolean,
+  administrator = true,
+): string | null {
+  return (
+    settingsPaths.find(
+      (path) =>
+        (administrator ||
+          (!path.startsWith('/settings/server') &&
+            !path.startsWith('/settings/integrations'))) &&
+        can(routePermission(path) ?? ''),
+    ) ?? null
+  );
 }
 export function routePermission(path: string): string | null {
   if (path === '/profile' || path.startsWith('/profile/')) return null;
   if (path.startsWith('/users-groups')) return 'users:manage';
   if (path.startsWith('/settings')) {
+    if (
+      path.startsWith('/settings/server') ||
+      path.startsWith('/settings/integrations')
+    )
+      return 'users:manage';
     if (path.includes('/fees')) return 'settings:fees:read';
     if (path.includes('/printer-costs')) return 'settings:printer-costs:read';
     if (path.includes('/slicing')) return 'settings:slicing-defaults:read';

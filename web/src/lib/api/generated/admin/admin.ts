@@ -32,9 +32,12 @@ import type {
   GroupResponse,
   PermissionCatalogResponse,
   ResetAccountPasswordRequest,
+  ServerSettingsResponse,
   SessionResponse,
   UpdateAccountRequest,
   UpdateGroupRequest,
+  UpdateMcpSettingsRequest,
+  UpdatePublicUrlRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -55,6 +58,739 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
+export type openFarmApiEndpointsSettingsGetServerSettingsEndpointResponse200 = {
+  data: ServerSettingsResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsGetServerSettingsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsGetServerSettingsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsGetServerSettingsEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsGetServerSettingsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsGetServerSettingsEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsGetServerSettingsEndpointResponse401
+    | openFarmApiEndpointsSettingsGetServerSettingsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsGetServerSettingsEndpointResponse =
+  | openFarmApiEndpointsSettingsGetServerSettingsEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsGetServerSettingsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsGetServerSettingsEndpointUrl =
+  () => {
+    return `/api/v1/admin/settings/server`;
+  };
+
+export const openFarmApiEndpointsSettingsGetServerSettingsEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsGetServerSettingsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsGetServerSettingsEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsGetServerSettingsEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsGetServerSettingsEndpointQueryKey =
+  () => {
+    return [`/api/v1/admin/settings/server`] as const;
+  };
+
+export const getOpenFarmApiEndpointsSettingsGetServerSettingsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint>
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsSettingsGetServerSettingsEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsSettingsGetServerSettingsEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsSettingsGetServerSettingsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsGetServerSettingsEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsSettingsGetServerSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetServerSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetServerSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsSettingsGetServerSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsSettingsGetServerSettingsEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsSettingsGetServerSettingsEndpointQueryOptions(
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponse200 = {
+  data: ServerSettingsResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponseError = (
+  | openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponse401
+  | openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponse =
+  | openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsUpdatePublicUrlEndpointUrl = () => {
+  return `/api/v1/admin/settings/server`;
+};
+
+export const openFarmApiEndpointsSettingsUpdatePublicUrlEndpoint = async (
+  updatePublicUrlRequest: UpdatePublicUrlRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsUpdatePublicUrlEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsUpdatePublicUrlEndpointUrl(),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(updatePublicUrlRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsUpdatePublicUrlEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdatePublicUrlEndpoint>
+      >,
+      TError,
+      { data: UpdatePublicUrlRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsUpdatePublicUrlEndpoint>
+    >,
+    TError,
+    { data: UpdatePublicUrlRequest },
+    TContext
+  > => {
+    const mutationKey = ['openFarmApiEndpointsSettingsUpdatePublicUrlEndpoint'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdatePublicUrlEndpoint>
+      >,
+      { data: UpdatePublicUrlRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsUpdatePublicUrlEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsUpdatePublicUrlEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsUpdatePublicUrlEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsUpdatePublicUrlEndpointMutationBody =
+  UpdatePublicUrlRequest;
+export type OpenFarmApiEndpointsSettingsUpdatePublicUrlEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsUpdatePublicUrlEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdatePublicUrlEndpoint>
+      >,
+      TError,
+      { data: UpdatePublicUrlRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsUpdatePublicUrlEndpoint>
+  >,
+  TError,
+  { data: UpdatePublicUrlRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsUpdatePublicUrlEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponse200 = {
+  data: ServerSettingsResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponseError = (
+  | openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponse401
+  | openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponse =
+  | openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsGetMcpSettingsEndpointUrl = () => {
+  return `/api/v1/admin/settings/mcp`;
+};
+
+export const openFarmApiEndpointsSettingsGetMcpSettingsEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsGetMcpSettingsEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsGetMcpSettingsEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsGetMcpSettingsEndpointQueryKey =
+  () => {
+    return [`/api/v1/admin/settings/mcp`] as const;
+  };
+
+export const getOpenFarmApiEndpointsSettingsGetMcpSettingsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsSettingsGetMcpSettingsEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsSettingsGetMcpSettingsEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsSettingsGetMcpSettingsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsGetMcpSettingsEndpointQueryError = void;
+
+export function useOpenFarmApiEndpointsSettingsGetMcpSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetMcpSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetMcpSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsSettingsGetMcpSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetMcpSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsSettingsGetMcpSettingsEndpointQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponse200 = {
+  data: ServerSettingsResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponse401
+    | openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponse =
+  | openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpointUrl =
+  () => {
+    return `/api/v1/admin/settings/mcp`;
+  };
+
+export const openFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint = async (
+  updateMcpSettingsRequest: UpdateMcpSettingsRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsUpdateMcpSettingsEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpointUrl(),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(updateMcpSettingsRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint>
+      >,
+      TError,
+      { data: UpdateMcpSettingsRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint>
+    >,
+    TError,
+    { data: UpdateMcpSettingsRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint>
+      >,
+      { data: UpdateMcpSettingsRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpointMutationBody =
+  UpdateMcpSettingsRequest;
+export type OpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint>
+      >,
+      TError,
+      { data: UpdateMcpSettingsRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint>
+  >,
+  TError,
+  { data: UpdateMcpSettingsRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
 export type openFarmApiEndpointsAuthListUserAccessTokensEndpointResponse200 = {
   data: AccessTokenView[];
   status: 200;

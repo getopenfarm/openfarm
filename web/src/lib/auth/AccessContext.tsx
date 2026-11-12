@@ -4,6 +4,10 @@ import { createContext, useContext } from 'react';
 export const AccessContext = createContext<ReadonlySet<string> | undefined>(
   undefined,
 );
+export const AdministratorContext = createContext<boolean | undefined>(
+  undefined,
+);
+
 export function useAllowed(permission?: string) {
   const access = useContext(AccessContext);
   return (

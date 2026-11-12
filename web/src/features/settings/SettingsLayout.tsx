@@ -5,11 +5,17 @@ import {
   sideNavItemClass,
 } from '@/components/side-nav-page/SideNavPage';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AccessContext } from '@/lib/auth/AccessContext';
+import { AccessContext, AdministratorContext } from '@/lib/auth/AccessContext';
 import { routePermission } from '@/lib/auth/permissions';
 
 const sections = [
   { title: 'General', to: 'general' },
+  { title: 'Server', to: 'server', administrator: true },
+  {
+    title: 'AI assistants',
+    to: 'integrations/ai-assistants',
+    administrator: true,
+  },
   { title: 'Printer costs', to: 'printer-costs' },
   { title: 'Fees', to: 'fees' },
   { title: 'Slicing defaults', to: 'slicing-defaults' },
@@ -17,6 +23,7 @@ const sections = [
 
 export function SettingsLayout() {
   const access = useContext(AccessContext);
+  const administrator = useContext(AdministratorContext);
   const { pathname } = useLocation();
   const current = sections.find(
     (s) =>
@@ -26,6 +33,7 @@ export function SettingsLayout() {
   const readOnly =
     access !== undefined &&
     current !== undefined &&
+    !current.administrator &&
     !access.has(`settings:${current.to}:update`);
   return (
     <SideNavPage
@@ -35,8 +43,9 @@ export function SettingsLayout() {
       nav={sections
         .filter(
           (s) =>
-            access === undefined ||
-            access.has(routePermission(`/settings/${s.to}`) ?? ''),
+            (!s.administrator || administrator !== false) &&
+            (access === undefined ||
+              access.has(routePermission(`/settings/${s.to}`) ?? '')),
         )
         .map(({ title, to }) => (
           <NavLink
