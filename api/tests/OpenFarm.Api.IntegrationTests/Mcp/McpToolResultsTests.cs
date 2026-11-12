@@ -15,7 +15,7 @@ namespace OpenFarm.Api.IntegrationTests.Mcp;
 /// (MCP Inspector, the TypeScript SDK). So every tool runs here on real data, idle and busy printers and empty fields
 /// included, and every result must match its own schema. A new tool fails this test until it is added.
 /// </summary>
-public sealed class McpToolResultsTests(ProductionTestFactory factory) : ProductionTestContext(factory), IClassFixture<ProductionTestFactory>
+public sealed class McpToolResultsTests(McpTestFactory factory) : ProductionTestContext(factory), IClassFixture<McpTestFactory>
 {
     private static readonly string[] BinsTag = ["bins"];
     private static readonly string[] BlankTag = [""];

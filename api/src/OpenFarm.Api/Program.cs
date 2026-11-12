@@ -102,11 +102,14 @@ using UnpinPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<Ope
 using WriteOffPrintJobHandlerType = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Production.WriteOffPrintJobCommand, OpenFarm.Domain.Production.PrintJob>;
 
 var builder = WebApplication.CreateBuilder(args);
-var publicOrigin = new OpenFarm.Api.Hosting.PublicOrigin(builder.Configuration);
-builder.Services.AddSingleton(publicOrigin);
-// Validated at startup: OAUTH_ENABLED=true needs an HTTPS ORIGIN (HTTP only for localhost).
-var oauthSettings = new OAuthSettings(builder.Configuration["OAUTH_ENABLED"], publicOrigin.Value);
-builder.Services.AddSingleton(oauthSettings);
+var deploymentPolicy = new ServerConfigurationOverrides(builder.Configuration);
+builder.Services.AddSingleton(deploymentPolicy);
+builder.Services.AddScoped<ServerConfiguration>();
+builder.Services.AddScoped<ServerSettingsService>();
+builder.Services.AddScoped(sp => sp.GetRequiredService<ServerConfiguration>().Current?.OAuth ?? new OAuthSettings(null, null));
+builder.Services.AddScoped(sp => new OpenFarm.Api.Hosting.PublicOrigin(
+    sp.GetRequiredService<ServerConfiguration>().Current?.PublicUrl ?? deploymentPolicy.PublicUrl));
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Host.UseSerilog((ctx, cfg) => cfg
@@ -231,7 +234,9 @@ builder.Services
                 ? PersonalAccessTokenHandler.SchemeName : McpAuthentication.OAuthScheme;
         options.ForwardChallenge = McpAuthentication.OAuthScheme;
     })
-    .AddJwtBearer(McpAuthentication.OAuthScheme, options => McpAuthentication.Configure(options, oauthSettings, jwtKey));
+    .AddJwtBearer(McpAuthentication.OAuthScheme, _ => { });
+builder.Services.AddOptions<JwtBearerOptions>(McpAuthentication.OAuthScheme)
+    .Configure<IHttpContextAccessor>((options, accessor) => McpAuthentication.Configure(options, accessor, jwtKey));
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("Permission", p => p.Requirements.Add(new PermissionRequirement()))
@@ -259,17 +264,8 @@ builder.Services.AddAntiforgery(o =>
     }
 });
 
-var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-if (publicOrigin.Value is { } configuredOrigin)
-    corsAllowedOrigins = [.. corsAllowedOrigins, configuredOrigin];
-builder.Services.AddCors(options =>
-    options.AddDefaultPolicy(policy => policy
-        .WithOrigins(corsAllowedOrigins)
-        .AllowCredentials()
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        // A page on another origin (VITE_API_BASE_URL) reads a download's file name and a camera frame's age.
-        .WithExposedHeaders("Content-Disposition", "ETag", OpenFarm.Api.Endpoints.Printers.GetPrinterCameraFrameEndpoint.ReceivedAtHeader)));
+builder.Services.AddCors();
+builder.Services.AddSingleton<Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider, OpenFarm.Api.Hosting.ServerCorsPolicyProvider>();
 
 builder.Services.AddValidatorsFromAssemblyContaining<ISecretProtector>();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
@@ -558,15 +554,6 @@ builder.Services
 
 var app = builder.Build();
 
-// Startup only: confirms what ORIGIN and OAUTH_ENABLED resolved to (invalid values already stopped startup above).
-#pragma warning disable CA1848, CA1873
-app.Logger.LogInformation("Public origin (ORIGIN): {Origin}", publicOrigin.Value ?? "not set");
-if (oauthSettings.Enabled)
-    app.Logger.LogInformation("MCP sign-in (OAuth): on, issuer {Issuer}, resource {Resource}", oauthSettings.Issuer, oauthSettings.Resource);
-else
-    app.Logger.LogInformation("MCP sign-in (OAuth): off, OAUTH_ENABLED is not true; MCP accepts access tokens only");
-#pragma warning restore CA1848, CA1873
-
 // LoginEndpoint's Throttle() falls back to Connection.RemoteIpAddress when no X-Forwarded-For
 // header is present, and hard-403s ("can't identify client") if that's also null. Kestrel always
 // sets it for a real socket, but WebApplicationFactory's in-memory TestServer never does — without
@@ -581,6 +568,25 @@ app.UseSerilogRequestLogging();
 
 app.UseExceptionHandler();
 
+// One authoritative database read per API/protocol request. Static files and liveness do not need the database.
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path;
+    var protocol = path.StartsWithSegments("/mcp") || path.StartsWithSegments("/oauth") || path.StartsWithSegments("/.well-known");
+    if (protocol || path.StartsWithSegments("/api") || path.StartsWithSegments("/hubs"))
+    {
+        var settings = context.RequestServices.GetRequiredService<ServerConfiguration>();
+        await settings.InitializeAsync(context.RequestAborted);
+        if (protocol && !settings.Current.McpEnabled)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            context.Response.Headers.CacheControl = "no-store";
+            await context.Response.WriteAsJsonAsync(new { error = "MCP is disabled" });
+            return;
+        }
+    }
+    await next();
+});
 app.UseCors();
 
 // Local development serves the SPA through Vite and has no wwwroot.
@@ -613,6 +619,9 @@ if (serveSpa)
 
 app.Use(async (context, next) =>
 {
+    var publicOrigin = context.RequestServices.GetRequiredService<OpenFarm.Api.Hosting.PublicOrigin>();
+    var corsAllowedOrigins = context.RequestServices.GetRequiredService<IConfiguration>().GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+    if (publicOrigin.Value is { } allowedOrigin) corsAllowedOrigins = [.. corsAllowedOrigins, allowedOrigin];
     var isOAuth = context.Request.Path.StartsWithSegments("/oauth") || context.Request.Path.StartsWithSegments("/.well-known");
     if (isOAuth || context.Request.Path.StartsWithSegments("/mcp"))
     {
@@ -725,6 +734,12 @@ using (var scope = app.Services.CreateScope())
 
     var seeder = scope.ServiceProvider.GetRequiredService<FirstBootSeeder>();
     await seeder.SeedAsync();
+    var settings = scope.ServiceProvider.GetRequiredService<ServerConfiguration>();
+    await settings.InitializeAsync(CancellationToken.None);
+#pragma warning disable CA1848, CA1873
+    app.Logger.LogInformation("Public URL: {Origin}; MCP mode: {Mode}; MCP_ENABLED override: {Enabled}",
+        settings.Current.PublicUrl ?? "not set", settings.Current.McpMode, deploymentPolicy.Enabled);
+#pragma warning restore CA1848, CA1873
 }
 
 // System Profile ingestion CLI entry point (009, contracts/system-profile-ingestion.md) — re-runnable

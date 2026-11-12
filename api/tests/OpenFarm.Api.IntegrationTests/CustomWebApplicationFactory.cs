@@ -109,10 +109,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
         }
         finally
         {
-            // Stopping the host can throw (it is reported as a class cleanup failure); the database container must
-            // still go. A leaked container stays up until the test process exits, and enough of them starve a small
-            // Docker VM so that later classes' Postgres is OOM-killed while initialising.
-            await _postgres.StopAsync();
+            // Dispose removes the container and its writable layer. Stop alone retains every database until
+            // the test process exits, which can exhaust disk space during the full integration suite.
+            await _postgres.DisposeAsync();
 
             try
             {

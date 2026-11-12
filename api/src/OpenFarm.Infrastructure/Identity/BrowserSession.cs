@@ -18,6 +18,8 @@ public sealed class BrowserSession
 
     /// <summary>The redirect URI the user consented to (an app only): what "Returns to" shows.</summary>
     public string? RedirectUri { get; set; }
+
+    public string? OAuthConfigurationIdentity { get; set; }
 }
 
 public sealed class SessionCredential

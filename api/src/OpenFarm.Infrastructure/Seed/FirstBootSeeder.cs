@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenFarm.Domain.Settings;
+using OpenFarm.Infrastructure.Auth;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Persistence;
 
@@ -18,6 +19,7 @@ public sealed partial class FirstBootSeeder(
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         await EnsureFarmSettingsAsync(cancellationToken);
+        await EnsureServerSettingsAsync(cancellationToken);
         await EnsureAdminUserAsync(cancellationToken);
     }
 
@@ -31,6 +33,35 @@ public sealed partial class FirstBootSeeder(
 
         dbContext.FarmSettings.Add(FarmSettings.Create());
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task EnsureServerSettingsAsync(CancellationToken ct)
+    {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        await dbContext.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(71426501)", ct);
+        var policy = new ServerConfigurationOverrides(configuration);
+        var existing = await dbContext.ServerSettings.SingleOrDefaultAsync(ct);
+        if (existing is not null)
+        {
+            if (existing.DeploymentFingerprint == policy.Fingerprint) return;
+            existing.ApplyDeploymentPolicy(policy.Fingerprint);
+            var now = DateTimeOffset.UtcNow;
+            await dbContext.BrowserSessions.Where(s => s.ClientId != null && s.RevokedAtUtc == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
+            await dbContext.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return;
+        }
+        var saved = new ServerSettings();
+        saved.Update(policy.PublicUrl, policy.LegacyOAuthEnabled == true ? McpAccessMode.SignIn : McpAccessMode.Disabled);
+        saved.ApplyDeploymentPolicy(policy.Fingerprint);
+        dbContext.ServerSettings.Add(saved);
+        // Existing explicitly enabled OAuth installations retain their connected apps.
+        var identity = policy.Resolve(saved).Identity;
+        await dbContext.SaveChangesAsync(ct);
+        await dbContext.BrowserSessions.Where(s => s.ClientId != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.OAuthConfigurationIdentity, identity), ct);
+        await transaction.CommitAsync(ct);
     }
 
     private const string DefaultAdminPassword = "admin-openfarm";

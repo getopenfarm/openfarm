@@ -427,6 +427,28 @@ export interface RemovePrinterModelCostRequest {
   [key: string]: unknown;
 }
 
+export interface ServerSettingsResponse {
+  /** @nullable */
+  publicUrl?: string | null;
+  mcpMode?: string;
+  revision?: string;
+  publicUrlManaged?: boolean;
+  mcpModeManaged?: boolean;
+  /** @nullable */
+  mcpEnabledOverride?: boolean | null;
+}
+
+export interface UpdatePublicUrlRequest {
+  revision?: string;
+  /** @nullable */
+  publicUrl?: string | null;
+}
+
+export interface UpdateMcpSettingsRequest {
+  revision?: string;
+  mode?: string;
+}
+
 export interface UpdateSlicingDefaultsRequest {
   engine?: string;
   version?: string;
@@ -2929,6 +2951,7 @@ export interface ConnectedAppsResponse {
   mcpUrl?: string | null;
   signInEnabled?: boolean;
   apps?: ConnectedAppResponse[];
+  mcpEnabled?: boolean;
 }
 
 export interface DisplayPreferencesResponse {

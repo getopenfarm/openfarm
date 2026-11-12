@@ -4,7 +4,7 @@ using FluentAssertions;
 
 namespace OpenFarm.Api.IntegrationTests.Mcp;
 
-public sealed class McpTransportTests(CustomWebApplicationFactory factory) : IClassFixture<CustomWebApplicationFactory>
+public sealed class McpTransportTests(McpTestFactory factory) : IClassFixture<McpTestFactory>
 {
     [Fact]
     public async Task UnauthenticatedAndBrowserCallsGetTheMcpChallenge()

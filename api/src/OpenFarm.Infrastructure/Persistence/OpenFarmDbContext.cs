@@ -29,6 +29,8 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
 
     public DbSet<FarmSettings> FarmSettings => Set<FarmSettings>();
 
+    public DbSet<ServerSettings> ServerSettings => Set<ServerSettings>();
+
     public DbSet<ConnectionSecret> ConnectionSecrets => Set<ConnectionSecret>();
 
     public DbSet<ActivityLogEntry> ActivityLogEntries => Set<ActivityLogEntry>();

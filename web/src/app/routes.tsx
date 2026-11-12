@@ -10,6 +10,10 @@ import { UserFormPage } from '@/features/accounts/UserFormPage';
 import { UsersGroupsPage } from '@/features/accounts/UsersGroupsPage';
 import { GeneralSettingsPage } from '@/features/settings/GeneralSettingsPage';
 import { CurrencyProvider } from '@/features/settings/generalSettings';
+import {
+  AiAssistantsSettingsPage,
+  ServerSettingsPage,
+} from '@/features/settings/ServerSettingsPage';
 import { ActivityLogPage } from '../features/activity-log/ActivityLogPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
 import { AssemblyDetailPage } from '../features/assemblies/AssemblyDetailPage';
@@ -341,6 +345,16 @@ const routes: RouteObject[] = [
                 path: 'general',
                 element: <GeneralSettingsPage />,
                 handle: { title: 'General' },
+              },
+              {
+                path: 'server',
+                element: <ServerSettingsPage />,
+                handle: { title: 'Server' },
+              },
+              {
+                path: 'integrations/ai-assistants',
+                element: <AiAssistantsSettingsPage />,
+                handle: { title: 'AI assistants' },
               },
               {
                 path: 'printer-costs',

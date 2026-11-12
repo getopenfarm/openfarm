@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect } from 'react';
 import { useSearchParams } from 'react-router';
 import { EmptyState } from '@/components/empty-state/EmptyState';
-import { DOCS_URL } from '@/features/accounts/connectSnippets';
 
 /** Codes the server may send; anything else is never rendered (it is query text). */
 const EXPIRED_CODES = new Set([
@@ -44,10 +43,10 @@ export function ConnectMessage({ code }: { code: string | null }) {
         title="Sign-in is off"
         description={
           <>
-            Use an access token, or set OAUTH_ENABLED=true and an HTTPS ORIGIN,
-            then restart OpenFarm.{' '}
+            Use an access token, or ask an administrator to enable sign-in in
+            Settings → AI assistants.{' '}
             <a
-              href={`${DOCS_URL}administration/ai-assistants#prepare-the-server`}
+              href="https://getopenfarm.github.io/docs/administration/ai-assistants#prepare-the-server"
               target="_blank"
               rel="noreferrer"
             >

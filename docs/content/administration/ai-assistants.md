@@ -14,24 +14,33 @@ There are two ways to connect:
 
 ## Prepare the server {#prepare-the-server}
 
-Sign-in is off until an administrator turns it on. It needs a public HTTPS address:
+MCP is disabled by default. An administrator must enable it before any assistant can connect.
 
-1. Give OpenFarm its public address and turn sign-in on in `.env`:
+1. Open **Settings → AI assistants**.
+2. Select **Access tokens only** for a compatible local client. For browser sign-in, first set the **Public URL** under **Settings → Server**, then select **Sign-in and access tokens**.
+3. Select **Save**. Changes apply without restarting OpenFarm.
+4. Connect from your assistant. Follow the sign-in or access-token steps below.
 
-   ```dotenv
-   ORIGIN=https://farm.example.com
-   OAUTH_ENABLED=true
-   ```
+Sign-in requires an HTTPS public URL. HTTP is allowed only for localhost development. Setting the public URL does not configure DNS, HTTPS, a tunnel, or a reverse proxy.
 
-2. Recreate the application: `docker compose up -d --force-recreate openfarm`.
-3. Route the whole hostname to OpenFarm, including `/mcp`, `/oauth/` and `/.well-known/`, as for `/api` and `/hubs` (see [Configuration](../installation/configuration.md#https-and-reverse-proxies)). Do not put Cloudflare Access or another login wall in front of `/.well-known/` or `/oauth/token`.
-4. Check it: the startup log (`docker compose logs openfarm`) shows `Public origin (ORIGIN): https://farm.example.com` and `MCP sign-in (OAuth): on`, and `curl -i https://farm.example.com/mcp` answers `401` with a `WWW-Authenticate` header that contains `resource_metadata`.
+For remote access, route the whole hostname to OpenFarm, including `/mcp`, `/oauth/` and `/.well-known/`. Do not put another login wall in front of discovery or `/oauth/token`. See [Configuration](../installation/configuration.md#https-and-reverse-proxies).
+
+Deployment settings can lock these controls. The page names the setting that controls the field. See [deployment overrides](../installation/configuration.md#ai-assistant-sign-in).
+
+To check an enabled server, run:
+
+```bash
+curl -i -X POST https://farm.example.com/mcp \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+Without a credential, the server returns `401`. With sign-in enabled, its `WWW-Authenticate` header includes `resource_metadata`. A disabled server returns `404`.
 
 Claude and ChatGPT on the web connect from the internet: the address must be reachable from there. An installation reachable only on your LAN can use Claude Code, Cursor or VS Code with an access token instead.
 
 ## Sign in from your assistant
 
-My profile → Connected apps → **Connect an AI assistant** shows the server URL and the setup for each assistant. In short:
+Use your installation address with `/mcp` at the end. For example, if the public URL is `https://farm.example.com`, use `https://farm.example.com/mcp`. Replace the example URL in each setup below.
 
 | Assistant | Setup |
 |---|---|
@@ -56,14 +65,69 @@ A connection lasts 30 days. Then connect again from the assistant.
 2. Name the token after the assistant, for example `Claude Code`.
 3. Select the read permissions the assistant needs, for example **Printers: View** and **Queue: View**.
 4. Create the token and copy the credential. OpenFarm shows it only once.
-5. Open **My profile → Connected apps → Connect an AI assistant**, choose your assistant and copy its setup.
+5. Configure your assistant with the server URL and token. Use an example below.
 
-Store the credential in an environment variable such as `OPENFARM_TOKEN`, not in a file you share. For Claude Code:
+Use your installation address with `/mcp` at the end. Replace `https://farm.example.com/mcp` in the examples. A local client can use a LAN address, such as `http://openfarm.local:6868/mcp`.
+
+Store the credential securely. You can use a local environment variable such as `OPENFARM_TOKEN` to keep it out of a shared configuration file. This is a client credential, separate from the server settings.
+
+### Claude Code
 
 ```bash
 claude mcp add --transport http openfarm https://farm.example.com/mcp \
   --header "Authorization: Bearer $OPENFARM_TOKEN"
 ```
+
+### Cursor
+
+Set `OPENFARM_TOKEN` in the environment used to start Cursor. Add this configuration to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "openfarm": {
+      "url": "https://farm.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${env:OPENFARM_TOKEN}" }
+    }
+  }
+}
+```
+
+### VS Code
+
+Add this configuration to `.vscode/mcp.json`. VS Code asks for the token and stores it securely.
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "openfarm-token",
+      "description": "OpenFarm access token",
+      "password": true
+    }
+  ],
+  "servers": {
+    "openfarm": {
+      "type": "http",
+      "url": "https://farm.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${input:openfarm-token}" }
+    }
+  }
+}
+```
+
+### Codex
+
+Set `OPENFARM_TOKEN` in the environment used to start Codex. Add this configuration to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.openfarm]
+url = "https://farm.example.com/mcp"
+bearer_token_env_var = "OPENFARM_TOKEN"
+```
+
+### Other clients
 
 Other clients need these settings:
 
@@ -120,6 +184,8 @@ The assistant sends what it reads to its AI service. Give it only the access it 
 
 ## Disconnect
 
+An administrator can select **Disabled** under **Settings → AI assistants** to block all MCP access. Changing the MCP mode or public URL disconnects signed-in apps and cancels pending connection requests. Re-enabling MCP does not restore those app connections. Personal access tokens keep their REST permissions and can use MCP again when token access is enabled. Work already accepted by a printer is not undone.
+
 - **A signed-in app**: My profile → Connected apps → **Revoke access**. An administrator can do the same on the user's page.
 - **A token**: My profile → Access tokens → **Revoke**.
 - Changing your password, an administrator's password reset or disabling the account ends every connected app and token. An administrator's **Revoke all** on a user's sessions also ends their apps.
@@ -136,11 +202,12 @@ The assistant sends what it reads to its AI service. Give it only the access it 
 
 - **401 Unauthorized**: the token or sign-in is wrong, expired or revoked, or you sent a browser session instead. With sign-in on, the `WWW-Authenticate` header names `resource_metadata`, which the assistant uses to sign in.
 - **The assistant asks for an OAuth login, or says the server needs authentication it cannot do**: sign-in is off. [Prepare the server](#prepare-the-server), or use an access token.
-- **Sign-in is off**: shown on the Connect page when `OAUTH_ENABLED` is not `true`. Set it and an HTTPS `ORIGIN`, then restart OpenFarm.
+- **MCP is disabled**: ask an administrator to enable it under **Settings → AI assistants**.
+- **Sign-in is off**: use an access token, or ask an administrator to set an HTTPS public URL and select **Sign-in and access tokens**.
 - **Connection request expired**: the Connect page was open for more than 10 minutes, or was already used. Start again from the assistant.
 - **Discovery returns HTML**: your proxy sends `/.well-known/` or `/oauth/` to another site or to a cached app page. Route the whole hostname to OpenFarm.
 - **403 Forbidden (MCP origin check failed)**: a browser page called `/mcp` from another site. Use the assistant's own connector, desktop app or CLI.
 - **405 on GET /mcp**: normal. MCP uses POST only.
 - **A tool is missing**: the assistant's access or your account lacks its permission. Connect again and allow it, or add the permission to a new token.
 
-Check the server from a terminal with `curl -i https://farm.example.com/mcp`.
+Use the POST check in [Prepare the server](#prepare-the-server). A plain GET request returns `405` when MCP is enabled.

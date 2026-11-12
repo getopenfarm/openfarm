@@ -59,10 +59,9 @@ public static partial class OAuthProtocolEndpoints
 
     public static void MapOAuthProtocol(this WebApplication app)
     {
-        var settings = app.Services.GetRequiredService<OAuthSettings>();
-        app.MapGet("/.well-known/oauth-protected-resource/mcp", () => ResourceMetadata(settings)).ExcludeFromDescription();
-        app.MapGet("/.well-known/oauth-protected-resource", () => ResourceMetadata(settings)).ExcludeFromDescription();
-        app.MapGet("/.well-known/oauth-authorization-server", () => AuthorizationServerMetadata(settings)).ExcludeFromDescription();
+        app.MapGet("/.well-known/oauth-protected-resource/mcp", (OAuthSettings settings) => ResourceMetadata(settings)).ExcludeFromDescription();
+        app.MapGet("/.well-known/oauth-protected-resource", (OAuthSettings settings) => ResourceMetadata(settings)).ExcludeFromDescription();
+        app.MapGet("/.well-known/oauth-authorization-server", (OAuthSettings settings) => AuthorizationServerMetadata(settings)).ExcludeFromDescription();
         app.MapPost("/oauth/register", RegisterAsync).RequireRateLimiting(RegisterLimit).ExcludeFromDescription();
         app.MapGet("/oauth/authorize", AuthorizeAsync).RequireRateLimiting(Limit).ExcludeFromDescription();
         app.MapPost("/oauth/token", TokenAsync).RequireRateLimiting(Limit).ExcludeFromDescription();

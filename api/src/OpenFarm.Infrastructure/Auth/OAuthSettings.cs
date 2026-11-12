@@ -1,12 +1,15 @@
 namespace OpenFarm.Infrastructure.Auth;
 
 /// <summary>
-/// OAuth sign-in for MCP clients: off unless <c>OAUTH_ENABLED=true</c>, and then bound to <c>ORIGIN</c>.
+/// Validated OAuth identity for one installation configuration snapshot.
 /// Issuer and resource come only from this validated setting, never from request Host or forwarded headers.
 /// </summary>
 public sealed class OAuthSettings
 {
     public bool Enabled { get; }
+
+    /// <summary>Binds grants and protected payloads to the installation configuration.</summary>
+    public string? ConfigurationIdentity { get; internal set; }
 
     /// <summary>The issuer, <c>ORIGIN</c>. Null when OAuth is off.</summary>
     public string? Issuer { get; }

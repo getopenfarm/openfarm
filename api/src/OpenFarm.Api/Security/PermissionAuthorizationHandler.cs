@@ -33,6 +33,7 @@ public sealed class PermissionAuthorizationHandler(PermissionService permissions
             return;
         }
         var access = await permissions.ResolveAsync(userId, http.RequestAborted);
+        if (http.Request.Path.StartsWithSegments("/api/v1/admin/settings") && !access.IsAdministrator) return;
         var required = new List<string> { permission };
         required.AddRange(metadata!.AdditionalPermissions);
         if (permission.StartsWith("library:", StringComparison.Ordinal))

@@ -14,6 +14,7 @@ public sealed class BrowserSessionConfiguration : IEntityTypeConfiguration<Brows
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Property(s => s.ClientId).HasMaxLength(36);
         builder.Property(s => s.RedirectUri).HasMaxLength(2048);
+        builder.Property(s => s.OAuthConfigurationIdentity).HasMaxLength(64);
         builder.HasIndex(s => s.ClientId);
         builder.HasOne<OAuthClient>().WithMany().HasForeignKey(s => s.ClientId).OnDelete(DeleteBehavior.Cascade);
         // A connected app always has its scopes; a browser session never has any.

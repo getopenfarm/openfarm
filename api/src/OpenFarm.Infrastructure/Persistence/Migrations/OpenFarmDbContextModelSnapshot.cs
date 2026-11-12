@@ -1974,6 +1974,34 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.ToTable("FeeProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("OpenFarm.Domain.Settings.ServerSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeploymentFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("McpMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("PublicUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServerSettings", (string)null);
+                });
+
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.ApplicationRole", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2105,6 +2133,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("LastSeenAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OAuthConfigurationIdentity")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("RedirectUri")
                         .HasMaxLength(2048)

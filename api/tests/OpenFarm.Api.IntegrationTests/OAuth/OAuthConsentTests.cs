@@ -131,6 +131,7 @@ public sealed class OAuthConsentTests(OAuthFactory factory)
     {
         var client = await _kit.ClientAsync();
         using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<OpenFarm.Infrastructure.Auth.ServerConfiguration>().InitializeAsync(CancellationToken.None);
         var past = ActivatorUtilities.CreateInstance<OAuthService>(scope.ServiceProvider, new PastTime(TimeSpan.FromMinutes(11)));
         var expired = await past.BeginAsync(OAuthKit.AuthorizeQuery(client, OAuthKit.Pkce().Challenge).ToDictionary(p => p.Key, p => p.Value!), CancellationToken.None);
         var valid = await _kit.RequestAsync(client, OAuthKit.Pkce().Challenge);

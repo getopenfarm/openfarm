@@ -1413,12 +1413,40 @@ route('GET', '/auth/sessions', () => [
   },
 ]);
 route('GET', '/auth/tokens', () => []);
+// Installation controls are simulated locally; no credentials or network settings leave the demo.
+let installationSettings = {
+  publicUrl: 'https://farm.example.com' as string | null,
+  mcpMode: 'SignIn',
+  revision: id('a996', 1),
+  publicUrlManaged: false,
+  mcpModeManaged: false,
+  mcpEnabledOverride: null,
+};
+for (const path of ['/admin/settings/server', '/admin/settings/mcp']) {
+  route('GET', path, () => installationSettings);
+  route('PUT', path, ({ body }) => {
+    installationSettings = {
+      ...installationSettings,
+      ...(path.endsWith('/server')
+        ? {
+            publicUrl:
+              typeof body.publicUrl === 'string' ? body.publicUrl : null,
+          }
+        : { mcpMode: String(body.mode) }),
+      revision: crypto.randomUUID(),
+    };
+    return installationSettings;
+  });
+}
 route(
   'GET',
   '/auth/apps',
   (): ConnectedAppsResponse => ({
-    mcpUrl: 'https://farm.example.com/mcp',
-    signInEnabled: true,
+    mcpUrl: installationSettings.publicUrl
+      ? `${installationSettings.publicUrl}/mcp`
+      : null,
+    signInEnabled: installationSettings.mcpMode === 'SignIn',
+    mcpEnabled: installationSettings.mcpMode !== 'Disabled',
     apps: [
       {
         id: id('a995', 1),

@@ -1,4 +1,6 @@
-# OpenFarm MCP + OAuth: final plan
+# OpenFarm MCP + OAuth: original implementation plan
+
+Activation and configuration decision D4 is superseded by the settings-based implementation documented in `dev-notes/MCP.md`. MCP now defaults to Disabled; administrators manage its mode and public URL in settings. Deployment overrides remain available.
 
 Paths: `OF/` = `/Users/tanghaoquan/Code/openfarm/`, `A/` = `/Users/tanghaoquan/Code/akaun/`,
 `SDK/` = `src/` of github.com/modelcontextprotocol/csharp-sdk at `4cbf42e` (C# SDK 2.4.0 source).

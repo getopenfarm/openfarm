@@ -16,14 +16,18 @@ public static class McpAuthentication
     public const string Scheme = "Mcp";
     public const string OAuthScheme = "OAuth";
 
-    public static void Configure(JwtBearerOptions options, OAuthSettings settings, SecurityKey key)
+    public static void Configure(JwtBearerOptions options, IHttpContextAccessor accessor, SecurityKey key)
     {
         options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            // Null when OAuth is off; then OnMessageReceived refuses every token before validation.
-            ValidIssuer = settings.Issuer,
-            ValidAudience = settings.Resource,
+            // Validators read this request's snapshot; never mutate shared JwtBearerOptions on a settings change.
+            IssuerValidator = (issuer, _, _) =>
+                accessor.HttpContext?.RequestServices.GetRequiredService<OAuthSettings>() is { Enabled: true } current && issuer == current.Issuer
+                    ? issuer : throw new SecurityTokenInvalidIssuerException("Invalid app issuer."),
+            AudienceValidator = (audiences, _, _) =>
+                accessor.HttpContext?.RequestServices.GetRequiredService<OAuthSettings>() is { Enabled: true } current
+                    && audiences.Count() == 1 && audiences.Single() == current.Resource,
             IssuerSigningKey = key,
             ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
             ValidateIssuer = true,
@@ -36,6 +40,7 @@ public static class McpAuthentication
         {
             OnMessageReceived = context =>
             {
+                var settings = context.HttpContext.RequestServices.GetRequiredService<OAuthSettings>();
                 var header = context.Request.Headers.Authorization.ToString();
                 // An app access JWT only: never a refresh credential or a PAT, and nothing while sign-in is off.
                 if (!settings.Enabled || header.Length < 7
@@ -63,7 +68,7 @@ public static class McpAuthentication
             OnChallenge = context =>
             {
                 context.HandleResponse();
-                WriteChallenge(context.HttpContext, settings);
+                WriteChallenge(context.HttpContext, context.HttpContext.RequestServices.GetRequiredService<OAuthSettings>());
                 return Task.CompletedTask;
             },
         };
