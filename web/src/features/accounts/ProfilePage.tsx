@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { ErrorState } from '@/components/empty-state/EmptyState';
 import {
@@ -21,13 +21,7 @@ import {
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import { httpClient } from '@/lib/api/httpClient';
 import { type CurrentUser, useIdentity } from '@/lib/auth/permissions';
-import {
-  sessionsKey,
-  useConnectedApps,
-  useUpdateProfile,
-  whoAmIKey,
-} from './api';
-import { ConnectAssistantCard } from './ConnectAssistantCard';
+import { sessionsKey, useUpdateProfile, whoAmIKey } from './api';
 import { ConnectedAppList } from './ConnectedAppList';
 import { SessionList } from './SessionList';
 import { TokenList } from './TokenList';
@@ -89,10 +83,7 @@ export function ProfilePage() {
             <>
               Personal access tokens let a script or an AI assistant use
               OpenFarm as you, with only the permissions you give each one. Send
-              one in an <code>Authorization: Bearer</code> header.{' '}
-              <Link to="/profile?tab=apps" replace className="underline">
-                Connect an AI assistant
-              </Link>
+              one in an <code>Authorization: Bearer</code> header.
             </>
           }
         >
@@ -113,31 +104,12 @@ export function ProfilePage() {
 }
 
 function ConnectedAppsTab() {
-  const query = useConnectedApps();
-  const apps = query.data;
   return (
     <SettingsSection
       title="Connected apps"
       description="Apps that use OpenFarm as you, with the access you allowed. Revoking access disconnects the app at once."
     >
-      {apps ? (
-        <div className="flex flex-col gap-4">
-          <ConnectAssistantCard
-            mcpUrl={apps.mcpUrl}
-            mcpEnabled={apps.mcpEnabled ?? false}
-            signInEnabled={apps.signInEnabled ?? false}
-            defaultOpen={!apps.apps?.length}
-          />
-          <ConnectedAppList />
-        </div>
-      ) : query.isError ? (
-        <ErrorState
-          title="Could not load connected apps"
-          onRetry={() => query.refetch()}
-        />
-      ) : (
-        <Skeleton className="h-48" />
-      )}
+      <ConnectedAppList />
     </SettingsSection>
   );
 }

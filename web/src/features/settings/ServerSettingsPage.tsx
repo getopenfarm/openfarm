@@ -268,13 +268,6 @@ function InstallationForm({
       <p className="text-sm text-muted-foreground">
         Changes disconnect signed-in apps. Connect the apps again.
       </p>
-      {kind === 'mcp' && data.mcpMode !== 'Disabled' && (
-        <p className="text-sm">
-          <Link className="underline" to="/profile?tab=apps">
-            Connect an AI assistant
-          </Link>
-        </p>
-      )}
       {error && (
         <Alert variant="destructive" role="alert">
           <AlertDescription>{error}</AlertDescription>

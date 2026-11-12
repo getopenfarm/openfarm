@@ -132,7 +132,7 @@ describe('Profile form feedback', () => {
 });
 
 describe('Connected apps', () => {
-  it('shows the MCP server URL from the server and points tokens there', async () => {
+  it('shows the empty app list without assistant setup instructions', async () => {
     http.mockImplementation((async (url: string) =>
       url === '/api/v1/auth/apps'
         ? {
@@ -146,15 +146,19 @@ describe('Connected apps', () => {
           }
         : { data: [], status: 200, headers: new Headers() }) as never);
     setup('apps');
+    expect(await screen.findByText('No connected apps')).toBeInTheDocument();
     expect(
-      await screen.findByText('https://farm.example.com/mcp'),
-    ).toBeInTheDocument();
+      screen.queryByText('Connect an AI assistant'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('https://farm.example.com/mcp'),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: 'Connected apps' }),
     ).toBeInTheDocument();
   });
 
-  it('collapses the connect card once an app is connected', async () => {
+  it('lists connected apps and keeps access revocation available', async () => {
     http.mockImplementation((async () => ({
       data: {
         mcpUrl: 'https://farm.example.com/mcp',
@@ -167,9 +171,10 @@ describe('Connected apps', () => {
     })) as never);
     setup('apps');
     expect(await screen.findByText('Claude')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke access' })).toBeEnabled();
     expect(
-      screen.getByRole('button', { name: 'Connect an AI assistant' }),
-    ).toHaveAttribute('aria-expanded', 'false');
+      screen.queryByText('Connect an AI assistant'),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText('https://farm.example.com/mcp'),
     ).not.toBeInTheDocument();

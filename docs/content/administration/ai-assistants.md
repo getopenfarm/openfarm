@@ -19,7 +19,7 @@ MCP is disabled by default. An administrator must enable it before any assistant
 1. Open **Settings → AI assistants**.
 2. Select **Access tokens only** for a compatible local client. For browser sign-in, first set the **Public URL** under **Settings → Server**, then select **Sign-in and access tokens**.
 3. Select **Save**. Changes apply without restarting OpenFarm.
-4. Open **My profile → Connected apps → Connect an AI assistant** and copy the setup for your client.
+4. Connect from your assistant. Follow the sign-in or access-token steps below.
 
 Sign-in requires an HTTPS public URL. HTTP is allowed only for localhost development. Setting the public URL does not configure DNS, HTTPS, a tunnel, or a reverse proxy.
 
@@ -40,7 +40,7 @@ Claude and ChatGPT on the web connect from the internet: the address must be rea
 
 ## Sign in from your assistant
 
-My profile → Connected apps → **Connect an AI assistant** shows the server URL and the setup for each assistant. In short:
+Use your installation address with `/mcp` at the end. For example, if the public URL is `https://farm.example.com`, use `https://farm.example.com/mcp`. Replace the example URL in each setup below.
 
 | Assistant | Setup |
 |---|---|
@@ -65,14 +65,69 @@ A connection lasts 30 days. Then connect again from the assistant.
 2. Name the token after the assistant, for example `Claude Code`.
 3. Select the read permissions the assistant needs, for example **Printers: View** and **Queue: View**.
 4. Create the token and copy the credential. OpenFarm shows it only once.
-5. Open **My profile → Connected apps → Connect an AI assistant**, choose your assistant and copy its setup.
+5. Configure your assistant with the server URL and token. Use an example below.
 
-Store the credential securely. You can use a local environment variable such as `OPENFARM_TOKEN` to keep it out of a shared configuration file. This is a client credential, separate from the server settings. For Claude Code:
+Use your installation address with `/mcp` at the end. Replace `https://farm.example.com/mcp` in the examples. A local client can use a LAN address, such as `http://openfarm.local:6868/mcp`.
+
+Store the credential securely. You can use a local environment variable such as `OPENFARM_TOKEN` to keep it out of a shared configuration file. This is a client credential, separate from the server settings.
+
+### Claude Code
 
 ```bash
 claude mcp add --transport http openfarm https://farm.example.com/mcp \
   --header "Authorization: Bearer $OPENFARM_TOKEN"
 ```
+
+### Cursor
+
+Set `OPENFARM_TOKEN` in the environment used to start Cursor. Add this configuration to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "openfarm": {
+      "url": "https://farm.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${env:OPENFARM_TOKEN}" }
+    }
+  }
+}
+```
+
+### VS Code
+
+Add this configuration to `.vscode/mcp.json`. VS Code asks for the token and stores it securely.
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "openfarm-token",
+      "description": "OpenFarm access token",
+      "password": true
+    }
+  ],
+  "servers": {
+    "openfarm": {
+      "type": "http",
+      "url": "https://farm.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${input:openfarm-token}" }
+    }
+  }
+}
+```
+
+### Codex
+
+Set `OPENFARM_TOKEN` in the environment used to start Codex. Add this configuration to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.openfarm]
+url = "https://farm.example.com/mcp"
+bearer_token_env_var = "OPENFARM_TOKEN"
+```
+
+### Other clients
 
 Other clients need these settings:
 
