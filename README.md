@@ -24,7 +24,7 @@ Engineering notes and plans live in [dev-notes/](dev-notes/).
 
 ## Local development prerequisites
 
-- .NET 10 SDK (the backend pins its version in [api/global.json](api/global.json)).
+- .NET 10 SDK (the backend pins its version in [global.json](global.json)).
 - Bun for the frontend.
 - PostgreSQL, either installed locally or running through Docker Compose.
 - Bash for `dev.sh`.

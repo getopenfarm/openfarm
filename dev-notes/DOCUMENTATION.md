@@ -37,7 +37,7 @@ Check these sources when updating a guide; the notes alone may predate later cod
 | Dashboard, maintenance, Stats | `web/src/features/dashboard/`, `web/src/features/maintenance/`, `web/src/features/stats/`, `api/src/OpenFarm.Infrastructure/Reports/StatsReadModel.cs`, `MAINTENANCE.md`, `STATS.md`. Maintenance warns without blocking dispatch; Stats currently sums completed plate quantities for Units made. |
 | Cost catalog, pricing, settings | `web/src/features/cost-catalog/`, `web/src/features/assemblies/`, `web/src/features/settings/`, `COST_CATALOG.md`, `PRINTER_COSTS.md`, `PRICING.md`. These are estimates, not inventory/sales accounting. |
 | Accounts and API | `web/src/features/accounts/`, `api/src/OpenFarm.Api/Endpoints/Auth/`, `PersonalAccessTokenService.cs`, `PersonalAccessTokenHandler.cs`, `AUTHENTICATION.md`, `api/openapi.json`. Includes personal tokens merged into main before this work. |
-| Native development | Root `README.md`, `dev.sh`, `api/global.json`, `web/package.json`, `infra/docker-compose.yml`. The docs site is independently installable/buildable. |
+| Native development | Root `README.md`, `dev.sh`, `global.json`, `web/package.json`, `infra/docker-compose.yml`. The docs site is independently installable/buildable. |
 
 ## Maintenance and verification
 

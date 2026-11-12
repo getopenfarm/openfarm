@@ -20,7 +20,7 @@ dotnet test api/OpenFarm.slnx --filter "FullyQualifiedName~PingEndpointTests"   
 dotnet format api/OpenFarm.slnx --verify-no-changes               # CI lint check
 dotnet format api/OpenFarm.slnx                                   # apply formatting
 ```
-Tests need `ConnectionStrings__Default` set (see `.env.example`) since integration tests spin up against Postgres. `api/global.json` pins the SDK version — don't hand-edit without updating CI.
+Tests need `ConnectionStrings__Default` set (see `.env.example`) since integration tests spin up against Postgres. `global.json` (repo root, so every `dotnet` command run from the root honors it) pins the SDK version — don't hand-edit without updating CI.
 
 ### Frontend (`web/`, Bun + React 19 + Vite)
 ```

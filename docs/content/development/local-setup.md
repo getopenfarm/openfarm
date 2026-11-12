@@ -14,7 +14,7 @@ You can build the docs site independently of the farm application.
 
 ## Run the application
 
-Install the .NET SDK version specified in `api/global.json`, Bun, Bash, and PostgreSQL. Follow the root [README](https://github.com/getopenfarm/openfarm/blob/main/README.md) to configure the database or start its Compose service.
+Install the .NET SDK version specified in `global.json`, Bun, Bash, and PostgreSQL. Follow the root [README](https://github.com/getopenfarm/openfarm/blob/main/README.md) to configure the database or start its Compose service.
 
 From the repository root:
 
