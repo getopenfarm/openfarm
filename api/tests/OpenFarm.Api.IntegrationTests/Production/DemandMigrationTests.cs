@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Domain.Production;
+using OpenFarm.Domain.Settings;
+using OpenFarm.Infrastructure.Seed;
 using OpenFarm.Infrastructure.Persistence;
 namespace OpenFarm.Api.IntegrationTests.Production;
 
@@ -28,6 +30,11 @@ public class DemandMigrationTests(ProductionTestFactory factory) : ProductionTes
             var migrator = db.GetService<IMigrator>();
             await migrator.MigrateAsync("20261030071634_AddLibraryFolders");
             await migrator.MigrateAsync();
+            // The rollback drops installation settings. A real upgrade migrates AND seeds before serving requests.
+            (await db.ServerSettings.AnyAsync()).Should().BeFalse();
+            await scope.ServiceProvider.GetRequiredService<FirstBootSeeder>().SeedAsync();
+            var settings = await db.ServerSettings.SingleAsync(s => s.Id == ServerSettings.SingletonId);
+            settings.McpMode.Should().Be(McpAccessMode.Disabled);
         }
         // Rolling back beyond the session migration deliberately discards browser sessions.
         (await client.GetAsync($"/api/v1/production-runs/{finite.Id}")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
