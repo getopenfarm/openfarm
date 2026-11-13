@@ -26,6 +26,37 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
     }
 
     [Fact]
+    public async Task RemovedQueueToolsAreUnavailable_ButCancelRemainsAvailable()
+    {
+        var browser = await ClientAsync();
+        var run = await RunAsync(browser, (await PartAsync()).Id);
+        var before = (await JobsAsync(run.Id)).Single();
+        await using var client = await ConnectAsync(browser, "print-jobs:view", "print-jobs:reorder", "print-jobs:pin",
+            "print-jobs:requeue", "print-jobs:remote-control", "print-jobs:cancel");
+        var tools = await client.ListToolsAsync();
+        tools.Select(t => t.Name).Should().BeEquivalentTo("openfarm_get_farm_overview", "openfarm_list_print_jobs", "openfarm_get_print_job", "openfarm_cancel_print_job");
+        foreach (var name in new[] { "reorder_print_job", "pin_print_job", "requeue_print_job", "pause_print_job" })
+        {
+            foreach (var toolName in new[] { name, "openfarm_" + name })
+            {
+                McpTools.Find(toolName).Should().BeNull();
+                var call = async () => await client.CallToolAsync(toolName, new Dictionary<string, object?> { ["jobId"] = before.Id });
+                await call.Should().ThrowAsync<Exception>();
+            }
+        }
+        var unchanged = (await JobsAsync(run.Id)).Single();
+        unchanged.Status.Should().Be(before.Status);
+        unchanged.AssignmentMode.Should().Be(before.AssignmentMode);
+        unchanged.PinnedPrinterId.Should().Be(before.PinnedPrinterId);
+        unchanged.QueuePosition.Should().Be(before.QueuePosition);
+        unchanged.RequeuedAsJobId.Should().BeNull();
+        var cancelled = await client.CallToolAsync("openfarm_cancel_print_job",
+            new Dictionary<string, object?> { ["jobId"] = before.Id, ["expectedPhase"] = "Queued" });
+        cancelled.IsError.Should().NotBe(true);
+        (await JobsAsync(run.Id)).Single().Status.Should().Be(PrintJobStatus.Cancelled);
+    }
+
+    [Fact]
     public async Task CancelRefusesAJobThatWasSentToAPrinterAfterItWasRead()
     {
         var browser = await ClientAsync();
@@ -54,31 +85,6 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
     }
 
     [Fact]
-    public async Task McpPauseWritesTheSameActivityRowAsRest_AttributedToTheToken()
-    {
-        var browser = await ClientAsync();
-        var printer = await PrinterAsync(manual: true);
-        var run = await RunAsync(browser, (await PartAsync()).Id, quantity: 2);
-        var jobs = await JobsAsync(run.Id);
-        await AssignAsync(jobs[0].Id, printer.Id);
-        await using var client = await ConnectAsync(browser, "print-jobs:remote-control");
-
-        var paused = await client.CallToolAsync("openfarm_pause_print_job", new Dictionary<string, object?> { ["jobId"] = jobs[0].Id });
-        paused.IsError.Should().NotBe(true);
-        paused.StructuredContent!.Value.GetProperty("job").GetProperty("status").GetString().Should().Be("Paused");
-        paused.StructuredContent.Value.GetProperty("confirmed").GetBoolean().Should().BeTrue();
-
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var row = await db.ActivityLogEntries.AsNoTracking().SingleAsync(a => a.EntityId == jobs[0].Id.ToString() && a.EventType == "PrintJobPauseRequested");
-        row.EntityType.Should().Be("PrintJob");
-        row.Details!.Via!.Kind.Should().Be("Token");
-
-        var conflict = ErrorOf(await client.CallToolAsync("openfarm_pause_print_job", new Dictionary<string, object?> { ["jobId"] = jobs[1].Id }));
-        conflict.GetProperty("code").GetString().Should().Be("CONFLICT");
-    }
-
-    [Fact]
     public async Task InvalidWriteInputComesBackAsInvalidInput()
     {
         var browser = await ClientAsync();
@@ -94,12 +100,11 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
     public void WritesDeclareTheirEffects_AndPrinterActionsRequireReviewedConfirmation()
     {
         var writes = McpTools.All.Where(t => t.Tool.ProtocolTool.Annotations?.ReadOnlyHint != true).ToList();
-        writes.Select(t => t.Name).Should().BeEquivalentTo("openfarm_mark_printers_ready", "openfarm_reorder_print_job", "openfarm_pin_print_job",
-            "openfarm_requeue_print_job", "openfarm_pause_print_job", "openfarm_cancel_print_job", "openfarm_queue_production", "openfarm_create_library_folder", "openfarm_rename_library_folder",
+        writes.Select(t => t.Name).Should().BeEquivalentTo("openfarm_mark_printers_ready", "openfarm_cancel_print_job", "openfarm_queue_production", "openfarm_create_library_folder", "openfarm_rename_library_folder",
             "openfarm_move_library_items", "openfarm_update_parts", "openfarm_save_assembly", "openfarm_save_fee_profile", "openfarm_save_maintenance_task", "openfarm_assign_maintenance",
             "openfarm_complete_maintenance", "openfarm_register_spools");
         writes.Should().OnlyContain(t => t.Tool.ProtocolTool.Annotations!.DestructiveHint != null && t.Tool.ProtocolTool.Annotations.ReadOnlyHint == false);
-        foreach (var name in new[] { "openfarm_requeue_print_job", "openfarm_pause_print_job", "openfarm_cancel_print_job" })
+        foreach (var name in new[] { "openfarm_cancel_print_job" })
         {
             var tool = McpTools.Find(name)!.Tool.ProtocolTool;
             tool.Description.Should().Contain("present").And.Contain("reviewed confirmation");

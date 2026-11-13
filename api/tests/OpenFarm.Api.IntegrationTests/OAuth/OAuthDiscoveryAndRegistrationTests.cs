@@ -19,7 +19,7 @@ public sealed class OAuthDiscoveryAndRegistrationTests(OAuthFactory factory)
 {
     private readonly OAuthKit _kit = new(factory);
 
-    private const string Scopes = """["printers.read","print-jobs.read","production-runs.read","library.read","filament.read","maintenance.read","pricing.read","print-jobs.write","production-runs.write","library.write","filament.write","maintenance.write","pricing.write","printers.ready","print-jobs.pause","print-jobs.cancel"]""";
+    private const string Scopes = """["printers.read","print-jobs.read","production-runs.read","library.read","filament.read","maintenance.read","pricing.read","production-runs.write","library.write","filament.write","maintenance.write","pricing.write","printers.ready","print-jobs.cancel"]""";
 
     private static string Compact(string json) => JsonSerializer.Serialize(JsonDocument.Parse(json).RootElement);
 

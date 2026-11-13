@@ -120,7 +120,7 @@ Adding a query on `BrowserSessions` means choosing its kind.
 
 ### Scopes
 
-`Application/Auth/OAuthScopes.cs` is a frozen catalog of 16 scopes (`<area>.<tier>`, tiers Read, Change and
+`Application/Auth/OAuthScopes.cs` is a frozen catalog of 14 scopes (`<area>.<tier>`, tiers Read, Change and
 Printer control). `OAuthScopesTests` snapshots every expansion: never widen a released scope, since every app
 already granted it would gain the ability; add a new scope instead (the 2026-11 tool rewrite reshaped them before
 the first release). Fee profiles are the only setting a scope may reach, and `printers.ready` (Mark ready) is
@@ -180,7 +180,7 @@ for agents", the MCP 2025-06-18 tools spec, and the Block, Vercel, WorkOS and Ph
 |---|---|---|
 | Overview | `openfarm_get_farm_overview` (no permission; each section checks its own and lists the rest in `hidden`) | |
 | Printers | `openfarm_list_printers`, `openfarm_get_printer` | `openfarm_mark_printers_ready` |
-| Queue | `openfarm_list_print_jobs`, `openfarm_get_print_job` (with why a queued job waits) | `openfarm_reorder_print_job`, `openfarm_pin_print_job` (no printer unpins), `openfarm_requeue_print_job`, `openfarm_pause_print_job`, `openfarm_cancel_print_job` |
+| Queue | `openfarm_list_print_jobs`, `openfarm_get_print_job` (with why a queued job waits) | `openfarm_cancel_print_job` |
 | Production | `openfarm_plan_production`, `openfarm_list_production_runs`, `openfarm_get_production_run` | `openfarm_queue_production` |
 | Library | `openfarm_search_library`, `openfarm_get_part`, `openfarm_get_assembly` (`expand` for the full tree) | `openfarm_create_library_folder`, `openfarm_rename_library_folder`, `openfarm_move_library_items`, `openfarm_update_parts`, `openfarm_save_assembly` |
 | Pricing | `openfarm_list_fee_profiles`, `openfarm_quote_assembly` | `openfarm_save_fee_profile` |
@@ -217,12 +217,19 @@ Rules for a new tool:
 
 ## Writes
 
+MCP can read existing jobs and cancel them after reviewed confirmation. Reorder,
+pin, unpin, requeue and pause are only available to a person in OpenFarm. The
+retired OAuth scopes `print-jobs.write` and `print-jobs.pause` are no longer offered
+at consent; stored grants of these scopes expand to no permissions. The
+`print-jobs.cancel` scope remains available. Personal access tokens keep their REST
+permissions, but cannot call the removed MCP tools.
+
 - `McpTools.Write` + `request.WriteAsync(dto, run, ct)`: builds the mirrored endpoint's request DTO, runs its
   `IValidator<T>` (INVALID_INPUT with `issues`), runs the same handler, then `ActivityRecorder.RecordAsync` —
   the code the FastEndpoints post-processor uses — so rows and live events match REST. Folder and fee-profile
   requests became `IActivityLoggable` for this, which also logs their REST changes.
 - Approval (`McpInstructions.Text`): an explicit request authorizes the routine change it names (library,
-  fee profiles, maintenance setup, spool registration, reorder, pin). Requeue, pause and cancel need reviewed
+  fee profiles, maintenance setup, spool registration). Cancel needs reviewed
   confirmation of that exact job (tested).
 - **Production is previewed, then committed.** `openfarm_plan_production` is read-only and returns a `planToken`: a
   30-minute `ITimeLimitedDataProtector` payload of the lines, each line's `planVersion` and submission id, the
@@ -236,7 +243,7 @@ Rules for a new tool:
   `MarkPrinterReadyCommand.ExpectedSinceUtc` refuses a printer whose activity changed since (another print
   ended, so the plate the user cleared may not be this one) with `ChangedSinceRead`. Each printer is handled on
   its own and gets its own activity row.
-- Printer commands (`openfarm_pause_print_job`, `openfarm_cancel_print_job`) return `{ job, confirmed, note }`: confirmed is false
+- Printer cancellation (`openfarm_cancel_print_job`) returns `{ job, confirmed, note }`: confirmed is false
   until telemetry reports the change, as REST's 202.
 - `openfarm_cancel_print_job` requires `expectedPhase` (`PrintJobPhases.Of`: Queued, Starting, Printing, Paused). A
   dispatched job is still `Status = Queued`, so status alone cannot tell "remove from queue" from "stop the

@@ -58,12 +58,7 @@ public sealed class McpToolResultsTests(McpTestFactory factory) : ProductionTest
         await Call("openfarm_list_print_jobs", new() { ["view"] = "external" });
         await Call("openfarm_get_print_job", new() { ["jobId"] = jobs[0].Id });
         await Call("openfarm_get_print_job", new() { ["jobId"] = jobs[2].Id });
-        await Call("openfarm_reorder_print_job", new() { ["jobId"] = jobs[1].Id });
-        await Call("openfarm_pin_print_job", new() { ["jobId"] = jobs[0].Id, ["printerId"] = idle.Id });
-        await Call("openfarm_pin_print_job", new() { ["jobId"] = jobs[0].Id });
-        await Call("openfarm_pause_print_job", new() { ["jobId"] = jobs[2].Id });
         await Call("openfarm_cancel_print_job", new() { ["jobId"] = jobs[3].Id, ["expectedPhase"] = "Queued" });
-        await Call("openfarm_requeue_print_job", new() { ["jobId"] = jobs[3].Id });
 
         var plan = await Call("openfarm_plan_production", new()
         {
@@ -127,16 +122,14 @@ public sealed class McpToolResultsTests(McpTestFactory factory) : ProductionTest
     {
         var browser = await ClientAsync();
         var part = await PartAsync();
-        var job = (await JobsAsync((await RunAsync(browser, part.Id)).Id))[0];
         await using var client = await McpTestClient.ConnectAsync(Factory, (await McpTestClient.TokenAsync(browser,
-            "printers:list", "print-jobs:view", "print-jobs:pin", "production-runs:view", "spools:list", "parts:edit", "settings:fees:update")).Credential);
+            "printers:list", "print-jobs:view", "production-runs:view", "spools:list", "parts:edit", "settings:fees:update")).Credential);
         _client = client;
 
         await Call("openfarm_list_printers", new() { ["status"] = "" });
         await Call("openfarm_list_print_jobs", new() { ["view"] = "", ["status"] = " ", ["search"] = null });
         await Call("openfarm_list_production_runs", new() { ["status"] = "", ["search"] = "" });
         await Call("openfarm_list_spools", new() { ["state"] = "", ["search"] = "" });
-        (await Call("openfarm_pin_print_job", new() { ["jobId"] = job.Id, ["printerId"] = "" })).GetProperty("pinned").GetBoolean().Should().BeFalse();
         var renamed = await Call("openfarm_update_parts", new() { ["updates"] = new object[] { new { partId = part.Id, name = "", addTags = BlankTag } } });
         renamed.GetProperty("parts")[0].GetProperty("name").GetString().Should().Be(part.Name, "a blank name keeps the saved one");
 

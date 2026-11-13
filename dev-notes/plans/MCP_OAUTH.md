@@ -1,5 +1,9 @@
 # OpenFarm MCP + OAuth: original implementation plan
 
+Reorder, printer-pin, requeue and pause tools described in this historical plan
+are no longer exposed through MCP. Cancel remains available after confirmation.
+See `dev-notes/MCP.md` for the current tool set and scopes.
+
 Activation and configuration decision D4 is superseded by the settings-based implementation documented in `dev-notes/MCP.md`. MCP now defaults to Disabled; administrators manage its mode and public URL in settings. Deployment overrides remain available.
 
 Paths: `OF/` = `/Users/tanghaoquan/Code/openfarm/`, `A/` = `/Users/tanghaoquan/Code/akaun/`,
