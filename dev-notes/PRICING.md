@@ -101,5 +101,5 @@ price rounding to price points.
   the estimate notes and one pricing row per fee profile. Without
   `settings:fees:read` it holds only the "No fees" row. The editor sends one
   debounced request that the Build panel and Pricing share; the MCP tool
-  `quote_assembly` reads the same quote. The live demo answers the endpoint
+  `openfarm_quote_assembly` reads the same quote. The live demo answers the endpoint
   with the former client-side math (`web/src/demo/quote/`).

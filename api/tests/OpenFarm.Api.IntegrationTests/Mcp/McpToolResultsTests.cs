@@ -46,78 +46,78 @@ public sealed class McpToolResultsTests(McpTestFactory factory) : ProductionTest
         await using var client = await McpTestClient.ConnectAsync(Factory, token.Credential);
         _client = client;
 
-        await Call("get_farm_overview", []);
-        var printers = await Call("list_printers", []);
-        await Call("list_printers", new() { ["status"] = "AwaitingClear" });
-        await Call("get_printer", new() { ["printerId"] = idle.Id });
+        await Call("openfarm_get_farm_overview", []);
+        var printers = await Call("openfarm_list_printers", []);
+        await Call("openfarm_list_printers", new() { ["status"] = "AwaitingClear" });
+        await Call("openfarm_get_printer", new() { ["printerId"] = idle.Id });
         var since = printers.GetProperty("printers").EnumerateArray().Single(p => p.GetProperty("printerId").GetGuid() == awaiting.Id)
             .GetProperty("awaitingClearSinceUtc").GetDateTimeOffset();
-        await Call("mark_printers_ready", new() { ["printers"] = new object[] { new { printerId = awaiting.Id, awaitingClearSinceUtc = since } } });
+        await Call("openfarm_mark_printers_ready", new() { ["printers"] = new object[] { new { printerId = awaiting.Id, awaitingClearSinceUtc = since } } });
 
-        await Call("list_print_jobs", []);
-        await Call("list_print_jobs", new() { ["view"] = "external" });
-        await Call("get_print_job", new() { ["jobId"] = jobs[0].Id });
-        await Call("get_print_job", new() { ["jobId"] = jobs[2].Id });
-        await Call("reorder_print_job", new() { ["jobId"] = jobs[1].Id });
-        await Call("pin_print_job", new() { ["jobId"] = jobs[0].Id, ["printerId"] = idle.Id });
-        await Call("pin_print_job", new() { ["jobId"] = jobs[0].Id });
-        await Call("pause_print_job", new() { ["jobId"] = jobs[2].Id });
-        await Call("cancel_print_job", new() { ["jobId"] = jobs[3].Id, ["expectedPhase"] = "Queued" });
-        await Call("requeue_print_job", new() { ["jobId"] = jobs[3].Id });
+        await Call("openfarm_list_print_jobs", []);
+        await Call("openfarm_list_print_jobs", new() { ["view"] = "external" });
+        await Call("openfarm_get_print_job", new() { ["jobId"] = jobs[0].Id });
+        await Call("openfarm_get_print_job", new() { ["jobId"] = jobs[2].Id });
+        await Call("openfarm_reorder_print_job", new() { ["jobId"] = jobs[1].Id });
+        await Call("openfarm_pin_print_job", new() { ["jobId"] = jobs[0].Id, ["printerId"] = idle.Id });
+        await Call("openfarm_pin_print_job", new() { ["jobId"] = jobs[0].Id });
+        await Call("openfarm_pause_print_job", new() { ["jobId"] = jobs[2].Id });
+        await Call("openfarm_cancel_print_job", new() { ["jobId"] = jobs[3].Id, ["expectedPhase"] = "Queued" });
+        await Call("openfarm_requeue_print_job", new() { ["jobId"] = jobs[3].Id });
 
-        var plan = await Call("plan_production", new()
+        var plan = await Call("openfarm_plan_production", new()
         {
             ["lines"] = new object[] { new { kind = "Part", id = part.Id, quantity = 3 } },
             ["destination"] = "newRun",
             ["runName"] = "Market",
             ["dueDate"] = "2026-12-01",
         });
-        await Call("queue_production", new() { ["planToken"] = plan.GetProperty("planToken").GetString() });
-        await Call("list_production_runs", []);
-        await Call("get_production_run", new() { ["productionRunId"] = run.Id });
+        await Call("openfarm_queue_production", new() { ["planToken"] = plan.GetProperty("planToken").GetString() });
+        await Call("openfarm_list_production_runs", []);
+        await Call("openfarm_get_production_run", new() { ["productionRunId"] = run.Id });
 
-        var folderId = (await Call("create_library_folder", new() { ["library"] = "parts", ["path"] = "Storage/Bins" })).GetProperty("folderId").GetGuid();
-        await Call("rename_library_folder", new() { ["library"] = "parts", ["folderId"] = folderId, ["name"] = "Boxes" });
-        await Call("move_library_items", new() { ["library"] = "parts", ["itemIds"] = new[] { part.Id }, ["toFolderId"] = folderId });
-        await Call("update_parts", new() { ["updates"] = new object[] { new { partId = part.Id, name = "Bracket", addTags = BinsTag } } });
-        await Call("search_library", new() { ["library"] = "parts" });
-        await Call("search_library", new() { ["library"] = "parts", ["query"] = "bracket" });
-        await Call("get_part", new() { ["partId"] = part.Id });
-        var assemblyId = (await Call("save_assembly", new()
+        var folderId = (await Call("openfarm_create_library_folder", new() { ["library"] = "parts", ["path"] = "Storage/Bins" })).GetProperty("folderId").GetGuid();
+        await Call("openfarm_rename_library_folder", new() { ["library"] = "parts", ["folderId"] = folderId, ["name"] = "Boxes" });
+        await Call("openfarm_move_library_items", new() { ["library"] = "parts", ["itemIds"] = new[] { part.Id }, ["toFolderId"] = folderId });
+        await Call("openfarm_update_parts", new() { ["updates"] = new object[] { new { partId = part.Id, name = "Bracket", addTags = BinsTag } } });
+        await Call("openfarm_search_library", new() { ["library"] = "parts" });
+        await Call("openfarm_search_library", new() { ["library"] = "parts", ["query"] = "bracket" });
+        await Call("openfarm_get_part", new() { ["partId"] = part.Id });
+        var assemblyId = (await Call("openfarm_save_assembly", new()
         {
             ["name"] = "Desk set",
             ["lines"] = new object[] { new { kind = "Part", id = part.Id, quantity = 2 } },
             ["pricingMode"] = "Margin",
             ["pricingValue"] = 30,
         })).GetProperty("assemblyId").GetGuid();
-        await Call("save_assembly", new() { ["assemblyId"] = assemblyId, ["lines"] = new object[] { new { kind = "Part", id = part.Id, quantity = 3 } } });
-        await Call("search_library", new() { ["library"] = "assemblies" });
-        await Call("get_assembly", new() { ["assemblyId"] = assemblyId, ["expand"] = true });
+        await Call("openfarm_save_assembly", new() { ["assemblyId"] = assemblyId, ["lines"] = new object[] { new { kind = "Part", id = part.Id, quantity = 3 } } });
+        await Call("openfarm_search_library", new() { ["library"] = "assemblies" });
+        await Call("openfarm_get_assembly", new() { ["assemblyId"] = assemblyId, ["expand"] = true });
 
-        await Call("save_fee_profile", new()
+        await Call("openfarm_save_fee_profile", new()
         {
             ["name"] = "Shopee",
             ["fees"] = new object[] { new { name = "Commission", type = "Percent", amount = 18 }, new { name = "Order", type = "Fixed", amount = 0.5 } },
         });
-        await Call("list_fee_profiles", []);
-        await Call("quote_assembly", new() { ["assemblyId"] = assemblyId });
-        await Call("quote_assembly", new() { ["assemblyId"] = assemblyId, ["pricingMode"] = "Markup", ["pricingValue"] = 50 });
+        await Call("openfarm_list_fee_profiles", []);
+        await Call("openfarm_quote_assembly", new() { ["assemblyId"] = assemblyId });
+        await Call("openfarm_quote_assembly", new() { ["assemblyId"] = assemblyId, ["pricingMode"] = "Markup", ["pricingValue"] = 50 });
 
-        var taskId = (await Call("save_maintenance_task", new() { ["name"] = "Lubricate rods", ["everyPrintHours"] = 200 })).GetProperty("id").GetGuid();
-        await Call("assign_maintenance", new() { ["taskId"] = taskId, ["printerIds"] = new[] { idle.Id, manual.Id } });
-        var enrollment = (await Call("list_maintenance", [])).GetProperty("enrollments")[0].GetProperty("id").GetGuid();
-        await Call("complete_maintenance", new() { ["enrollmentIds"] = new[] { enrollment } });
+        var taskId = (await Call("openfarm_save_maintenance_task", new() { ["name"] = "Lubricate rods", ["everyPrintHours"] = 200 })).GetProperty("id").GetGuid();
+        await Call("openfarm_assign_maintenance", new() { ["taskId"] = taskId, ["printerIds"] = new[] { idle.Id, manual.Id } });
+        var enrollment = (await Call("openfarm_list_maintenance", [])).GetProperty("enrollments")[0].GetProperty("id").GetGuid();
+        await Call("openfarm_complete_maintenance", new() { ["enrollmentIds"] = new[] { enrollment } });
 
-        await Call("list_filaments", []);
-        await Call("list_filaments", new() { ["atRiskOnly"] = true, ["coverDays"] = 42 });
-        await Call("register_spools", new()
+        await Call("openfarm_list_filaments", []);
+        await Call("openfarm_list_filaments", new() { ["atRiskOnly"] = true, ["coverDays"] = 42 });
+        await Call("openfarm_register_spools", new()
         {
             ["lines"] = new object[] { new { filamentVariantId = variantId, quantity = 2, spoolWeightGrams = 1000, price = 22 } },
             ["receivedOn"] = "2026-11-10",
         });
-        await Call("list_spools", []);
+        await Call("openfarm_list_spools", []);
         var to = new DateTimeOffset(2026, 11, 12, 0, 0, 0, TimeSpan.Zero);
-        await Call("get_farm_stats", new() { ["from"] = to.AddDays(-30), ["to"] = to, ["timeZone"] = "UTC" });
+        await Call("openfarm_get_farm_stats", new() { ["from"] = to.AddDays(-30), ["to"] = to, ["timeZone"] = "UTC" });
 
         _called.Should().BeEquivalentTo(McpTools.All.Select(t => t.Name), "every tool must be exercised here");
     }
@@ -132,15 +132,15 @@ public sealed class McpToolResultsTests(McpTestFactory factory) : ProductionTest
             "printers:list", "print-jobs:view", "print-jobs:pin", "production-runs:view", "spools:list", "parts:edit", "settings:fees:update")).Credential);
         _client = client;
 
-        await Call("list_printers", new() { ["status"] = "" });
-        await Call("list_print_jobs", new() { ["view"] = "", ["status"] = " ", ["search"] = null });
-        await Call("list_production_runs", new() { ["status"] = "", ["search"] = "" });
-        await Call("list_spools", new() { ["state"] = "", ["search"] = "" });
-        (await Call("pin_print_job", new() { ["jobId"] = job.Id, ["printerId"] = "" })).GetProperty("pinned").GetBoolean().Should().BeFalse();
-        var renamed = await Call("update_parts", new() { ["updates"] = new object[] { new { partId = part.Id, name = "", addTags = BlankTag } } });
+        await Call("openfarm_list_printers", new() { ["status"] = "" });
+        await Call("openfarm_list_print_jobs", new() { ["view"] = "", ["status"] = " ", ["search"] = null });
+        await Call("openfarm_list_production_runs", new() { ["status"] = "", ["search"] = "" });
+        await Call("openfarm_list_spools", new() { ["state"] = "", ["search"] = "" });
+        (await Call("openfarm_pin_print_job", new() { ["jobId"] = job.Id, ["printerId"] = "" })).GetProperty("pinned").GetBoolean().Should().BeFalse();
+        var renamed = await Call("openfarm_update_parts", new() { ["updates"] = new object[] { new { partId = part.Id, name = "", addTags = BlankTag } } });
         renamed.GetProperty("parts")[0].GetProperty("name").GetString().Should().Be(part.Name, "a blank name keeps the saved one");
 
-        var missing = await client.CallToolAsync("save_fee_profile", new Dictionary<string, object?> { ["name"] = "", ["fees"] = Array.Empty<object>() });
+        var missing = await client.CallToolAsync("openfarm_save_fee_profile", new Dictionary<string, object?> { ["name"] = "", ["fees"] = Array.Empty<object>() });
         missing.IsError.Should().BeTrue();
         string.Join("", missing.Content.OfType<TextContentBlock>().Select(c => c.Text)).Should().Contain("INVALID_INPUT").And.Contain("name");
     }

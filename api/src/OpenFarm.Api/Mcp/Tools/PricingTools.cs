@@ -40,13 +40,13 @@ public static class PricingTools
 {
     public static readonly McpToolSpec[] All =
     [
-        McpTools.Read("list_fee_profiles", "List fee profiles",
+        McpTools.Read("openfarm_list_fee_profiles", "List fee profiles",
             "Fee profiles: one per place products sell, such as Shopee or Direct, with their percent and fixed fees. "
             + "Every assembly is priced against every profile.",
             async (RequestContext<CallToolRequestParams> request, CancellationToken ct) =>
                 new McpFeeProfiles((await request.Service<IFeeProfileRepository>().ListAsync(ct)).Select(Profile).ToList()),
             "settings:fees:read"),
-        McpTools.Write("save_fee_profile", "Save fee profile",
+        McpTools.Write("openfarm_save_fee_profile", "Save fee profile",
             "Creates a fee profile when profileId is omitted, or replaces one profile's name and full fee list. Percent fees must total below 100. "
             + "A monthly fee is a fixed fee per order: the monthly amount divided by orders per month. This changes every assembly's price on that profile.",
             destructive: true, idempotent: true, openWorld: false,
@@ -70,18 +70,18 @@ public static class PricingTools
                 {
                     var result = await request.Service<IFeeProfileRepository>().SaveAsync(profileId, dto.Name,
                         dto.Fees.Select(f => new Fee(f.Name, f.Type, f.Amount)).ToList(), ct);
-                    if (result.DuplicateName) throw new ArgumentException($"A fee profile named {dto.Name} already exists. Use list_fee_profiles and pass its profileId to change it.");
-                    return FeeProfileDto.From(McpTools.Found(result.Profile, "Fee profile", "Use list_fee_profiles to find profile ids."));
+                    if (result.DuplicateName) throw new ArgumentException($"A fee profile named {dto.Name} already exists. Use openfarm_list_fee_profiles and pass its profileId to change it.");
+                    return FeeProfileDto.From(McpTools.Found(result.Profile, "Fee profile", "Use openfarm_list_fee_profiles to find profile ids."));
                 }, ct);
                 return Profile((await request.Service<IFeeProfileRepository>().ListAsync(ct)).Single(p => p.Id == saved.Id));
             },
             "settings:fees:update"),
-        McpTools.Read("quote_assembly", "Quote assembly",
+        McpTools.Read("openfarm_quote_assembly", "Quote assembly",
             "What one assembly costs to make (filament, printer time, electricity, failure allowance, hardware, cost items, shipping) and, on each "
             + "fee profile, its price, fees, profit, margin, markup, break-even price and largest discount. Pass pricingMode and pricingValue "
-            + "to try a rule without saving it; save one with save_assembly. Money is in the farm currency.",
+            + "to try a rule without saving it; save one with openfarm_save_assembly. Money is in the farm currency.",
             async (RequestContext<CallToolRequestParams> request,
-                [Description("Assembly id from search_library")] Guid assemblyId,
+                [Description("Assembly id from openfarm_search_library")] Guid assemblyId,
                 [Description("Price (a fixed amount), Margin (percent of price kept after fees) or Markup (percent on cost); omit for the saved rule")] string? pricingMode = null,
                 [Description("The amount or percent for pricingMode")] decimal? pricingValue = null,
                 CancellationToken ct = default) =>
@@ -91,7 +91,7 @@ public static class PricingTools
                         ?? throw new ArgumentException("pricingMode must be Price, Margin or Markup.");
                 if ((mode is null) != (pricingValue is null)) throw new ArgumentException("Pass pricingMode and pricingValue together.");
                 var assembly = McpTools.Found(await request.Service<IQueryHandler<GetAssemblyQuery, AssemblyDetail?>>().HandleAsync(new GetAssemblyQuery(assemblyId), ct),
-                    "Assembly", "Use search_library with library assemblies to find assembly ids.");
+                    "Assembly", "Use openfarm_search_library with library assemblies to find assembly ids.");
                 var pricing = mode is null ? null : new QuotePricing(mode, pricingValue!.Value);
                 var quote = await request.Service<AssemblyQuoteService>().QuoteSavedAsync(assemblyId, pricing, includeProfiles: true, ct);
                 static decimal Money(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);

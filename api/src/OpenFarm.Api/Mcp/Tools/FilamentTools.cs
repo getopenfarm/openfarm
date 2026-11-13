@@ -12,7 +12,7 @@ using OpenFarm.Domain.FilamentTracking;
 
 namespace OpenFarm.Api.Mcp.Tools;
 
-/// <param name="FilamentVariantId">The colour's id; register_spools takes it.</param>
+/// <param name="FilamentVariantId">The colour's id; openfarm_register_spools takes it.</param>
 /// <param name="ActiveSpools">Spools not finished: in storage or loaded.</param>
 /// <param name="UsedLast30DaysGrams">Grams prints and manual usage took in the last 30 days.</param>
 /// <param name="QueuedGrams">Grams of unfinished finite jobs tied to this exact colour: only its spools can print them.</param>
@@ -32,7 +32,7 @@ public sealed record McpFilamentColour(Guid FilamentVariantId, Guid FilamentId, 
 public sealed record McpFilamentForecast(int CoverDays, IReadOnlyList<McpFilamentColour> Colours);
 
 public sealed record McpSpoolLine(
-    [property: Description("Colour id (filamentVariantId) from list_filaments")] Guid FilamentVariantId,
+    [property: Description("Colour id (filamentVariantId) from openfarm_list_filaments")] Guid FilamentVariantId,
     [property: Description("How many identical spools, 1–500")] int Quantity,
     [property: Description("Net filament grams of a full spool, such as 1000")] decimal SpoolWeightGrams,
     [property: Description("Price per spool in the farm currency; omit when unknown")] decimal? Price = null,
@@ -47,9 +47,9 @@ public static class FilamentTools
 {
     public static readonly McpToolSpec[] All =
     [
-        McpTools.Read("list_filaments", "List filament stock and forecast",
+        McpTools.Read("openfarm_list_filaments", "List filament stock and forecast",
             "Every filament colour with grams on hand, the last 30 days' use, grams queued work still needs, when it runs out, and how many spools to buy "
-            + "to cover queued work plus coverDays of use, with the last price and supplier. Use it to plan purchases and to find colour ids for register_spools. "
+            + "to cover queued work plus coverDays of use, with the last price and supplier. Use it to plan purchases and to find colour ids for openfarm_register_spools. "
             + "Brands of one material and colour share stock for work that names only the colour, so each need is suggested once, on the brand bought last.",
             async (RequestContext<CallToolRequestParams> request,
                 [Description("Whitespace-separated terms; each must match the vendor, material, material type or colour name")] string? search = null,
@@ -74,7 +74,7 @@ public static class FilamentTools
                 return new McpFilamentForecast(coverDays, colours);
             },
             "filaments:list", "spools:list"),
-        McpTools.Read("list_spools", "List spools",
+        McpTools.Read("openfarm_list_spools", "List spools",
             "Spools with filament, colour, grams left and where each is loaded, oldest registered first. " + McpTools.PagingNote,
             async (RequestContext<CallToolRequestParams> request,
                 [Description("InStorage, Using or Finished")] string? state = null,
@@ -93,8 +93,8 @@ public static class FilamentTools
                 return new McpSpoolsPage(spools.Spools, p, size, spools.TotalCount, p * size < spools.TotalCount);
             },
             "spools:list"),
-        McpTools.Write("register_spools", "Register spools",
-            "Adds a delivery of new spools to stock, all or none: one line per colour and size. Find colour ids with list_filaments; "
+        McpTools.Write("openfarm_register_spools", "Register spools",
+            "Adds a delivery of new spools to stock, all or none: one line per colour and size. Find colour ids with openfarm_list_filaments; "
             + "a colour not listed must first be added to its filament in OpenFarm by a person.",
             destructive: false, idempotent: false, openWorld: false,
             async (RequestContext<CallToolRequestParams> request,
@@ -129,7 +129,7 @@ public static class FilamentTools
                     .Select(g => $"{g.Count()} × {g.Key}").ToList());
             },
             "spools:register"),
-        McpTools.Read("get_farm_stats", "Get farm stats",
+        McpTools.Read("openfarm_get_farm_stats", "Get farm stats",
             "Prints, filament used, printer time and failures over a range of at most 366 days, against the range before it.",
             async (RequestContext<CallToolRequestParams> request,
                 [Description("Inclusive start: a local midnight, as an instant")] DateTimeOffset from,

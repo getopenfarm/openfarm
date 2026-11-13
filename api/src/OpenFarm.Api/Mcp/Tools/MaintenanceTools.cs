@@ -19,9 +19,9 @@ public static class MaintenanceTools
 {
     public static readonly McpToolSpec[] All =
     [
-        McpTools.Read("list_maintenance", "List maintenance",
+        McpTools.Read("openfarm_list_maintenance", "List maintenance",
             "Maintenance tasks, and each printer's assigned tasks with usage since last done and due state (Ok, DueSoon, Overdue), most due first. "
-            + "Enrollment ids feed complete_maintenance; task ids feed save_maintenance_task and assign_maintenance.",
+            + "Enrollment ids feed openfarm_complete_maintenance; task ids feed openfarm_save_maintenance_task and openfarm_assign_maintenance.",
             async (RequestContext<CallToolRequestParams> request,
                 [Description("Only this printer's tasks")] Guid? printerId = null,
                 [Description("Only this task")] Guid? taskId = null,
@@ -35,10 +35,10 @@ public static class MaintenanceTools
                 return new McpMaintenance(tasks.Select(MaintenanceTaskResponse.From).ToList(), MaintenanceEnrollmentsResponse.From(enrollments).Items);
             },
             "maintenance:view"),
-        McpTools.Write("save_maintenance_task", "Save maintenance task",
+        McpTools.Write("openfarm_save_maintenance_task", "Save maintenance task",
             "Creates a maintenance task when taskId is omitted, or changes a task for every printer it is assigned to. "
             + "It falls due at whichever interval comes first; set at least one. On a change, pass every interval to keep (an omitted interval is "
-            + "removed); omitted notes and warnAtPercent keep their saved values. Assign printers with assign_maintenance.",
+            + "removed); omitted notes and warnAtPercent keep their saved values. Assign printers with openfarm_assign_maintenance.",
             destructive: false, idempotent: true, openWorld: false,
             async (RequestContext<CallToolRequestParams> request,
                 [Description("Task name, such as Lubricate rods")] string name,
@@ -53,7 +53,7 @@ public static class MaintenanceTools
                 var tasks = request.Service<IQueryHandler<ListMaintenanceTasksQuery, IReadOnlyList<MaintenanceTaskView>>>();
                 var saved = taskId is { } id
                     ? (await tasks.HandleAsync(new ListMaintenanceTasksQuery(id), ct)).SingleOrDefault()?.Task
-                        ?? throw new KeyNotFoundException("Maintenance task not found. Use list_maintenance to find task ids.")
+                        ?? throw new KeyNotFoundException("Maintenance task not found. Use openfarm_list_maintenance to find task ids.")
                     : null;
                 var dto = new SaveMaintenanceTaskRequest
                 {
@@ -71,13 +71,13 @@ public static class MaintenanceTools
                 }, ct);
             },
             "maintenance:manage"),
-        McpTools.Write("assign_maintenance", "Assign maintenance",
+        McpTools.Write("openfarm_assign_maintenance", "Assign maintenance",
             "Assigns a maintenance task to printers, tracking usage from lastDoneAtUtc (default now). For printers that already have the task, "
             + "lastDoneAtUtc sets when it was last done instead; without it they are left as they are.",
             destructive: false, idempotent: true, openWorld: false,
             async (RequestContext<CallToolRequestParams> request,
-                [Description("Task id from list_maintenance")] Guid taskId,
-                [Description("Printer ids from list_printers")] Guid[] printerIds,
+                [Description("Task id from openfarm_list_maintenance")] Guid taskId,
+                [Description("Printer ids from openfarm_list_printers")] Guid[] printerIds,
                 [Description("When the task was last done on these printers (UTC); default now")] DateTimeOffset? lastDoneAtUtc = null,
                 CancellationToken ct = default) =>
             {
@@ -86,7 +86,7 @@ public static class MaintenanceTools
                 var enrollments = request.Service<IQueryHandler<ListMaintenanceEnrollmentsQuery, IReadOnlyList<MaintenanceEnrollmentView>>>();
                 var task = (await request.Service<IQueryHandler<ListMaintenanceTasksQuery, IReadOnlyList<MaintenanceTaskView>>>()
                     .HandleAsync(new ListMaintenanceTasksQuery(taskId), ct)).SingleOrDefault()
-                    ?? throw new KeyNotFoundException("Maintenance task not found. Use list_maintenance to find task ids.");
+                    ?? throw new KeyNotFoundException("Maintenance task not found. Use openfarm_list_maintenance to find task ids.");
                 var existing = (await enrollments.HandleAsync(new ListMaintenanceEnrollmentsQuery(null, taskId, null), ct))
                     .Where(e => printerIds.Contains(e.Record.Enrollment.PrinterId)).ToList();
                 var fresh = printerIds.Except(existing.Select(e => e.Record.Enrollment.PrinterId)).Distinct().ToList();
@@ -105,11 +105,11 @@ public static class MaintenanceTools
                     lastDoneAtUtc is null ? [] : existing.Select(e => e.Record.PrinterName).ToList());
             },
             "maintenance:manage"),
-        McpTools.Write("complete_maintenance", "Mark maintenance done",
+        McpTools.Write("openfarm_complete_maintenance", "Mark maintenance done",
             "Marks maintenance enrollments done, all or none, and starts their next cycle. A failure lists why each enrollment failed.",
             destructive: false, idempotent: false, openWorld: false,
             async (RequestContext<CallToolRequestParams> request,
-                [Description("Enrollment ids from list_maintenance")] Guid[] enrollmentIds,
+                [Description("Enrollment ids from openfarm_list_maintenance")] Guid[] enrollmentIds,
                 [Description("When the work was done (UTC); default now, not before the cycle start")] DateTimeOffset? performedAtUtc = null,
                 [Description("Notes")] string? notes = null,
                 [Description("Who did the work, on top of the signed-in user")] string? performedByNote = null,

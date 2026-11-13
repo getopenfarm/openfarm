@@ -32,7 +32,7 @@ public sealed record McpFolder(Guid FolderId, string Library, string Path);
 public sealed record McpUpdatedParts(IReadOnlyList<McpLibraryItem> Parts);
 
 public sealed record McpPartUpdate(
-    [property: Description("Part id from search_library")] Guid PartId,
+    [property: Description("Part id from openfarm_search_library")] Guid PartId,
     [property: Description("New name; omit to keep")] string? Name = null,
     [property: Description("Tags to add; new tags are created")] string[]? AddTags = null,
     [property: Description("Tags to remove")] string[]? RemoveTags = null);
@@ -56,9 +56,9 @@ public static class LibraryTools
 
     public static readonly McpToolSpec[] All =
     [
-        McpTools.Read("search_library", "Search library",
+        McpTools.Read("openfarm_search_library", "Search library",
             "Finds parts and assemblies by name (and parts by tag), with their folder path; or, with no query, lists one folder's subfolders and items. "
-            + "Use it to find ids for plan_production, get_part, get_assembly and the library changes. " + McpTools.PagingNote,
+            + "Use it to find ids for openfarm_plan_production, openfarm_get_part, openfarm_get_assembly and the library changes. " + McpTools.PagingNote,
             async (RequestContext<CallToolRequestParams> request,
                 [Description(LibraryArg)] string library,
                 [Description("Whitespace-separated terms; each must match the name, or a tag of a part. Omit to browse a folder")] string? query = null,
@@ -101,7 +101,7 @@ public static class LibraryTools
                 return new McpLibraryPage(library, folderRows, items, p, size, total, p * size < total);
             },
             "library:view"),
-        McpTools.Read("get_part", "Get part",
+        McpTools.Read("openfarm_get_part", "Get part",
             "One part: file format, plate, units per plate, slicer pin, filament requirements and print estimates. File contents are left out.",
             async (RequestContext<CallToolRequestParams> request, [Description("Part id")] Guid partId, CancellationToken ct) =>
             {
@@ -110,7 +110,7 @@ public static class LibraryTools
                 return part;
             },
             "parts:read"),
-        McpTools.Read("get_assembly", "Get assembly",
+        McpTools.Read("openfarm_get_assembly", "Get assembly",
             "One assembly: its bill of materials one level deep with names, its folder and pricing rule. With expand, also every printed part and "
             + "non-printed component in the full tree, with quantities per assembly.",
             async (RequestContext<CallToolRequestParams> request, [Description("Assembly id")] Guid assemblyId,
@@ -128,7 +128,7 @@ public static class LibraryTools
                     tree?.NonPrintedComponents.Select(x => new McpAssemblyLine("NonPrintedComponent", x.NonPrintedComponentId, x.Name, x.Quantity)).ToList());
             },
             "assemblies:view"),
-        McpTools.Write("create_library_folder", "Create library folder",
+        McpTools.Write("openfarm_create_library_folder", "Create library folder",
             "Creates a folder path such as \"Storage/Gridfinity\", making each missing folder along it. An existing path is returned as it is.",
             destructive: false, idempotent: true, openWorld: false,
             async (RequestContext<CallToolRequestParams> request,
@@ -152,12 +152,12 @@ public static class LibraryTools
                 return new McpFolder(parent!.Value, library, Path(Paths(await folders.ListAllAsync(library, ct)), parent));
             },
             "library:manage"),
-        McpTools.Write("rename_library_folder", "Rename library folder",
+        McpTools.Write("openfarm_rename_library_folder", "Rename library folder",
             "Renames one folder. Names are unique within their parent folder.",
             destructive: false, idempotent: true, openWorld: false,
             async (RequestContext<CallToolRequestParams> request,
                 [Description(LibraryArg)] string library,
-                [Description("Folder id from search_library")] Guid folderId,
+                [Description("Folder id from openfarm_search_library")] Guid folderId,
                 [Description("New name")] string name,
                 CancellationToken ct = default) =>
             {
@@ -169,9 +169,9 @@ public static class LibraryTools
                 return new McpFolder(folder.Id, library, Path(Paths(await folders.ListAllAsync(library, ct)), folder.Id));
             },
             "library:manage"),
-        McpTools.Write("move_library_items", "Move library items",
+        McpTools.Write("openfarm_move_library_items", "Move library items",
             "Moves parts or assemblies, and folders with everything in them, into one folder or the root. Folders move one by one, then all "
-            + "items together (all items or none). On an error, read the folder with search_library: earlier folders may have moved.",
+            + "items together (all items or none). On an error, read the folder with openfarm_search_library: earlier folders may have moved.",
             destructive: false, idempotent: true, openWorld: false,
             async (RequestContext<CallToolRequestParams> request,
                 [Description(LibraryArg)] string library,
@@ -200,7 +200,7 @@ public static class LibraryTools
                 return new McpFolder(toFolderId ?? Guid.Empty, library, Path(Paths(await folders.ListAllAsync(library, ct)), toFolderId));
             },
             "library:manage"),
-        McpTools.Write("update_parts", "Update parts",
+        McpTools.Write("openfarm_update_parts", "Update parts",
             "Renames parts and adds or removes their tags, one entry per part. Each part saves on its own.",
             destructive: false, idempotent: true, openWorld: false,
             async (RequestContext<CallToolRequestParams> request,
@@ -237,7 +237,7 @@ public static class LibraryTools
                 return new McpUpdatedParts(saved);
             },
             "parts:edit"),
-        McpTools.Write("save_assembly", "Save assembly",
+        McpTools.Write("openfarm_save_assembly", "Save assembly",
             "Creates an assembly when assemblyId is omitted (name and lines required), or changes one. On a change, lines merge by kind and id: "
             + "a listed line sets that quantity, quantity 0 drops it from the bill of materials, and unlisted lines stay. "
             + "pricingMode and pricingValue set the selling-price rule used with fee profiles.",
@@ -246,7 +246,7 @@ public static class LibraryTools
                 [Description("Assembly to change; omit to create one")] Guid? assemblyId = null,
                 [Description("Name; required to create")] string? name = null,
                 [Description("Bill of materials lines")] McpBomLine[]? lines = null,
-                [Description("Create only: folder id; omit for the root. Move later with move_library_items")] Guid? folderId = null,
+                [Description("Create only: folder id; omit for the root. Move later with openfarm_move_library_items")] Guid? folderId = null,
                 [Description("Price (a fixed amount in the farm currency), Margin (percent of price kept after fees) or Markup (percent on cost)")] string? pricingMode = null,
                 [Description("The amount or percent for pricingMode")] decimal? pricingValue = null,
                 CancellationToken ct = default) =>
@@ -318,11 +318,11 @@ public static class LibraryTools
 
     private static async Task<PartDetail> PartAsync(RequestContext<CallToolRequestParams> request, Guid partId, CancellationToken ct) =>
         McpTools.Found(await request.Service<IQueryHandler<GetPartQuery, PartDetail?>>().HandleAsync(new GetPartQuery(partId), ct),
-            "Part", "Use search_library to find part ids.");
+            "Part", "Use openfarm_search_library to find part ids.");
 
     private static async Task<AssemblyDetail> AssemblyAsync(RequestContext<CallToolRequestParams> request, Guid assemblyId, CancellationToken ct) =>
         McpTools.Found(await request.Service<IQueryHandler<GetAssemblyQuery, AssemblyDetail?>>().HandleAsync(new GetAssemblyQuery(assemblyId), ct),
-            "Assembly", "Use search_library with library assemblies to find assembly ids.");
+            "Assembly", "Use openfarm_search_library with library assemblies to find assembly ids.");
 
     private static async Task<McpAssembly> DescribeAsync(RequestContext<CallToolRequestParams> request, Guid assemblyId, CancellationToken ct)
     {

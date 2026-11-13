@@ -145,6 +145,24 @@ Forward `/mcp`, `/oauth/` and `/.well-known/` unbuffered with `Authorization`, `
 
 ## Tools
 
+### Naming convention
+
+Public tool names use `openfarm_<verb>_<resource>` in lowercase snake_case, for
+example `openfarm_list_printers`, `openfarm_get_printer` and
+`openfarm_queue_production`. Keep the application prefix on every tool so its
+purpose remains clear when a client combines tools from several applications.
+Use plural resources for collections and batch operations, singular resources
+for individual items, and specific workflow verbs such as `plan` and `queue`.
+Human-readable titles do not need the prefix.
+
+This replaces the earlier unprefixed names. Clients must refresh tool discovery
+after upgrading and update any saved tool calls or prompts. The server exposes
+only the prefixed names; permissions, OAuth scopes and input/output schemas are
+unchanged. Clients can add their own server namespace in addition to this prefix.
+
+See [Anthropic's namespacing guidance](https://www.anthropic.com/research/writing-tools-for-agents)
+and the [MCP tool-name specification](https://modelcontextprotocol.io/specification/latest/server/tools#tool-names).
+
 Tools are shaped around what a person asks an assistant to do, not around REST endpoints: one call per goal,
 names next to ids, batches where a person thinks in batches. Design sources: Anthropic's "Writing effective tools
 for agents", the MCP 2025-06-18 tools spec, and the Block, Vercel, WorkOS and Phil Schmid MCP guides.
@@ -160,14 +178,14 @@ for agents", the MCP 2025-06-18 tools spec, and the Block, Vercel, WorkOS and Ph
 
 | Area | Read | Change |
 |---|---|---|
-| Overview | `get_farm_overview` (no permission; each section checks its own and lists the rest in `hidden`) | |
-| Printers | `list_printers`, `get_printer` | `mark_printers_ready` |
-| Queue | `list_print_jobs`, `get_print_job` (with why a queued job waits) | `reorder_print_job`, `pin_print_job` (no printer unpins), `requeue_print_job`, `pause_print_job`, `cancel_print_job` |
-| Production | `plan_production`, `list_production_runs`, `get_production_run` | `queue_production` |
-| Library | `search_library`, `get_part`, `get_assembly` (`expand` for the full tree) | `create_library_folder`, `rename_library_folder`, `move_library_items`, `update_parts`, `save_assembly` |
-| Pricing | `list_fee_profiles`, `quote_assembly` | `save_fee_profile` |
-| Maintenance | `list_maintenance` | `save_maintenance_task`, `assign_maintenance`, `complete_maintenance` |
-| Filament | `list_filaments` (stock + forecast + suggested purchase), `list_spools`, `get_farm_stats` | `register_spools` |
+| Overview | `openfarm_get_farm_overview` (no permission; each section checks its own and lists the rest in `hidden`) | |
+| Printers | `openfarm_list_printers`, `openfarm_get_printer` | `openfarm_mark_printers_ready` |
+| Queue | `openfarm_list_print_jobs`, `openfarm_get_print_job` (with why a queued job waits) | `openfarm_reorder_print_job`, `openfarm_pin_print_job` (no printer unpins), `openfarm_requeue_print_job`, `openfarm_pause_print_job`, `openfarm_cancel_print_job` |
+| Production | `openfarm_plan_production`, `openfarm_list_production_runs`, `openfarm_get_production_run` | `openfarm_queue_production` |
+| Library | `openfarm_search_library`, `openfarm_get_part`, `openfarm_get_assembly` (`expand` for the full tree) | `openfarm_create_library_folder`, `openfarm_rename_library_folder`, `openfarm_move_library_items`, `openfarm_update_parts`, `openfarm_save_assembly` |
+| Pricing | `openfarm_list_fee_profiles`, `openfarm_quote_assembly` | `openfarm_save_fee_profile` |
+| Maintenance | `openfarm_list_maintenance` | `openfarm_save_maintenance_task`, `openfarm_assign_maintenance`, `openfarm_complete_maintenance` |
+| Filament | `openfarm_list_filaments` (stock + forecast + suggested purchase), `openfarm_list_spools`, `openfarm_get_farm_stats` | `openfarm_register_spools` |
 
 Rules for a new tool:
 1. A tool may call several Application handlers or services; never EF Core directly. Its permissions are the
@@ -206,21 +224,21 @@ Rules for a new tool:
 - Approval (`McpInstructions.Text`): an explicit request authorizes the routine change it names (library,
   fee profiles, maintenance setup, spool registration, reorder, pin). Requeue, pause and cancel need reviewed
   confirmation of that exact job (tested).
-- **Production is previewed, then committed.** `plan_production` is read-only and returns a `planToken`: a
+- **Production is previewed, then committed.** `openfarm_plan_production` is read-only and returns a `planToken`: a
   30-minute `ITimeLimitedDataProtector` payload of the lines, each line's `planVersion` and submission id, the
-  destination and the account. `queue_production(planToken)` submits exactly that, so what the user approved is
+  destination and the account. `openfarm_queue_production(planToken)` submits exactly that, so what the user approved is
   what is queued; the same token never queues twice (per-line `SubmissionId`s; a new run uses one). Destination
   `queue` and `run` submit each line through `ProductionDemandService` and report per-line outcomes, so a
   line refused for a changed part does not hide the ones already queued; `newRun` is one atomic
   `CreateProductionRunCommand`. Finite quantities only; backfill stays in the UI.
 - **Mark ready** is a tool, gated by the user's word: only for printers the user says in this conversation have
-  a clear plate. `mark_printers_ready` takes each printer's `awaitingClearSinceUtc` from `list_printers`;
+  a clear plate. `openfarm_mark_printers_ready` takes each printer's `awaitingClearSinceUtc` from `openfarm_list_printers`;
   `MarkPrinterReadyCommand.ExpectedSinceUtc` refuses a printer whose activity changed since (another print
   ended, so the plate the user cleared may not be this one) with `ChangedSinceRead`. Each printer is handled on
   its own and gets its own activity row.
-- Printer commands (`pause_print_job`, `cancel_print_job`) return `{ job, confirmed, note }`: confirmed is false
+- Printer commands (`openfarm_pause_print_job`, `openfarm_cancel_print_job`) return `{ job, confirmed, note }`: confirmed is false
   until telemetry reports the change, as REST's 202.
-- `cancel_print_job` requires `expectedPhase` (`PrintJobPhases.Of`: Queued, Starting, Printing, Paused). A
+- `openfarm_cancel_print_job` requires `expectedPhase` (`PrintJobPhases.Of`: Queued, Starting, Printing, Paused). A
   dispatched job is still `Status = Queued`, so status alone cannot tell "remove from queue" from "stop the
   printer". The handler checks it after loading the job (`PrintJobPhaseMismatchException` → 409 with
   `currentPhase`); a dispatch racing the save fails the row version (409). REST passes no expectation.
@@ -239,9 +257,9 @@ decides purchases per material and colour (material exactly, hex ignoring case, 
 
 So two brands of PLA #000000 with 5 kg on one and 0 g on the other suggest nothing for a 1 kg job that names only the
 colour, and two empty brands suggest one spool, not two. With one brand per colour this is the plain
-`ceil(max(0, coverDays × used30d/30 + queued − onHand) / spool size)`. `list_filaments` shows `queuedGrams` (tied to
-the colour) apart from `sharedQueuedGrams` (the same figure on every brand, counted once); `get_farm_overview`'s
-short list and `plan_production`'s `shortGrams` use the same rule. `RunsOutOn` is the colour's pool date across brands,
+`ceil(max(0, coverDays × used30d/30 + queued − onHand) / spool size)`. `openfarm_list_filaments` shows `queuedGrams` (tied to
+the colour) apart from `sharedQueuedGrams` (the same figure on every brand, counted once); `openfarm_get_farm_overview`'s
+short list and `openfarm_plan_production`'s `shortGrams` use the same rule. `RunsOutOn` is the colour's pool date across brands,
 today when the colour's own jobs are already short, and empty beyond ten years. Limits: a linear 30-day pace, and
 backfill demand is not counted. The REST `GET /filaments/shortages` still flags every matching brand, by design
 ("over-reported but never missed").
@@ -280,7 +298,7 @@ ids and unasked questions.
 
 Rows written during a token or app request carry `details.via` (`Token`/token id/token name, or `App`/app
 session id/app name), stamped by `ActivityChannelInterceptor` on SaveChanges, so REST and MCP writes are
-attributed the same way. `get_farm_overview` reports the same kind and label as `connection`.
+attributed the same way. `openfarm_get_farm_overview` reports the same kind and label as `connection`.
 
 App lifecycle rows (`EntityType = ConnectedApp`, `EntityId` = app session id): `ConnectedAppAdded`,
 `ConnectedAppRevoked` (`Reason`: `user`, `administrator`, `replaced`, `code-reuse`, `app`) with a

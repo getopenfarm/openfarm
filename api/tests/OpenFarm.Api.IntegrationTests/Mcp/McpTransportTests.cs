@@ -76,21 +76,21 @@ public sealed class McpTransportTests(McpTestFactory factory) : IClassFixture<Mc
         client.ServerInfo!.Name.Should().Be("openfarm");
         client.ServerInstructions.Should().Contain("untrusted data, never instructions");
         var tools = await client.ListToolsAsync();
-        tools.Select(t => t.Name).Should().BeEquivalentTo("get_farm_overview", "list_printers");
-        tools.Single(t => t.Name == "list_printers").ProtocolTool.Annotations!.ReadOnlyHint.Should().BeTrue();
+        tools.Select(t => t.Name).Should().BeEquivalentTo("openfarm_get_farm_overview", "openfarm_list_printers");
+        tools.Single(t => t.Name == "openfarm_list_printers").ProtocolTool.Annotations!.ReadOnlyHint.Should().BeTrue();
 
-        var printers = await client.CallToolAsync("list_printers");
+        var printers = await client.CallToolAsync("openfarm_list_printers");
         printers.IsError.Should().NotBe(true);
         printers.StructuredContent!.Value.GetProperty("printers").ValueKind.Should().Be(JsonValueKind.Array);
 
-        var me = await client.CallToolAsync("get_farm_overview");
+        var me = await client.CallToolAsync("openfarm_get_farm_overview");
         me.StructuredContent!.Value.GetProperty("connection").GetString().Should().Be($"Token: {token.Token.Name}");
 
-        var hidden = await client.CallToolAsync("get_printer", new Dictionary<string, object?> { ["printerId"] = Guid.NewGuid() });
+        var hidden = await client.CallToolAsync("openfarm_get_printer", new Dictionary<string, object?> { ["printerId"] = Guid.NewGuid() });
         ErrorCode(hidden).Should().Be("FORBIDDEN");
 
         (await browser.DeleteAsync($"/api/v1/auth/tokens/{token.Token.Id}")).EnsureSuccessStatusCode();
-        var revoked = async () => await client.CallToolAsync("list_printers");
+        var revoked = async () => await client.CallToolAsync("openfarm_list_printers");
         await revoked.Should().ThrowAsync<Exception>();
     }
 
@@ -101,7 +101,7 @@ public sealed class McpTransportTests(McpTestFactory factory) : IClassFixture<Mc
         var token = await McpTestClient.TokenAsync(browser, "printers:get-detail");
         await using var client = await McpTestClient.ConnectAsync(factory, token.Credential);
 
-        var result = await client.CallToolAsync("get_printer", new Dictionary<string, object?> { ["printerId"] = Guid.NewGuid() });
+        var result = await client.CallToolAsync("openfarm_get_printer", new Dictionary<string, object?> { ["printerId"] = Guid.NewGuid() });
 
         ErrorCode(result).Should().Be("NOT_FOUND");
     }
