@@ -17,7 +17,7 @@ namespace OpenFarm.Api.Mcp.Tools;
 
 public sealed record McpPlanLine(
     [property: Description("Part or Assembly")] string Kind,
-    [property: Description("Part id or assembly id from search_library")] Guid Id,
+    [property: Description("Part id or assembly id from openfarm_search_library")] Guid Id,
     [property: Description("How many, 1 or more")] int Quantity,
     [property: Description("Units (default for a part), Plates (part only) or Sets (assemblies, the default)")] string? Basis = null);
 
@@ -34,7 +34,7 @@ public sealed record McpPlannedLine(string Kind, Guid Id, string Name, int Quant
 public sealed record McpPlanFilament(string Filament, string? MaterialType, string? ColorHex, decimal? Grams, decimal? OnHandGrams,
     decimal? AlreadyQueuedGrams, decimal? ShortGrams);
 
-/// <param name="PlanToken">Pass to queue_production after the user approves this plan; it queues exactly this plan once.</param>
+/// <param name="PlanToken">Pass to openfarm_queue_production after the user approves this plan; it queues exactly this plan once.</param>
 public sealed record McpProductionPlan(string PlanToken, DateTimeOffset ExpiresAtUtc, string Destination, string? Run, string? Printer,
     IReadOnlyList<McpPlannedLine> Lines, int Plates, decimal? Hours, decimal? Grams, IReadOnlyList<McpPlanFilament> Filament, IReadOnlyList<string> Warnings);
 
@@ -57,9 +57,9 @@ public static class ProductionTools
 
     public static readonly McpToolSpec[] All =
     [
-        McpTools.Read("plan_production", "Plan production",
+        McpTools.Read("openfarm_plan_production", "Plan production",
             "Previews queueing parts or assemblies: plates per part, surplus units, print hours, grams per filament colour against stock, and a planToken. "
-            + "Nothing is queued. Show the user the plan, then call queue_production with the token once they approve it. "
+            + "Nothing is queued. Show the user the plan, then call openfarm_queue_production with the token once they approve it. "
             + "Destination queue queues each line on its own; newRun makes one production run of all lines; run adds the lines to an open run.",
             async (RequestContext<CallToolRequestParams> request,
                 [Description("1–20 lines to make")] McpPlanLine[] lines,
@@ -86,11 +86,11 @@ public static class ProductionTools
                 string? run = destination == "newRun" ? runName : null;
                 if (productionRunId is { } runId && allowed.Contains("production-runs:view"))
                     run = McpTools.Found(await request.Service<IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>>()
-                        .HandleAsync(new GetProductionRunDetailQuery(runId), ct), "Production run", "Use list_production_runs to find open runs.").DisplayLabel;
+                        .HandleAsync(new GetProductionRunDetailQuery(runId), ct), "Production run", "Use openfarm_list_production_runs to find open runs.").DisplayLabel;
                 var printers = await QueueTools.PrinterNamesAsync(request, ct);
                 string? printer = null;
                 if (printerId is { } pid && !printers.TryGetValue(pid, out printer))
-                    throw new KeyNotFoundException("Printer not found. Use list_printers to find printer ids.");
+                    throw new KeyNotFoundException("Printer not found. Use openfarm_list_printers to find printer ids.");
                 if (!allowed.Contains("printers:list")) printer = null;
 
                 var planner = request.Service<ProductionPlanner>();
@@ -121,7 +121,7 @@ public static class ProductionTools
                 var queued = seesStock ? await GetFilamentShortagesQueryHandler.QueuedDemandAsync(request.Service<IPrintJobRepository>(), ct) : QueuedDemand.None;
                 var today = DateOnly.FromDateTime(DateTime.UtcNow);
                 var noPurchases = new Dictionary<Guid, SpoolPurchase>();
-                // A colour's shortage after queued work, across every brand of its material and hex, as list_filaments counts it.
+                // A colour's shortage after queued work, across every brand of its material and hex, as openfarm_list_filaments counts it.
                 decimal ShortOf(QueuedDemand demand, ColourKey key) => FilamentForecasts
                     .Compute([.. stock.Where(s => ColourKey.Of(s.MaterialType, s.ColorHex) == key)], demand, noPurchases, 0, today).Sum(f => f.ShortGrams);
                 var filament = new List<McpPlanFilament>();
@@ -172,23 +172,23 @@ public static class ProductionTools
                     filament, warnings);
             },
             "production-runs:create"),
-        McpTools.Write("queue_production", "Queue production",
-            "Queues exactly the plan plan_production returned. Call it only after the user approved that plan. Idle printers can start the jobs at once. "
+        McpTools.Write("openfarm_queue_production", "Queue production",
+            "Queues exactly the plan openfarm_plan_production returned. Call it only after the user approved that plan. Idle printers can start the jobs at once. "
             + "Repeating the call with the same token never queues anything twice.",
             destructive: false, idempotent: true, openWorld: true,
             async (RequestContext<CallToolRequestParams> request,
-                [Description("planToken from plan_production, valid 30 minutes")] string planToken,
+                [Description("planToken from openfarm_plan_production, valid 30 minutes")] string planToken,
                 CancellationToken ct = default) =>
             {
                 PlannedProduction plan;
                 try { plan = JsonSerializer.Deserialize<PlannedProduction>(Protector(request).Unprotect(planToken))!; }
                 catch (Exception e) when (e is CryptographicException or JsonException or FormatException)
                 {
-                    throw new ArgumentException("planToken is invalid or expired. Call plan_production again and show the user the new plan.");
+                    throw new ArgumentException("planToken is invalid or expired. Call openfarm_plan_production again and show the user the new plan.");
                 }
-                if (plan.UserId != request.UserId()) throw new ArgumentException("planToken belongs to another account. Call plan_production again.");
+                if (plan.UserId != request.UserId()) throw new ArgumentException("planToken belongs to another account. Call openfarm_plan_production again.");
 
-                const string note = "Idle printers may start these jobs now. Follow them with list_print_jobs or get_production_run.";
+                const string note = "Idle printers may start these jobs now. Follow them with openfarm_list_print_jobs or openfarm_get_production_run.";
                 if (plan.Destination == "newRun")
                 {
                     var dto = new CreateProductionRunRequest
@@ -227,14 +227,14 @@ public static class ProductionTools
                     catch (Exception e) when (DomainExceptionHandler.ToProblem(e) is { } problem)
                     {
                         results.Add(new(line.Name, "NotQueued", e is ProductionPlanConflictException
-                            ? "The part or assembly changed since the plan. Call plan_production again and show the user the new plan."
+                            ? "The part or assembly changed since the plan. Call openfarm_plan_production again and show the user the new plan."
                             : problem.Detail ?? problem.Title));
                     }
                 }
                 return new McpQueued(plan.Destination, plan.ProductionRunId, null, results, note);
             },
             "production-runs:create"),
-        McpTools.Read("list_production_runs", "List production runs",
+        McpTools.Read("openfarm_list_production_runs", "List production runs",
             "Production runs with their lines, unit progress and plate counts, plus counts per status. " + McpTools.PagingNote,
             async (RequestContext<CallToolRequestParams> request,
                 [Description("Open (Active or Complete), Closed or Cancelled; omit for every run")] string? status = null,
@@ -250,11 +250,11 @@ public static class ProductionTools
                 return new McpRunsPage(runs.Items, p, size, runs.TotalCount, p * size < runs.TotalCount, runs.StatusCounts);
             },
             "production-runs:view"),
-        McpTools.Read("get_production_run", "Get production run",
+        McpTools.Read("openfarm_get_production_run", "Get production run",
             "One production run: its lines with their part requirements and jobs.",
             async (RequestContext<CallToolRequestParams> request, [Description("Production run id")] Guid productionRunId, CancellationToken ct) =>
                 ProductionRunDetailResponse.FromView(McpTools.Found(await request.Service<IQueryHandler<GetProductionRunDetailQuery, RunDetailView?>>()
-                    .HandleAsync(new GetProductionRunDetailQuery(productionRunId), ct), "Production run", "Use list_production_runs to find run ids.")),
+                    .HandleAsync(new GetProductionRunDetailQuery(productionRunId), ct), "Production run", "Use openfarm_list_production_runs to find run ids.")),
             "production-runs:view"),
     ];
 

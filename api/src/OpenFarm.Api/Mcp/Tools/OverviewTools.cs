@@ -36,7 +36,7 @@ public static class OverviewTools
 {
     public static readonly McpToolSpec[] All =
     [
-        McpTools.Read("get_farm_overview", "Get farm overview",
+        McpTools.Read("openfarm_get_farm_overview", "Get farm overview",
             "What needs attention now, in one call: printers awaiting clear, offline or alerting; what is printing; queued jobs that could not be sent "
             + "and why; failed jobs that can be requeued; open runs and whether they are late; low or short filament; prints whose filament was not deducted; "
             + "maintenance due soon or overdue. Also the account and the farm currency. Start here for a morning check or shift handover.",

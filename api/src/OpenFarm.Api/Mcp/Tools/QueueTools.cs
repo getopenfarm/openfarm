@@ -12,7 +12,7 @@ namespace OpenFarm.Api.Mcp.Tools;
 
 /// <summary>A print job as agents read it: names next to ids.</summary>
 /// <param name="Name">The part's name, or the print's name for a print the printer started itself.</param>
-/// <param name="Phase">Queued, Starting, Printing or Paused while unfinished; pass it as expectedPhase to cancel_print_job.</param>
+/// <param name="Phase">Queued, Starting, Printing or Paused while unfinished; pass it as expectedPhase to openfarm_cancel_print_job.</param>
 /// <param name="Printer">The printer it was sent to, or the one it is pinned to while queued.</param>
 /// <param name="Units">Units this job makes when it completes.</param>
 /// <param name="LastBlockReason">Why the last attempt to send it to a matching printer failed.</param>
@@ -46,7 +46,7 @@ public static class QueueTools
 
     public static readonly McpToolSpec[] All =
     [
-        McpTools.Read("list_print_jobs", "List print jobs",
+        McpTools.Read("openfarm_list_print_jobs", "List print jobs",
             "Print jobs in dispatch order with part, printer and run names, phase, units and why a waiting job was not sent, plus counts per status. "
             + "Use search to find a part's jobs. " + McpTools.PagingNote,
             async (RequestContext<CallToolRequestParams> request,
@@ -68,60 +68,13 @@ public static class QueueTools
                 return new McpJobsPage(items, p, size, jobs.TotalCount, p * size < jobs.TotalCount, jobs.StatusCounts);
             },
             "print-jobs:view"),
-        McpTools.Read("get_print_job", "Get print job",
+        McpTools.Read("openfarm_get_print_job", "Get print job",
             "One print job: phase, printer, units, filament lines and timestamps. For a queued job, waiting explains per printer why it has not been sent "
             + "(nozzle, material, colour, plate, pin or the printer being busy).",
             async (RequestContext<CallToolRequestParams> request, [Description("Print job id")] Guid jobId, CancellationToken ct) =>
                 await DetailAsync(request, jobId, ct, waiting: true),
             "print-jobs:view"),
-        McpTools.Write("reorder_print_job", "Reorder print job",
-            "Moves a queued job to just after another queued job, or to the front. This changes what prints next.",
-            destructive: true, idempotent: true, openWorld: false,
-            async (RequestContext<CallToolRequestParams> request,
-                [Description("Job to move")] Guid jobId,
-                [Description("Queued job to place it after; omit to move it to the front")] Guid? afterJobId = null,
-                CancellationToken ct = default) =>
-                await request.WriteAsync(new ReorderPrintJobRequest { Id = jobId, AfterJobId = afterJobId }, async () =>
-                {
-                    var job = await request.Service<ICommandHandler<ReorderPrintJobCommand, PrintJob>>()
-                        .HandleAsync(new ReorderPrintJobCommand(jobId, afterJobId), ct);
-                    return new ReorderPrintJobResponse { JobId = job.Id, QueuePosition = job.QueuePosition };
-                }, ct),
-            "print-jobs:reorder"),
-        McpTools.Write("pin_print_job", "Pin print job",
-            "Makes a queued job wait for one printer, or with no printerId lets it print on any matching printer again.",
-            destructive: true, idempotent: true, openWorld: false,
-            async (RequestContext<CallToolRequestParams> request, [Description("Job to pin or unpin")] Guid jobId,
-                [Description("Printer the job must print on; omit to unpin")] Guid? printerId = null, CancellationToken ct = default) =>
-                printerId is { } id
-                    ? await request.WriteAsync(new PinPrintJobRequest { Id = jobId, PrinterId = id }, async () =>
-                        await DetailAsync(request, (await request.Service<ICommandHandler<PinPrintJobCommand, PrintJob>>()
-                            .HandleAsync(new PinPrintJobCommand(jobId, id), ct)).Id, ct), ct)
-                    : await request.WriteAsync(new UnpinPrintJobRequest { Id = jobId }, async () =>
-                        await DetailAsync(request, (await request.Service<ICommandHandler<UnpinPrintJobCommand, PrintJob>>()
-                            .HandleAsync(new UnpinPrintJobCommand(jobId), ct)).Id, ct), ct),
-            "print-jobs:pin"),
-        McpTools.Write("requeue_print_job", "Requeue print job",
-            "Queues a replacement for a failed or cancelled job and returns the replacement. An idle printer may start it on its own. " + Confirm,
-            destructive: false, idempotent: false, openWorld: true,
-            async (RequestContext<CallToolRequestParams> request, [Description("Failed or cancelled job")] Guid jobId, CancellationToken ct = default) =>
-                await DetailAsync(request, (await request.WriteAsync(new RequeuePrintJobRequest { Id = jobId }, async () =>
-                    new Requeued((await request.Service<ICommandHandler<RequeuePrintJobCommand, PrintJob>>()
-                        .HandleAsync(new RequeuePrintJobCommand(jobId), ct)).Id), ct)).Id, ct),
-            "print-jobs:requeue"),
-        McpTools.Write("pause_print_job", "Pause print",
-            "Pauses a printing job on its printer at once. " + Confirm,
-            destructive: true, idempotent: false, openWorld: true,
-            async (RequestContext<CallToolRequestParams> request, [Description("Printing job")] Guid jobId, CancellationToken ct = default) =>
-                await request.WriteAsync(new PausePrintJobRequest { Id = jobId }, async () =>
-                {
-                    var job = await request.Service<ICommandHandler<PausePrintJobCommand, PrintJob>>()
-                        .HandleAsync(new PausePrintJobCommand(jobId), ct);
-                    var confirmed = job.Status == PrintJobStatus.Paused;
-                    return new PrinterCommandResult(await DetailAsync(request, job.Id, ct), confirmed, confirmed ? null : Unconfirmed);
-                }, ct),
-            "print-jobs:remote-control"),
-        McpTools.Write("cancel_print_job", "Cancel print job",
+        McpTools.Write("openfarm_cancel_print_job", "Cancel print job",
             "Removes a queued job, or stops a starting or printing job on the printer. A stopped print cannot be resumed. "
             + Confirm + " Pass the phase you read as expectedPhase.",
             destructive: true, idempotent: false, openWorld: true,
@@ -142,9 +95,6 @@ public static class QueueTools
             "print-jobs:cancel"),
     ];
 
-    /// <summary>As REST, the requeue activity row names the replacement job.</summary>
-    private sealed record Requeued(Guid Id);
-
     public static async Task<IReadOnlyDictionary<Guid, string>> PrinterNamesAsync(RequestContext<CallToolRequestParams> request, CancellationToken ct) =>
         (await request.Service<IPrinterRepository>().ListAsync(ct)).ToDictionary(p => p.Id, p => p.Name);
 
@@ -160,7 +110,7 @@ public static class QueueTools
     public static async Task<McpJobDetail> DetailAsync(RequestContext<CallToolRequestParams> request, Guid jobId, CancellationToken ct, bool waiting = false)
     {
         var job = McpTools.Found(await request.Service<IQueryHandler<GetPrintJobQuery, PrintJobDetail?>>()
-            .HandleAsync(new GetPrintJobQuery(jobId), ct), "Print job", "Use list_print_jobs to find job ids.");
+            .HandleAsync(new GetPrintJobQuery(jobId), ct), "Print job", "Use openfarm_list_print_jobs to find job ids.");
         var phase = PrintJobResponse.FromDetail(job).Phase;
         var printers = await PrinterNamesAsync(request, ct);
         var printerId = job.DispatchedPrinterId ?? job.PinnedPrinterId;

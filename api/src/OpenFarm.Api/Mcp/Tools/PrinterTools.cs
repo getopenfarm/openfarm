@@ -9,7 +9,7 @@ using OpenFarm.Domain.Printers;
 namespace OpenFarm.Api.Mcp.Tools;
 
 /// <param name="Status">Idle, Printing or AwaitingClear (a print ended and the plate waits for a person to clear it).</param>
-/// <param name="AwaitingClearSinceUtc">Set while awaiting clear; pass it to mark_printers_ready.</param>
+/// <param name="AwaitingClearSinceUtc">Set while awaiting clear; pass it to openfarm_mark_printers_ready.</param>
 /// <param name="CurrentPrint">The print on the printer: the one printing, or the one whose plate waits to be cleared.</param>
 /// <param name="Alerts">Active printer alerts, such as a filament runout or an error code.</param>
 public sealed record McpPrinter(Guid PrinterId, string Name, string Model, string Status, bool Online, DateTimeOffset? AwaitingClearSinceUtc,
@@ -18,8 +18,8 @@ public sealed record McpPrinter(Guid PrinterId, string Name, string Model, strin
 public sealed record McpPrinters(IReadOnlyList<McpPrinter> Printers);
 
 public sealed record McpReadyPrinter(
-    [property: Description("Printer id from list_printers")] Guid PrinterId,
-    [property: Description("awaitingClearSinceUtc as list_printers returned it")] DateTimeOffset AwaitingClearSinceUtc);
+    [property: Description("Printer id from openfarm_list_printers")] Guid PrinterId,
+    [property: Description("awaitingClearSinceUtc as openfarm_list_printers returned it")] DateTimeOffset AwaitingClearSinceUtc);
 
 /// <param name="Outcome">Ready; NotAwaitingClear (nothing to do); ChangedSinceRead (another print ended since you read it: ask the user about that plate); NotFound.</param>
 public sealed record McpReadyResult(Guid PrinterId, string? Name, string Outcome);
@@ -30,9 +30,9 @@ public static class PrinterTools
 {
     public static readonly McpToolSpec[] All =
     [
-        McpTools.Read("list_printers", "List printers",
+        McpTools.Read("openfarm_list_printers", "List printers",
             "Every printer with its status, whether it is online, the print on it with progress and time left, and active alerts. "
-            + "Printers awaiting clear carry awaitingClearSinceUtc for mark_printers_ready.",
+            + "Printers awaiting clear carry awaitingClearSinceUtc for openfarm_mark_printers_ready.",
             async (RequestContext<CallToolRequestParams> request,
                 [Description("Only printers with this status: Idle, Printing or AwaitingClear; or Offline for printers not reachable now")] string? status = null,
                 CancellationToken ct = default) =>
@@ -45,23 +45,23 @@ public static class PrinterTools
                         : throw new ArgumentException("status must be Idle, Printing, AwaitingClear or Offline."));
             },
             "printers:list"),
-        McpTools.Read("get_printer", "Get printer",
+        McpTools.Read("openfarm_get_printer", "Get printer",
             "One printer in detail: reported state, alerts, temperatures, progress, feed units with the filament loaded in each slot, and profiles. "
             + "Network address and serial number are left out.",
             async (RequestContext<CallToolRequestParams> request, [Description("Printer id")] Guid printerId, CancellationToken ct) =>
             {
                 var detail = PrinterDetailResponse.From(McpTools.Found(await request.Service<IQueryHandler<GetPrinterDetailQuery, PrinterDetail?>>()
-                    .HandleAsync(new GetPrinterDetailQuery(printerId), ct), "Printer", "Use list_printers to find printer ids."));
+                    .HandleAsync(new GetPrinterDetailQuery(printerId), ct), "Printer", "Use openfarm_list_printers to find printer ids."));
                 (detail.IpAddress, detail.SerialNumber) = ("", "");
                 return detail;
             },
             "printers:get-detail"),
-        McpTools.Write("mark_printers_ready", "Mark printers ready",
+        McpTools.Write("openfarm_mark_printers_ready", "Mark printers ready",
             "Marks printers awaiting clear as ready, so each can take its next queued job at once. Call it only for printers the user says in this "
             + "conversation have a clear build plate; never because a print finished. Each printer is handled on its own.",
             destructive: false, idempotent: true, openWorld: true,
             async (RequestContext<CallToolRequestParams> request,
-                [Description("Printers with a clear plate, each with awaitingClearSinceUtc from list_printers")] McpReadyPrinter[] printers,
+                [Description("Printers with a clear plate, each with awaitingClearSinceUtc from openfarm_list_printers")] McpReadyPrinter[] printers,
                 CancellationToken ct = default) =>
             {
                 if (printers is not { Length: > 0 and <= 100 }) throw new ArgumentException("Pass 1–100 printers.");

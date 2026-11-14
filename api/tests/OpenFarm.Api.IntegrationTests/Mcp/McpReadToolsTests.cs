@@ -27,48 +27,44 @@ public sealed class McpReadToolsTests(McpTestFactory factory) : IClassFixture<Mc
     /// </summary>
     private static readonly Dictionary<string, Type[]> Mirrors = new()
     {
-        ["list_printers"] = [typeof(ListFleetEndpoint)],
-        ["get_printer"] = [typeof(GetPrinterDetailEndpoint)],
-        ["mark_printers_ready"] = [typeof(MarkPrinterReadyEndpoint)],
-        ["list_print_jobs"] = [typeof(ListQueueJobsEndpoint)],
-        ["get_print_job"] = [typeof(GetPrintJobEndpoint), typeof(GetJobMatchingDiagnosticsEndpoint)],
-        ["reorder_print_job"] = [typeof(ReorderPrintJobEndpoint)],
-        ["pin_print_job"] = [typeof(PinPrintJobEndpoint), typeof(UnpinPrintJobEndpoint)],
-        ["requeue_print_job"] = [typeof(RequeuePrintJobEndpoint)],
-        ["pause_print_job"] = [typeof(PausePrintJobEndpoint)],
-        ["cancel_print_job"] = [typeof(CancelPrintJobEndpoint)],
-        ["plan_production"] = [typeof(PreviewProductionPlanEndpoint)],
-        ["queue_production"] = [typeof(SubmitProductionDemandEndpoint), typeof(CreateProductionRunEndpoint)],
-        ["list_production_runs"] = [typeof(ListProductionRunsEndpoint)],
-        ["get_production_run"] = [typeof(GetProductionRunEndpoint)],
-        ["search_library"] = [typeof(ListLibraryContentsEndpoint)],
-        ["get_part"] = [typeof(GetPartEndpoint)],
-        ["get_assembly"] = [typeof(GetAssemblyEndpoint), typeof(ExplodeAssemblyEndpoint)],
-        ["create_library_folder"] = [typeof(CreateFolderEndpoint)],
-        ["rename_library_folder"] = [typeof(RenameFolderEndpoint)],
-        ["move_library_items"] = [typeof(MoveFolderEndpoint), typeof(MoveLibraryItemsEndpoint)],
-        ["update_parts"] = [typeof(EditPartEndpoint)],
-        ["save_assembly"] = [typeof(CreateAssemblyEndpoint), typeof(EditAssemblyEndpoint)],
-        ["list_fee_profiles"] = [typeof(GetFeesEndpoint)],
-        ["quote_assembly"] = [typeof(QuoteAssemblyEndpoint), typeof(GetFeesEndpoint)],
-        ["save_fee_profile"] = [typeof(CreateFeeProfileEndpoint), typeof(EditFeeProfileEndpoint)],
-        ["list_maintenance"] = [typeof(ListMaintenanceTasksEndpoint), typeof(ListMaintenanceEnrollmentsEndpoint)],
-        ["save_maintenance_task"] = [typeof(CreateMaintenanceTaskEndpoint), typeof(EditMaintenanceTaskEndpoint)],
-        ["assign_maintenance"] = [typeof(EnrollPrintersEndpoint), typeof(RebaselineMaintenanceEndpoint)],
-        ["complete_maintenance"] = [typeof(CompleteMaintenanceEndpoint)],
-        ["list_filaments"] = [typeof(ListFilamentsEndpoint), typeof(ListSpoolsEndpoint)],
-        ["list_spools"] = [typeof(ListSpoolsEndpoint)],
-        ["register_spools"] = [typeof(RegisterSpoolEndpoint)],
-        ["get_farm_stats"] = [typeof(StatsEndpoint)],
+        ["openfarm_list_printers"] = [typeof(ListFleetEndpoint)],
+        ["openfarm_get_printer"] = [typeof(GetPrinterDetailEndpoint)],
+        ["openfarm_mark_printers_ready"] = [typeof(MarkPrinterReadyEndpoint)],
+        ["openfarm_list_print_jobs"] = [typeof(ListQueueJobsEndpoint)],
+        ["openfarm_get_print_job"] = [typeof(GetPrintJobEndpoint), typeof(GetJobMatchingDiagnosticsEndpoint)],
+        ["openfarm_cancel_print_job"] = [typeof(CancelPrintJobEndpoint)],
+        ["openfarm_plan_production"] = [typeof(PreviewProductionPlanEndpoint)],
+        ["openfarm_queue_production"] = [typeof(SubmitProductionDemandEndpoint), typeof(CreateProductionRunEndpoint)],
+        ["openfarm_list_production_runs"] = [typeof(ListProductionRunsEndpoint)],
+        ["openfarm_get_production_run"] = [typeof(GetProductionRunEndpoint)],
+        ["openfarm_search_library"] = [typeof(ListLibraryContentsEndpoint)],
+        ["openfarm_get_part"] = [typeof(GetPartEndpoint)],
+        ["openfarm_get_assembly"] = [typeof(GetAssemblyEndpoint), typeof(ExplodeAssemblyEndpoint)],
+        ["openfarm_create_library_folder"] = [typeof(CreateFolderEndpoint)],
+        ["openfarm_rename_library_folder"] = [typeof(RenameFolderEndpoint)],
+        ["openfarm_move_library_items"] = [typeof(MoveFolderEndpoint), typeof(MoveLibraryItemsEndpoint)],
+        ["openfarm_update_parts"] = [typeof(EditPartEndpoint)],
+        ["openfarm_save_assembly"] = [typeof(CreateAssemblyEndpoint), typeof(EditAssemblyEndpoint)],
+        ["openfarm_list_fee_profiles"] = [typeof(GetFeesEndpoint)],
+        ["openfarm_quote_assembly"] = [typeof(QuoteAssemblyEndpoint), typeof(GetFeesEndpoint)],
+        ["openfarm_save_fee_profile"] = [typeof(CreateFeeProfileEndpoint), typeof(EditFeeProfileEndpoint)],
+        ["openfarm_list_maintenance"] = [typeof(ListMaintenanceTasksEndpoint), typeof(ListMaintenanceEnrollmentsEndpoint)],
+        ["openfarm_save_maintenance_task"] = [typeof(CreateMaintenanceTaskEndpoint), typeof(EditMaintenanceTaskEndpoint)],
+        ["openfarm_assign_maintenance"] = [typeof(EnrollPrintersEndpoint), typeof(RebaselineMaintenanceEndpoint)],
+        ["openfarm_complete_maintenance"] = [typeof(CompleteMaintenanceEndpoint)],
+        ["openfarm_list_filaments"] = [typeof(ListFilamentsEndpoint), typeof(ListSpoolsEndpoint)],
+        ["openfarm_list_spools"] = [typeof(ListSpoolsEndpoint)],
+        ["openfarm_register_spools"] = [typeof(RegisterSpoolEndpoint)],
+        ["openfarm_get_farm_stats"] = [typeof(StatsEndpoint)],
     };
 
-    private static readonly string[] LibraryTools = ["search_library", "create_library_folder", "rename_library_folder", "move_library_items"];
+    private static readonly string[] LibraryTools = ["openfarm_search_library", "openfarm_create_library_folder", "openfarm_rename_library_folder", "openfarm_move_library_items"];
 
     [Fact]
     public void EveryToolNeedsExactlyTheUnionOfItsMirroredEndpointsPermissions()
     {
-        McpTools.All.Select(t => t.Name).Should().BeEquivalentTo(Mirrors.Keys.Append("get_farm_overview"));
-        McpTools.Find("get_farm_overview")!.Permissions.Should().BeEmpty("each overview section checks its own permissions");
+        McpTools.All.Select(t => t.Name).Should().BeEquivalentTo(Mirrors.Keys.Append("openfarm_get_farm_overview"));
+        McpTools.Find("openfarm_get_farm_overview")!.Permissions.Should().BeEmpty("each overview section checks its own permissions");
         foreach (var (tool, endpoints) in Mirrors)
         {
             var expected = endpoints.Select(e => e.GetCustomAttribute<PermissionAttribute>()!)
@@ -146,21 +142,21 @@ public sealed class McpReadToolsTests(McpTestFactory factory) : IClassFixture<Mc
 
         var tools = await client.ListToolsAsync();
 
-        // plan_production previews with the permission that queueing needs, so it is left out with queue_production.
+        // openfarm_plan_production previews with the permission that queueing needs, so it is left out with openfarm_queue_production.
         tools.Select(t => t.Name).Should().BeEquivalentTo(McpTools.All
-            .Where(t => t.Tool.ProtocolTool.Annotations?.ReadOnlyHint == true && t.Name != "plan_production").Select(t => t.Name)).And.HaveCount(16);
+            .Where(t => t.Tool.ProtocolTool.Annotations?.ReadOnlyHint == true && t.Name != "openfarm_plan_production").Select(t => t.Name)).And.HaveCount(16);
         tools.Should().OnlyContain(t => t.ProtocolTool.Annotations!.ReadOnlyHint == true);
     }
 
     [Theory]
-    [InlineData("get_farm_overview")]
-    [InlineData("list_printers")]
-    [InlineData("list_print_jobs")]
-    [InlineData("list_production_runs")]
-    [InlineData("list_filaments")]
-    [InlineData("list_spools")]
-    [InlineData("list_maintenance")]
-    [InlineData("list_fee_profiles")]
+    [InlineData("openfarm_get_farm_overview")]
+    [InlineData("openfarm_list_printers")]
+    [InlineData("openfarm_list_print_jobs")]
+    [InlineData("openfarm_list_production_runs")]
+    [InlineData("openfarm_list_filaments")]
+    [InlineData("openfarm_list_spools")]
+    [InlineData("openfarm_list_maintenance")]
+    [InlineData("openfarm_list_fee_profiles")]
     public async Task ListToolsReturnTheirResponse(string tool)
     {
         await using var client = await ConnectAsync();
@@ -176,33 +172,33 @@ public sealed class McpReadToolsTests(McpTestFactory factory) : IClassFixture<Mc
     {
         await using var client = await ConnectAsync();
 
-        var external = await client.CallToolAsync("list_print_jobs", new Dictionary<string, object?> { ["view"] = "external", ["status"] = "Completed", ["page"] = 2, ["pageSize"] = 500 });
+        var external = await client.CallToolAsync("openfarm_list_print_jobs", new Dictionary<string, object?> { ["view"] = "external", ["status"] = "Completed", ["page"] = 2, ["pageSize"] = 500 });
         external.IsError.Should().NotBe(true, Text(external));
         external.StructuredContent!.Value.GetProperty("pageSize").GetInt32().Should().Be(100);
-        var spools = await client.CallToolAsync("list_spools", new Dictionary<string, object?> { ["state"] = "using", ["search"] = "pla" });
+        var spools = await client.CallToolAsync("openfarm_list_spools", new Dictionary<string, object?> { ["state"] = "using", ["search"] = "pla" });
         spools.IsError.Should().NotBe(true, Text(spools));
-        var parts = await client.CallToolAsync("search_library", new Dictionary<string, object?> { ["library"] = "parts", ["query"] = "bracket" });
+        var parts = await client.CallToolAsync("openfarm_search_library", new Dictionary<string, object?> { ["library"] = "parts", ["query"] = "bracket" });
         parts.IsError.Should().NotBe(true, Text(parts));
-        var assemblies = await client.CallToolAsync("search_library", new Dictionary<string, object?> { ["library"] = "assemblies" });
+        var assemblies = await client.CallToolAsync("openfarm_search_library", new Dictionary<string, object?> { ["library"] = "assemblies" });
         assemblies.IsError.Should().NotBe(true, Text(assemblies));
-        var forecast = await client.CallToolAsync("list_filaments", new Dictionary<string, object?> { ["atRiskOnly"] = true, ["coverDays"] = 42 });
+        var forecast = await client.CallToolAsync("openfarm_list_filaments", new Dictionary<string, object?> { ["atRiskOnly"] = true, ["coverDays"] = 42 });
         forecast.StructuredContent!.Value.GetProperty("coverDays").GetInt32().Should().Be(42);
 
-        ErrorCode(await client.CallToolAsync("list_print_jobs", new Dictionary<string, object?> { ["status"] = "Nope" })).Should().Be("INVALID_INPUT");
-        ErrorCode(await client.CallToolAsync("list_production_runs", new Dictionary<string, object?> { ["status"] = "Nope" })).Should().Be("INVALID_INPUT");
-        ErrorCode(await client.CallToolAsync("list_printers", new Dictionary<string, object?> { ["status"] = "Nope" })).Should().Be("INVALID_INPUT");
-        ErrorCode(await client.CallToolAsync("list_filaments", new Dictionary<string, object?> { ["coverDays"] = 0 })).Should().Be("INVALID_INPUT");
-        ErrorCode(await client.CallToolAsync("search_library", new Dictionary<string, object?> { ["library"] = "parts", ["folderId"] = Guid.NewGuid() })).Should().Be("NOT_FOUND");
-        ErrorCode(await client.CallToolAsync("search_library", new Dictionary<string, object?> { ["library"] = "files" })).Should().Be("INVALID_INPUT");
+        ErrorCode(await client.CallToolAsync("openfarm_list_print_jobs", new Dictionary<string, object?> { ["status"] = "Nope" })).Should().Be("INVALID_INPUT");
+        ErrorCode(await client.CallToolAsync("openfarm_list_production_runs", new Dictionary<string, object?> { ["status"] = "Nope" })).Should().Be("INVALID_INPUT");
+        ErrorCode(await client.CallToolAsync("openfarm_list_printers", new Dictionary<string, object?> { ["status"] = "Nope" })).Should().Be("INVALID_INPUT");
+        ErrorCode(await client.CallToolAsync("openfarm_list_filaments", new Dictionary<string, object?> { ["coverDays"] = 0 })).Should().Be("INVALID_INPUT");
+        ErrorCode(await client.CallToolAsync("openfarm_search_library", new Dictionary<string, object?> { ["library"] = "parts", ["folderId"] = Guid.NewGuid() })).Should().Be("NOT_FOUND");
+        ErrorCode(await client.CallToolAsync("openfarm_search_library", new Dictionary<string, object?> { ["library"] = "files" })).Should().Be("INVALID_INPUT");
     }
 
     [Theory]
-    [InlineData("get_printer", "printerId")]
-    [InlineData("get_print_job", "jobId")]
-    [InlineData("get_production_run", "productionRunId")]
-    [InlineData("get_part", "partId")]
-    [InlineData("get_assembly", "assemblyId")]
-    [InlineData("quote_assembly", "assemblyId")]
+    [InlineData("openfarm_get_printer", "printerId")]
+    [InlineData("openfarm_get_print_job", "jobId")]
+    [InlineData("openfarm_get_production_run", "productionRunId")]
+    [InlineData("openfarm_get_part", "partId")]
+    [InlineData("openfarm_get_assembly", "assemblyId")]
+    [InlineData("openfarm_quote_assembly", "assemblyId")]
     public async Task GetToolsReportAMissingItemAsNotFound_WithTheToolThatFindsIds(string tool, string idArgument)
     {
         await using var client = await ConnectAsync();
@@ -219,13 +215,13 @@ public sealed class McpReadToolsTests(McpTestFactory factory) : IClassFixture<Mc
         await using var client = await ConnectAsync();
         var to = new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
 
-        var stats = await client.CallToolAsync("get_farm_stats", new Dictionary<string, object?> { ["from"] = to.AddDays(-30), ["to"] = to, ["timeZone"] = "UTC" });
+        var stats = await client.CallToolAsync("openfarm_get_farm_stats", new Dictionary<string, object?> { ["from"] = to.AddDays(-30), ["to"] = to, ["timeZone"] = "UTC" });
         stats.IsError.Should().NotBe(true, Text(stats));
         stats.StructuredContent!.Value.ValueKind.Should().Be(JsonValueKind.Object);
 
-        var tooLong = await client.CallToolAsync("get_farm_stats", new Dictionary<string, object?> { ["from"] = to.AddDays(-400), ["to"] = to, ["timeZone"] = "UTC" });
+        var tooLong = await client.CallToolAsync("openfarm_get_farm_stats", new Dictionary<string, object?> { ["from"] = to.AddDays(-400), ["to"] = to, ["timeZone"] = "UTC" });
         ErrorCode(tooLong).Should().Be("INVALID_INPUT");
-        var backwards = await client.CallToolAsync("get_farm_stats", new Dictionary<string, object?> { ["from"] = to, ["to"] = to.AddDays(-1), ["timeZone"] = "Not/AZone" });
+        var backwards = await client.CallToolAsync("openfarm_get_farm_stats", new Dictionary<string, object?> { ["from"] = to, ["to"] = to.AddDays(-1), ["timeZone"] = "Not/AZone" });
         ErrorCode(backwards).Should().Be("INVALID_INPUT");
     }
 
@@ -235,7 +231,7 @@ public sealed class McpReadToolsTests(McpTestFactory factory) : IClassFixture<Mc
         var browser = await McpTestClient.BrowserAsync(factory);
         await using var client = await McpTestClient.ConnectAsync(factory, (await McpTestClient.TokenAsync(browser, "printers:list")).Credential);
 
-        var overview = (await client.CallToolAsync("get_farm_overview")).StructuredContent!.Value;
+        var overview = (await client.CallToolAsync("openfarm_get_farm_overview")).StructuredContent!.Value;
 
         overview.GetProperty("currency").GetString().Should().NotBeNullOrEmpty();
         overview.GetProperty("printers").ValueKind.Should().Be(JsonValueKind.Object);
@@ -250,14 +246,14 @@ public sealed class McpReadToolsTests(McpTestFactory factory) : IClassFixture<Mc
         var browser = await McpTestClient.BrowserAsync(factory);
         await using var client = await McpTestClient.ConnectAsync(factory, (await McpTestClient.TokenAsync(browser, "library:view", "assemblies:view")).Credential);
 
-        (await client.CallToolAsync("search_library", new Dictionary<string, object?> { ["library"] = "assemblies" })).IsError.Should().NotBe(true);
-        ErrorCode(await client.CallToolAsync("search_library", new Dictionary<string, object?> { ["library"] = "parts" })).Should().Be("FORBIDDEN");
+        (await client.CallToolAsync("openfarm_search_library", new Dictionary<string, object?> { ["library"] = "assemblies" })).IsError.Should().NotBe(true);
+        ErrorCode(await client.CallToolAsync("openfarm_search_library", new Dictionary<string, object?> { ["library"] = "parts" })).Should().Be("FORBIDDEN");
     }
 
     private async Task<McpClient> ConnectAsync()
     {
         var browser = await McpTestClient.BrowserAsync(factory);
-        var token = await McpTestClient.TokenAsync(browser, [.. McpTools.All.Where(t => t.Tool.ProtocolTool.Annotations?.ReadOnlyHint == true && t.Name != "plan_production")
+        var token = await McpTestClient.TokenAsync(browser, [.. McpTools.All.Where(t => t.Tool.ProtocolTool.Annotations?.ReadOnlyHint == true && t.Name != "openfarm_plan_production")
             .SelectMany(t => t.Permissions).Append("parts:list").Distinct()]);
         return await McpTestClient.ConnectAsync(factory, token.Credential);
     }

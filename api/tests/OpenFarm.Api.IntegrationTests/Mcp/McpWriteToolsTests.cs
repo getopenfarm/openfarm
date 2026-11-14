@@ -26,6 +26,37 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
     }
 
     [Fact]
+    public async Task RemovedQueueToolsAreUnavailable_ButCancelRemainsAvailable()
+    {
+        var browser = await ClientAsync();
+        var run = await RunAsync(browser, (await PartAsync()).Id);
+        var before = (await JobsAsync(run.Id)).Single();
+        await using var client = await ConnectAsync(browser, "print-jobs:view", "print-jobs:reorder", "print-jobs:pin",
+            "print-jobs:requeue", "print-jobs:remote-control", "print-jobs:cancel");
+        var tools = await client.ListToolsAsync();
+        tools.Select(t => t.Name).Should().BeEquivalentTo("openfarm_get_farm_overview", "openfarm_list_print_jobs", "openfarm_get_print_job", "openfarm_cancel_print_job");
+        foreach (var name in new[] { "reorder_print_job", "pin_print_job", "requeue_print_job", "pause_print_job" })
+        {
+            foreach (var toolName in new[] { name, "openfarm_" + name })
+            {
+                McpTools.Find(toolName).Should().BeNull();
+                var call = async () => await client.CallToolAsync(toolName, new Dictionary<string, object?> { ["jobId"] = before.Id });
+                await call.Should().ThrowAsync<Exception>();
+            }
+        }
+        var unchanged = (await JobsAsync(run.Id)).Single();
+        unchanged.Status.Should().Be(before.Status);
+        unchanged.AssignmentMode.Should().Be(before.AssignmentMode);
+        unchanged.PinnedPrinterId.Should().Be(before.PinnedPrinterId);
+        unchanged.QueuePosition.Should().Be(before.QueuePosition);
+        unchanged.RequeuedAsJobId.Should().BeNull();
+        var cancelled = await client.CallToolAsync("openfarm_cancel_print_job",
+            new Dictionary<string, object?> { ["jobId"] = before.Id, ["expectedPhase"] = "Queued" });
+        cancelled.IsError.Should().NotBe(true);
+        (await JobsAsync(run.Id)).Single().Status.Should().Be(PrintJobStatus.Cancelled);
+    }
+
+    [Fact]
     public async Task CancelRefusesAJobThatWasSentToAPrinterAfterItWasRead()
     {
         var browser = await ClientAsync();
@@ -34,48 +65,23 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
         var printer = await PrinterAsync(manual: true);
         await using var client = await ConnectAsync(browser, "print-jobs:view", "print-jobs:cancel");
 
-        var read = await client.CallToolAsync("get_print_job", new Dictionary<string, object?> { ["jobId"] = jobId });
+        var read = await client.CallToolAsync("openfarm_get_print_job", new Dictionary<string, object?> { ["jobId"] = jobId });
         read.IsError.Should().NotBe(true, string.Join("", read.Content.OfType<TextContentBlock>().Select(c => c.Text)));
         read.StructuredContent!.Value.GetProperty("phase").GetString().Should().Be("Queued");
         await AssignAsync(jobId, printer.Id, started: false);
 
-        var error = ErrorOf(await client.CallToolAsync("cancel_print_job",
+        var error = ErrorOf(await client.CallToolAsync("openfarm_cancel_print_job",
             new Dictionary<string, object?> { ["jobId"] = jobId, ["expectedPhase"] = "queued" }));
         error.GetProperty("code").GetString().Should().Be("CONFLICT");
         error.GetProperty("currentPhase").GetString().Should().Be("Starting");
         (await JobsAsync(run.Id)).Single().Should().Match<PrintJob>(j => j.Status == PrintJobStatus.Queued && j.CancelRequestedAtUtc == null);
 
-        var cancelled = await client.CallToolAsync("cancel_print_job",
+        var cancelled = await client.CallToolAsync("openfarm_cancel_print_job",
             new Dictionary<string, object?> { ["jobId"] = jobId, ["expectedPhase"] = "Starting" });
         cancelled.IsError.Should().NotBe(true);
         cancelled.StructuredContent!.Value.GetProperty("confirmed").GetBoolean().Should().BeTrue();
-        ErrorOf(await client.CallToolAsync("cancel_print_job",
+        ErrorOf(await client.CallToolAsync("openfarm_cancel_print_job",
             new Dictionary<string, object?> { ["jobId"] = jobId, ["expectedPhase"] = "Done" })).GetProperty("code").GetString().Should().Be("INVALID_INPUT");
-    }
-
-    [Fact]
-    public async Task McpPauseWritesTheSameActivityRowAsRest_AttributedToTheToken()
-    {
-        var browser = await ClientAsync();
-        var printer = await PrinterAsync(manual: true);
-        var run = await RunAsync(browser, (await PartAsync()).Id, quantity: 2);
-        var jobs = await JobsAsync(run.Id);
-        await AssignAsync(jobs[0].Id, printer.Id);
-        await using var client = await ConnectAsync(browser, "print-jobs:remote-control");
-
-        var paused = await client.CallToolAsync("pause_print_job", new Dictionary<string, object?> { ["jobId"] = jobs[0].Id });
-        paused.IsError.Should().NotBe(true);
-        paused.StructuredContent!.Value.GetProperty("job").GetProperty("status").GetString().Should().Be("Paused");
-        paused.StructuredContent.Value.GetProperty("confirmed").GetBoolean().Should().BeTrue();
-
-        using var scope = Factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var row = await db.ActivityLogEntries.AsNoTracking().SingleAsync(a => a.EntityId == jobs[0].Id.ToString() && a.EventType == "PrintJobPauseRequested");
-        row.EntityType.Should().Be("PrintJob");
-        row.Details!.Via!.Kind.Should().Be("Token");
-
-        var conflict = ErrorOf(await client.CallToolAsync("pause_print_job", new Dictionary<string, object?> { ["jobId"] = jobs[1].Id }));
-        conflict.GetProperty("code").GetString().Should().Be("CONFLICT");
     }
 
     [Fact]
@@ -84,7 +90,7 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
         var browser = await ClientAsync();
         await using var client = await ConnectAsync(browser, "maintenance:complete");
 
-        var error = ErrorOf(await client.CallToolAsync("complete_maintenance", new Dictionary<string, object?> { ["enrollmentIds"] = Array.Empty<Guid>() }));
+        var error = ErrorOf(await client.CallToolAsync("openfarm_complete_maintenance", new Dictionary<string, object?> { ["enrollmentIds"] = Array.Empty<Guid>() }));
 
         error.GetProperty("code").GetString().Should().Be("INVALID_INPUT");
         error.GetProperty("issues").GetArrayLength().Should().BeGreaterThan(0);
@@ -94,20 +100,19 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
     public void WritesDeclareTheirEffects_AndPrinterActionsRequireReviewedConfirmation()
     {
         var writes = McpTools.All.Where(t => t.Tool.ProtocolTool.Annotations?.ReadOnlyHint != true).ToList();
-        writes.Select(t => t.Name).Should().BeEquivalentTo("mark_printers_ready", "reorder_print_job", "pin_print_job",
-            "requeue_print_job", "pause_print_job", "cancel_print_job", "queue_production", "create_library_folder", "rename_library_folder",
-            "move_library_items", "update_parts", "save_assembly", "save_fee_profile", "save_maintenance_task", "assign_maintenance",
-            "complete_maintenance", "register_spools");
+        writes.Select(t => t.Name).Should().BeEquivalentTo("openfarm_mark_printers_ready", "openfarm_cancel_print_job", "openfarm_queue_production", "openfarm_create_library_folder", "openfarm_rename_library_folder",
+            "openfarm_move_library_items", "openfarm_update_parts", "openfarm_save_assembly", "openfarm_save_fee_profile", "openfarm_save_maintenance_task", "openfarm_assign_maintenance",
+            "openfarm_complete_maintenance", "openfarm_register_spools");
         writes.Should().OnlyContain(t => t.Tool.ProtocolTool.Annotations!.DestructiveHint != null && t.Tool.ProtocolTool.Annotations.ReadOnlyHint == false);
-        foreach (var name in new[] { "requeue_print_job", "pause_print_job", "cancel_print_job" })
+        foreach (var name in new[] { "openfarm_cancel_print_job" })
         {
             var tool = McpTools.Find(name)!.Tool.ProtocolTool;
             tool.Description.Should().Contain("present").And.Contain("reviewed confirmation");
             tool.Annotations!.OpenWorldHint.Should().BeTrue();
         }
-        McpTools.Find("mark_printers_ready")!.Tool.ProtocolTool.Description.Should().Contain("the user says");
-        McpTools.Find("queue_production")!.Tool.ProtocolTool.Description.Should().Contain("after the user approved");
-        McpInstructions.Text.Should().Contain("obtain reviewed confirmation").And.Contain("expectedPhase").And.Contain("plan_production");
+        McpTools.Find("openfarm_mark_printers_ready")!.Tool.ProtocolTool.Description.Should().Contain("the user says");
+        McpTools.Find("openfarm_queue_production")!.Tool.ProtocolTool.Description.Should().Contain("after the user approved");
+        McpInstructions.Text.Should().Contain("obtain reviewed confirmation").And.Contain("expectedPhase").And.Contain("openfarm_plan_production");
     }
 
     [Fact]
@@ -118,10 +123,10 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
         var changed = await AwaitingClearAsync();
         var idle = await PrinterAsync();
         await using var client = await ConnectAsync(browser, "printers:list", "printers:mark-ready");
-        var read = (await client.CallToolAsync("list_printers", new Dictionary<string, object?> { ["status"] = "AwaitingClear" })).StructuredContent!.Value;
+        var read = (await client.CallToolAsync("openfarm_list_printers", new Dictionary<string, object?> { ["status"] = "AwaitingClear" })).StructuredContent!.Value;
         var since = read.GetProperty("printers").EnumerateArray().Single(p => p.GetProperty("printerId").GetGuid() == seen.Id).GetProperty("awaitingClearSinceUtc").GetDateTimeOffset();
 
-        var result = await client.CallToolAsync("mark_printers_ready", new Dictionary<string, object?>
+        var result = await client.CallToolAsync("openfarm_mark_printers_ready", new Dictionary<string, object?>
         {
             ["printers"] = new object[]
             {
@@ -149,7 +154,7 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
         var part = await PartAsync();
         await using var client = await ConnectAsync(browser, "production-runs:create");
 
-        var plan = await client.CallToolAsync("plan_production", new Dictionary<string, object?>
+        var plan = await client.CallToolAsync("openfarm_plan_production", new Dictionary<string, object?>
         {
             ["lines"] = new object[] { new { kind = "Part", id = part.Id, quantity = 3 } },
         });
@@ -159,13 +164,13 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
         var token = preview.GetProperty("planToken").GetString()!;
         await DemandCountAsync(part.Id).ContinueWith(t => t.Result.Should().Be(0));
 
-        var first = await client.CallToolAsync("queue_production", new Dictionary<string, object?> { ["planToken"] = token });
-        var again = await client.CallToolAsync("queue_production", new Dictionary<string, object?> { ["planToken"] = token });
+        var first = await client.CallToolAsync("openfarm_queue_production", new Dictionary<string, object?> { ["planToken"] = token });
+        var again = await client.CallToolAsync("openfarm_queue_production", new Dictionary<string, object?> { ["planToken"] = token });
 
         first.StructuredContent!.Value.GetProperty("lines")[0].GetProperty("outcome").GetString().Should().Be("Queued");
         again.StructuredContent!.Value.GetProperty("lines")[0].GetProperty("outcome").GetString().Should().Be("Queued");
         (await DemandCountAsync(part.Id)).Should().Be(1);
-        ErrorOf(await client.CallToolAsync("queue_production", new Dictionary<string, object?> { ["planToken"] = token[..^4] + "AAAA" }))
+        ErrorOf(await client.CallToolAsync("openfarm_queue_production", new Dictionary<string, object?> { ["planToken"] = token[..^4] + "AAAA" }))
             .GetProperty("code").GetString().Should().Be("INVALID_INPUT");
     }
 
@@ -176,13 +181,13 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
         var (a, b) = (await PartAsync(), await PartAsync());
         await using var client = await ConnectAsync(browser, "production-runs:create");
 
-        var plan = (await client.CallToolAsync("plan_production", new Dictionary<string, object?>
+        var plan = (await client.CallToolAsync("openfarm_plan_production", new Dictionary<string, object?>
         {
             ["lines"] = new object[] { new { kind = "Part", id = a.Id, quantity = 2 }, new { kind = "part", id = b.Id, quantity = 1, basis = "plates" } },
             ["destination"] = "newRun",
             ["runName"] = "Market stall",
         })).StructuredContent!.Value;
-        var queued = (await client.CallToolAsync("queue_production", new Dictionary<string, object?> { ["planToken"] = plan.GetProperty("planToken").GetString() }))
+        var queued = (await client.CallToolAsync("openfarm_queue_production", new Dictionary<string, object?> { ["planToken"] = plan.GetProperty("planToken").GetString() }))
             .StructuredContent!.Value;
 
         queued.GetProperty("run").GetString().Should().Be("Market stall");
@@ -199,30 +204,30 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
         await using var client = await ConnectAsync(browser, "library:manage", "parts:list", "parts:edit", "settings:fees:update",
             "maintenance:manage", "spools:register");
 
-        var folder = (await client.CallToolAsync("create_library_folder", new Dictionary<string, object?> { ["library"] = "parts", ["path"] = "Storage/Bins" })).StructuredContent!.Value;
-        var again = (await client.CallToolAsync("create_library_folder", new Dictionary<string, object?> { ["library"] = "parts", ["path"] = "storage/bins" })).StructuredContent!.Value;
+        var folder = (await client.CallToolAsync("openfarm_create_library_folder", new Dictionary<string, object?> { ["library"] = "parts", ["path"] = "Storage/Bins" })).StructuredContent!.Value;
+        var again = (await client.CallToolAsync("openfarm_create_library_folder", new Dictionary<string, object?> { ["library"] = "parts", ["path"] = "storage/bins" })).StructuredContent!.Value;
         again.GetProperty("folderId").GetGuid().Should().Be(folder.GetProperty("folderId").GetGuid());
         folder.GetProperty("path").GetString().Should().Be("Storage/Bins");
-        (await client.CallToolAsync("move_library_items", new Dictionary<string, object?>
+        (await client.CallToolAsync("openfarm_move_library_items", new Dictionary<string, object?>
         { ["library"] = "parts", ["itemIds"] = new[] { part.Id }, ["toFolderId"] = folder.GetProperty("folderId").GetGuid() })).IsError.Should().NotBe(true);
-        var tagged = await client.CallToolAsync("update_parts", new Dictionary<string, object?>
+        var tagged = await client.CallToolAsync("openfarm_update_parts", new Dictionary<string, object?>
         { ["updates"] = new object[] { new { partId = part.Id, addTags = BinsTag } } });
         tagged.IsError.Should().NotBe(true, string.Join("", tagged.Content.OfType<TextContentBlock>().Select(c => c.Text)));
 
-        var fees = await client.CallToolAsync("save_fee_profile", new Dictionary<string, object?>
+        var fees = await client.CallToolAsync("openfarm_save_fee_profile", new Dictionary<string, object?>
         { ["name"] = $"Shop {Guid.NewGuid():N}", ["fees"] = new object[] { new { name = "Commission", type = "percent", amount = 18 }, new { name = "Order", type = "Fixed", amount = 0.5 } } });
         fees.StructuredContent!.Value.GetProperty("percentFees").GetDecimal().Should().Be(18);
 
-        var task = (await client.CallToolAsync("save_maintenance_task", new Dictionary<string, object?> { ["name"] = "Lubricate rods", ["everyPrintHours"] = 200 }))
+        var task = (await client.CallToolAsync("openfarm_save_maintenance_task", new Dictionary<string, object?> { ["name"] = "Lubricate rods", ["everyPrintHours"] = 200 }))
             .StructuredContent!.Value.GetProperty("id").GetGuid();
-        var assigned = (await client.CallToolAsync("assign_maintenance", new Dictionary<string, object?> { ["taskId"] = task, ["printerIds"] = new[] { printer.Id } }))
+        var assigned = (await client.CallToolAsync("openfarm_assign_maintenance", new Dictionary<string, object?> { ["taskId"] = task, ["printerIds"] = new[] { printer.Id } }))
             .StructuredContent!.Value;
         assigned.GetProperty("enrolled").GetArrayLength().Should().Be(1);
 
         Guid variantId;
         using (var scope = Factory.Services.CreateScope())
             variantId = await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().FilamentVariants.Select(v => v.Id).FirstAsync();
-        var spools = await client.CallToolAsync("register_spools", new Dictionary<string, object?>
+        var spools = await client.CallToolAsync("openfarm_register_spools", new Dictionary<string, object?>
         { ["lines"] = new object[] { new { filamentVariantId = variantId, quantity = 2, spoolWeightGrams = 1000, price = 22 } }, ["supplier"] = "Shop" });
         spools.StructuredContent!.Value.GetProperty("count").GetInt32().Should().Be(2);
 
@@ -240,7 +245,7 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
         var part = await PartAsync();
         await using var client = await ConnectAsync(browser, "assemblies:create", "assemblies:edit", "assemblies:view", "settings:fees:read");
 
-        var saved = await client.CallToolAsync("save_assembly", new Dictionary<string, object?>
+        var saved = await client.CallToolAsync("openfarm_save_assembly", new Dictionary<string, object?>
         {
             ["name"] = $"Kit {Guid.NewGuid():N}",
             ["lines"] = new object[] { new { kind = "part", id = part.Id, quantity = 2 } },
@@ -250,7 +255,7 @@ public sealed class McpWriteToolsTests(McpTestFactory factory) : ProductionTestC
         saved.IsError.Should().NotBe(true, string.Join("", saved.Content.OfType<TextContentBlock>().Select(c => c.Text)));
         var assemblyId = saved.StructuredContent!.Value.GetProperty("assemblyId").GetGuid();
 
-        var quote = (await client.CallToolAsync("quote_assembly", new Dictionary<string, object?>
+        var quote = (await client.CallToolAsync("openfarm_quote_assembly", new Dictionary<string, object?>
         { ["assemblyId"] = assemblyId, ["pricingMode"] = "markup", ["pricingValue"] = 100 })).StructuredContent!.Value;
 
         quote.GetProperty("pricing").GetString().Should().Be("Markup 100%");

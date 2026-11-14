@@ -119,12 +119,12 @@ public sealed class OAuthMcpEndToEndTests(OAuthFactory factory) : ProductionTest
         })))
         {
             var tools = await client.ListToolsAsync();
-            tools.Select(t => t.Name).Should().BeEquivalentTo("get_farm_overview", "list_printers", "get_printer", "list_print_jobs", "get_print_job", "cancel_print_job");
+            tools.Select(t => t.Name).Should().BeEquivalentTo("openfarm_get_farm_overview", "openfarm_list_printers", "openfarm_get_printer", "openfarm_list_print_jobs", "openfarm_get_print_job", "openfarm_cancel_print_job");
 
-            var me = await client.CallToolAsync("get_farm_overview");
+            var me = await client.CallToolAsync("openfarm_get_farm_overview");
             me.StructuredContent!.Value.GetProperty("connection").GetString().Should().Be("App: SDK e2e");
 
-            var cancelled = await client.CallToolAsync("cancel_print_job", new Dictionary<string, object?> { ["jobId"] = jobId, ["expectedPhase"] = "queued" });
+            var cancelled = await client.CallToolAsync("openfarm_cancel_print_job", new Dictionary<string, object?> { ["jobId"] = jobId, ["expectedPhase"] = "queued" });
             cancelled.IsError.Should().NotBe(true);
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var row = await db.ActivityLogEntries.AsNoTracking().SingleAsync(a => a.EntityId == jobId.ToString() && a.EventType == "PrintJobCancelRequested");

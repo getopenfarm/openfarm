@@ -107,7 +107,7 @@ public sealed class OAuthRevocationTests(OAuthFactory factory)
     public async Task AppsAreListedApart_RevokedOneByOne_AndReconnectingReplaces()
     {
         var (user, _, browser) = await UserAsync();
-        var first = await _kit.ConnectAsync(browser, scopes: ["printers.read", "print-jobs.write", "print-jobs.pause", "print-jobs.cancel"]);
+        var first = await _kit.ConnectAsync(browser, scopes: ["printers.read", "production-runs.write", "print-jobs.cancel"]);
 
         var own = await browser.GetFromJsonAsync<JsonElement>("/api/v1/auth/apps");
         own.GetProperty("mcpUrl").GetString().Should().Be("https://farm.test/mcp");
@@ -121,10 +121,11 @@ public sealed class OAuthRevocationTests(OAuthFactory factory)
             (await rowScope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().BrowserSessions.AsNoTracking().SingleAsync(s => s.Id == first.AppId))
                 .RedirectUri.Should().Be(OAuthKit.Loopback);
         var chips = listed.GetProperty("access").EnumerateArray().ToArray();
-        chips.Select(c => c.GetProperty("area").GetString()).Should().Equal("Printers", "Queue");
+        chips.Select(c => c.GetProperty("area").GetString()).Should().Equal("Printers", "Runs", "Queue");
         chips[1].GetProperty("level").GetString().Should().Be("Change");
-        chips[1].GetProperty("extras").EnumerateArray().Select(e => e.GetString()).Should().Equal("Pause", "Cancel");
-        chips[1].GetProperty("control").GetBoolean().Should().BeTrue();
+        chips[2].GetProperty("level").GetString().Should().Be("Read");
+        chips[2].GetProperty("extras").EnumerateArray().Select(e => e.GetString()).Should().Equal("Cancel");
+        chips[2].GetProperty("control").GetBoolean().Should().BeTrue();
         (await browser.GetFromJsonAsync<SessionResponse[]>("/api/v1/auth/sessions"))!.Should().OnlyContain(s => s.Id != first.AppId);
 
         var admin = await _kit.BrowserAsync();

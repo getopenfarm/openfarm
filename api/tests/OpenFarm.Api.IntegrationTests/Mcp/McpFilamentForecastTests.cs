@@ -24,7 +24,7 @@ public sealed class McpFilamentForecastTests(McpTestFactory factory) : Productio
         await using var client = await McpTestClient.ConnectAsync(Factory, (await McpTestClient.TokenAsync(browser,
             "filaments:list", "spools:list", "print-jobs:view", "production-runs:create", "printers:list")).Credential);
 
-        var colours = (await client.CallToolAsync("list_filaments", new Dictionary<string, object?> { ["coverDays"] = 30 })).StructuredContent!.Value
+        var colours = (await client.CallToolAsync("openfarm_list_filaments", new Dictionary<string, object?> { ["coverDays"] = 30 })).StructuredContent!.Value
             .GetProperty("colours").EnumerateArray().Where(c => c.GetProperty("colorHex").GetString() == Hex).ToList();
 
         colours.Select(c => c.GetProperty("filamentVariantId").GetGuid()).Should().BeEquivalentTo([first, second]);
@@ -32,7 +32,7 @@ public sealed class McpFilamentForecastTests(McpTestFactory factory) : Productio
         colours.Sum(c => c.GetProperty("suggestedSpools").GetInt32()).Should().Be(0, "2,000 g across both brands covers 1,500 g");
         colours.Sum(c => c.GetProperty("shortGrams").GetDecimal()).Should().Be(0);
 
-        var plan = (await client.CallToolAsync("plan_production", new Dictionary<string, object?>
+        var plan = (await client.CallToolAsync("openfarm_plan_production", new Dictionary<string, object?>
         {
             ["lines"] = new object[] { new { kind = "Part", id = (await PartAsync(grams: 1000, requirement: new FilamentRequirementSpec("PLA", Hex, null, null, null, 1000))).Id, quantity = 1 } },
         })).StructuredContent!.Value;

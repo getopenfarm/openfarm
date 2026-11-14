@@ -11,12 +11,12 @@ public enum ScopeTier
 /// <summary>One OAuth scope: coarse on the wire, an exact permission list on the server.</summary>
 /// <param name="Area">The access chip it groups under.</param>
 /// <param name="Label">Consent-page text.</param>
-/// <param name="Extra">The chip suffix for a printer-control scope (<c>Pause</c>, <c>Cancel</c>).</param>
+/// <param name="Extra">The chip suffix for a printer-control scope (<c>Mark ready</c>, <c>Cancel</c>).</param>
 public sealed record OAuthScope(string Scope, ScopeTier Tier, string Area, string Label, string? Extra, IReadOnlyList<string> Permissions);
 
 /// <summary>An app's granted scopes for one area, as the Connected apps list shows them.</summary>
 /// <param name="Level"><c>Read</c> or <c>Change</c>.</param>
-/// <param name="Extras">Printer-control labels, for example <c>Pause</c>.</param>
+/// <param name="Extras">Printer-control labels, for example <c>Cancel</c>.</param>
 /// <param name="Title">The consent labels of every granted scope in the area.</param>
 /// <param name="Control">Whether any printer-control scope is granted.</param>
 public sealed record AccessChip(string Area, string Level, string[] Extras, string Title, bool Control);
@@ -36,8 +36,6 @@ public static class OAuthScopes
         new("filament.read", ScopeTier.Read, "Filament", "Read filament stock, forecasts, spools and farm stats", null, ["filaments:list", "spools:list"]),
         new("maintenance.read", ScopeTier.Read, "Maintenance", "Read maintenance tasks and what is due", null, ["maintenance:view"]),
         new("pricing.read", ScopeTier.Read, "Pricing", "Read fee profiles", null, ["settings:fees:read"]),
-        new("print-jobs.write", ScopeTier.Change, "Queue", "Reorder, pin and requeue jobs", null,
-            ["print-jobs:reorder", "print-jobs:pin", "print-jobs:requeue"]),
         new("production-runs.write", ScopeTier.Change, "Runs", "Plan and queue parts and assemblies, alone or as production runs", null, ["production-runs:create"]),
         new("library.write", ScopeTier.Change, "Library", "Organize folders, rename and tag parts, and add or change assemblies", null,
             ["library:manage", "parts:edit", "assemblies:create", "assemblies:edit"]),
@@ -45,7 +43,6 @@ public static class OAuthScopes
         new("maintenance.write", ScopeTier.Change, "Maintenance", "Add and assign maintenance tasks, and mark maintenance done", null, ["maintenance:complete", "maintenance:manage"]),
         new("pricing.write", ScopeTier.Change, "Pricing", "Add and change fee profiles", null, ["settings:fees:update"]),
         new("printers.ready", ScopeTier.PrinterControl, "Printers", "Mark printers ready after their plates are cleared", "Mark ready", ["printers:mark-ready"]),
-        new("print-jobs.pause", ScopeTier.PrinterControl, "Queue", "Pause running prints", "Pause", ["print-jobs:remote-control"]),
         new("print-jobs.cancel", ScopeTier.PrinterControl, "Queue", "Cancel jobs and stop running prints", "Cancel", ["print-jobs:cancel"]),
     ];
 

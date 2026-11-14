@@ -16,16 +16,25 @@ public sealed class OAuthScopesTests
         ["filament.read"] = (ScopeTier.Read, ["filaments:list", "spools:list"]),
         ["maintenance.read"] = (ScopeTier.Read, ["maintenance:view"]),
         ["pricing.read"] = (ScopeTier.Read, ["settings:fees:read"]),
-        ["print-jobs.write"] = (ScopeTier.Change, ["print-jobs:reorder", "print-jobs:pin", "print-jobs:requeue"]),
         ["production-runs.write"] = (ScopeTier.Change, ["production-runs:create"]),
         ["library.write"] = (ScopeTier.Change, ["library:manage", "parts:edit", "assemblies:create", "assemblies:edit"]),
         ["filament.write"] = (ScopeTier.Change, ["spools:register"]),
         ["maintenance.write"] = (ScopeTier.Change, ["maintenance:complete", "maintenance:manage"]),
         ["pricing.write"] = (ScopeTier.Change, ["settings:fees:update"]),
         ["printers.ready"] = (ScopeTier.PrinterControl, ["printers:mark-ready"]),
-        ["print-jobs.pause"] = (ScopeTier.PrinterControl, ["print-jobs:remote-control"]),
         ["print-jobs.cancel"] = (ScopeTier.PrinterControl, ["print-jobs:cancel"]),
     };
+
+    [Fact]
+    public void RetiredQueueScopesGrantNothing_WhileCancelRemainsAvailable()
+    {
+        string[] retired = ["print-jobs.write", "print-jobs.pause"];
+        OAuthScopes.Expand(retired).Should().BeEmpty();
+        OAuthScopes.Parse(string.Join(" ", retired)).Should().BeEmpty();
+        foreach (var scope in retired)
+            OAuthScopes.Find(scope).Should().BeNull();
+        OAuthScopes.Expand(["print-jobs.cancel"]).Should().Equal("print-jobs:cancel");
+    }
 
     [Fact]
     public void EveryExpansionIsFrozen()
@@ -87,13 +96,13 @@ public sealed class OAuthScopesTests
     [Fact]
     public void ChipsGroupByArea()
     {
-        var chips = OAuthScopes.Chips(["print-jobs.cancel", "printers.read", "print-jobs.write", "print-jobs.pause", "print-jobs.read"]);
+        var chips = OAuthScopes.Chips(["print-jobs.cancel", "printers.read", "print-jobs.read"]);
         chips.Should().HaveCount(2);
         chips[0].Should().BeEquivalentTo(new AccessChip("Printers", "Read", [], "Read printers, their live status and feed units", false));
         chips[1].Area.Should().Be("Queue");
-        chips[1].Level.Should().Be("Change");
-        chips[1].Extras.Should().Equal("Pause", "Cancel");
+        chips[1].Level.Should().Be("Read");
+        chips[1].Extras.Should().Equal("Cancel");
         chips[1].Control.Should().BeTrue();
-        chips[1].Title.Should().Be("Read the queue and print jobs; Reorder, pin and requeue jobs; Pause running prints; Cancel jobs and stop running prints");
+        chips[1].Title.Should().Be("Read the queue and print jobs; Cancel jobs and stop running prints");
     }
 }
