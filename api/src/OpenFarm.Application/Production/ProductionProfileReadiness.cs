@@ -16,9 +16,9 @@ namespace OpenFarm.Application.Production;
 
 /// <summary>
 /// What production uses for one job on one printer: the loaded spool and filament profile of each requirement, and —
-/// when the file needs slicing — the machine, process and filament presets resolved to the part's pinned slicer
-/// (<see cref="Profiles"/>, with its provenance). The file generator slices with exactly <see cref="Profiles"/>, so
-/// what was checked is what runs.
+/// when the file needs slicing — the filament presets resolved to the part's pinned slicer (<see cref="Profiles"/>,
+/// with its provenance). The project keeps its own machine and process. The file generator slices with exactly
+/// <see cref="Profiles"/>, so what was checked is what runs.
 /// </summary>
 public sealed record ProductionResolution(IReadOnlyList<ProductionFilamentSelection> Selections, ResolvedSlicingProfiles? Profiles);
 
@@ -46,10 +46,11 @@ public sealed class InsufficientFilamentException(FilamentShortfall shortfall, s
 public sealed partial class ProductionProfileReadiness(RepresentativeFilamentResolver resolver, IPrinterRepository printers,
     ResolveSlicingProfileSelection profileSelection, ProfileCompatibility compatibility,
     ResolveSlicerSelection slicerSelection, IPartFileStorage storage, IPartFileClassifier classifier,
-    FeedPlacementResolver placements, IAlreadySlicedFileMetadataParser slicedFiles, ILogger<ProductionProfileReadiness> logger)
+    FeedPlacementResolver placements, IAlreadySlicedFileMetadataParser slicedFiles, IUnslicedProjectMaterialResolver projects,
+    ILogger<ProductionProfileReadiness> logger)
 {
-    // ponytail: unbounded memo of each retained file's declared printer model; revisions are immutable and few.
-    private static readonly ConcurrentDictionary<string, string?> SlicedModels = new(StringComparer.Ordinal);
+    // ponytail: unbounded memo of each retained file's declared printer model and plate; revisions are immutable and few.
+    private static readonly ConcurrentDictionary<string, EstimationDetails?> DeclaredFiles = new(StringComparer.Ordinal);
 
     public async Task<ProductionResolution> ResolveAsync(Guid printerId, Part part,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> requirements, CancellationToken ct, string? revisionHash = null)
@@ -78,7 +79,7 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
                 throw new SlicingProfileUnconfiguredException("The object's exclusion format does not match this printer. Supply a compatible sliced file.");
         }
         var requiresSlicing = await RequiresSlicingAsync(part, revisionHash, ct);
-        if (!requiresSlicing) await EnsureSlicedForPrinterAsync(printerId, part, revisionHash, ct);
+        var declared = await EnsureFileFitsPrinterAsync(printerId, part, requiresSlicing, revisionHash, ct);
         var estimates = requirements.Select(r => ProductionJobRequirements.EstimatedGrams(part, r, requirements.Count, job, revisionHash)).ToList();
         // Narrowest choice first, each line preferring a spool no other line took: two "any colour" lines take two spools,
         // and neither takes the one spool a fixed colour needs. A spool is shared only when no other one fits.
@@ -95,7 +96,7 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
             if (await placements.ResolveAsync(selection.SpoolId, ct) is { } placement) feeds.Add(placement);
         if (PrintFeedMappingBuilder.MixesAmsWithExternal(feeds))
             throw new SlicingProfileUnconfiguredException("One job can't draw from the AMS and the reloader at once. Load all colours in the AMS, or all in the reloader.");
-        var profiles = requiresSlicing ? await ResolveSettingsAsync(printerId, part, selections, ct) : null;
+        var profiles = requiresSlicing ? await ResolveSettingsAsync(printerId, part, declared, selections, ct) : null;
         // Last, so a printer short of filament has everything else in order: loading or re-weighing a spool is all it needs.
         await EnsureEnoughFilamentAsync(printerId, selections, estimates, ct);
         return new(selections, profiles);
@@ -118,44 +119,66 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
     }
 
     /// <summary>
-    /// A pre-sliced file runs exactly as it is, so it must have been sliced for this printer's model; a file that still
-    /// needs slicing is sliced for whichever printer takes it. The simulator stands in for every model, and a printer the
-    /// catalog doesn't know (only test doubles: registration requires a catalogued model) has no model to compare.
+    /// The file is the one source of how a part prints — a pre-sliced file runs as it is, a project is sliced with its own
+    /// machine and process — so it only goes to a printer it was made for: the same model, and the plate that is on the
+    /// printer's bed. The simulator stands in for every model and plate, and a printer the catalog doesn't know (only test
+    /// doubles: registration requires a catalogued model) has none to compare.
     /// </summary>
-    private async Task EnsureSlicedForPrinterAsync(Guid printerId, Part part, string? revisionHash, CancellationToken ct)
+    /// <returns>What the file declares, for the slice that follows.</returns>
+    private async Task<EstimationDetails?> EnsureFileFitsPrinterAsync(Guid printerId, Part part, bool requiresSlicing, string? revisionHash, CancellationToken ct)
     {
         var printer = await printers.GetByIdAsync(printerId, ct) ?? throw new PrinterNotFoundException(printerId);
+        var declared = await DeclaredAsync(part, requiresSlicing, revisionHash, ct);
         if (PrinterModelCatalog.Find(printer.Brand, printer.ModelCode) is not { } printerModel || printerModel.Driver == PrinterDriver.Simulator)
-            return;
-        var declared = await SlicedModelAsync(part, revisionHash, ct);
-        var model = PrinterModelCatalog.TryResolveSlicedModel(declared);
-        if (model == printerModel) return;
-        throw new SlicingProfileUnconfiguredException(declared is null
-            ? $"The file names no printer model. Slice it for {printer.Brand} {printer.ModelCode}."
-            : $"Sliced for {(model is null ? declared : $"{model.Brand} {model.ModelCode}")}, not {printer.Brand} {printer.ModelCode}.");
+            return declared;
+        var model = PrinterModelCatalog.TryResolveSlicedModel(declared?.MachineModel);
+        if (model != printerModel)
+        {
+            throw new SlicingProfileUnconfiguredException(declared?.MachineModel is not { } fileModel
+                ? $"The file names no printer model. Re-save it for {printer.Brand} {printer.ModelCode}."
+                : $"File is for {(model is null ? fileModel : $"{model.Brand} {model.ModelCode}")}, not {printer.Brand} {printer.ModelCode}.");
+        }
+
+        var plate = printer.BuildPlateType
+            ?? throw new SlicingProfileUnconfiguredException($"Select a build plate. Configure in /printers/{printer.Id}?settings=slicer.");
+        var wanted = BuildPlateTypeVendorNames.Resolve(plate);
+        if (declared?.BuildPlate is not { } filePlate)
+            throw new SlicingProfileUnconfiguredException($"The file names no build plate. Re-save it for {wanted}.");
+        if (BuildPlateTypeVendorNames.Parse(filePlate) != plate)
+            throw new SlicingProfileUnconfiguredException(
+                $"File is for {filePlate}, not the printer's {wanted}. Change the plate in /printers/{printer.Id}?settings=slicer, or re-save the file for it.");
+        return declared;
     }
 
-    private async Task<string?> SlicedModelAsync(Part part, string? revisionHash, CancellationToken ct)
+    /// <summary>The machine model, machine preset and plate a retained file was made for; null when it cannot be read.</summary>
+    private async Task<EstimationDetails?> DeclaredAsync(Part part, bool requiresSlicing, string? revisionHash, CancellationToken ct)
     {
         var hash = revisionHash ?? part.RevisionHash;
-        if (SlicedModels.TryGetValue(hash, out var cached)) return cached;
+        if (DeclaredFiles.TryGetValue(hash, out var cached)) return cached;
         var path = revisionHash is null || revisionHash == part.RevisionHash
             ? part.StoragePath
             : await storage.GetRevisionStoragePathAsync(revisionHash, part.OriginalFileName, ct);
         await using var file = await storage.OpenReadAsync(path, ct);
-        var format = classifier.Classify(file, Path.GetFileName(path)).Format;
-        file.Position = 0;
-        string? declared;
+        EstimationDetails? declared;
         try
         {
-            declared = (await slicedFiles.ParseAsync(file, format, ct)).Estimation?.MachineModel;
+            if (requiresSlicing)
+            {
+                declared = (await projects.ResolveAsync(file, ct)).Estimation;
+            }
+            else
+            {
+                var format = classifier.Classify(file, Path.GetFileName(path)).Format;
+                file.Position = 0;
+                declared = (await slicedFiles.ParseAsync(file, format, ct)).Estimation;
+            }
         }
-        catch (PartFileParsingFailedException)
+        catch (Exception ex) when (ex is PartFileParsingFailedException or UnslicedProjectMaterialParsingFailedException)
         {
             declared = null;
         }
 
-        return SlicedModels.GetOrAdd(hash, declared);
+        return DeclaredFiles.GetOrAdd(hash, declared);
     }
 
     private async Task<bool> RequiresSlicingAsync(Part part, string? revisionHash, CancellationToken ct)
@@ -166,17 +189,17 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         return classifier.Classify(file, Path.GetFileName(path)).RequiresSlicing;
     }
 
-    // The part's own pin, never a fallback: production slices with the slicer the part was pinned to, or not at all. Each
-    // line's filament is resolved and checked on its own; the first line's set carries the machine and process.
-    private async Task<ResolvedSlicingProfiles> ResolveSettingsAsync(Guid printerId, Part part,
+    // The part's own pin, never a fallback: production slices with the slicer the part was pinned to, or not at all. The
+    // project keeps its own machine, process and plate; only each line's filament is resolved and checked, on its own.
+    private async Task<ResolvedSlicingProfiles> ResolveSettingsAsync(Guid printerId, Part part, EstimationDetails? declared,
         IReadOnlyList<ProductionFilamentSelection> selections, CancellationToken ct)
     {
         var printer = await printers.GetByIdAsync(printerId, ct) ?? throw new PrinterNotFoundException(printerId);
         var pin = slicerSelection.ResolvePinned(part.SlicerEngineOverride, part.SlicerVersionUsed);
-        var printerLink = $"Configure in /printers/{printer.Id}/edit.";
-        var machineProfileId = printer.MachineProfileId ?? throw new SlicingProfileUnconfiguredException($"Select a machine profile. {printerLink}");
-        var processProfileId = printer.ProcessProfileId ?? throw new SlicingProfileUnconfiguredException($"Select a process profile. {printerLink}");
-        var buildPlate = printer.BuildPlateType ?? throw new SlicingProfileUnconfiguredException($"Select a build plate. {printerLink}");
+        // The plate the file was made for; for a real printer the gate has already made it the printer's own.
+        var plate = BuildPlateTypeVendorNames.Parse(declared?.BuildPlate)
+            ?? throw new SlicingProfileUnconfiguredException(declared?.BuildPlate is { } name
+                ? $"The file's build plate '{name}' is not known." : "The file names no build plate.");
         var resolved = new List<ResolvedSlicingProfiles>();
         var issues = new List<ProfileIssue>();
         foreach (var selection in selections)
@@ -184,18 +207,16 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
             var use = new ProfileUseContext(printer.Brand, printer.ModelCode, selection.NozzleMm, selection.MaterialType);
             try
             {
-                resolved.Add(await profileSelection.ResolveProfilesAsync(machineProfileId, processProfileId, selection.Profile.Id, buildPlate, pin, use, ct));
+                resolved.Add(await profileSelection.ResolveFilamentAsync(selection.Profile.Id, plate, declared?.MachineProfileName, pin, use, ct));
             }
             catch (ProfileSetBlockedException blocked)
             {
-                // Say where each problem is fixed: the printer's machine/process, or this line's filament assignment.
                 issues.AddRange(blocked.Issues.Select(issue => issue.Code is ProfileResolutionOutcome.CatalogNotLoaded or ProfileResolutionOutcome.EngineWithoutProfiles
                     ? issue
-                    : issue with { Message = $"{issue.Message} Configure in {(issue.Kind == ProfileKind.Filament ? $"/filament/{selection.FilamentId}/edit" : $"/printers/{printer.Id}/edit")}." }));
+                    : issue with { Message = $"{issue.Message} Configure in /filament/{selection.FilamentId}/edit." }));
             }
         }
 
-        // Machine and process problems repeat for every line; each is reported once.
         if (issues.Count > 0) throw new ProfileSetBlockedException(issues.Distinct().ToList());
         return resolved[0] with { Filaments = resolved.Select(r => new ResolvedFilament(r.FilamentSettingsJson, r.Filament)).ToList() };
     }
@@ -227,8 +248,6 @@ public sealed partial class ProductionProfileReadiness(RepresentativeFilamentRes
         {
             // Each extruder's nozzle, never its temperature or active slot.
             Nozzles = printer.Extruders.Select(e => new { e.Index, e.NozzleDiameterMm }),
-            printer.MachineProfileId,
-            printer.ProcessProfileId,
             printer.BuildPlateType,
             settings = resolution.Profiles,
             slicer = resolution.Profiles?.Pin,

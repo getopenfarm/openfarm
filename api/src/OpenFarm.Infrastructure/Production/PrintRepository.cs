@@ -37,12 +37,22 @@ public sealed class PrintRepository(OpenFarmDbContext dbContext) : IPrintReposit
                 && (!ClosedStatuses.Contains(p.Status) || awaitingClear.Contains(p.PrinterId.Value)))
             .GroupBy(p => p.PrinterId!.Value)
             .Select(g => g.OrderBy(p => ClosedStatuses.Contains(p.Status)).ThenByDescending(p => p.EndedAtUtc)
-                .Select(p => new { PrinterId = g.Key, p.Id, p.Source, p.Name }).First())
+                .Select(p => new { PrinterId = g.Key, p.Id, p.Source, p.Name, p.Status, p.EndedAtUtc }).First())
             .ToDictionaryAsync(p => p.PrinterId, cancellationToken);
         return printers.ToDictionary(p => p.Id, p =>
-            current.GetValueOrDefault(p.Id) is { Source: PrintSource.Dispatched } print
+        {
+            var print = current.GetValueOrDefault(p.Id);
+            // Not ready by an operator hold (marked after the last print ended): no plate is waiting on this printer.
+            if (p.Status == PrinterStatus.AwaitingClear && p.ReadinessChangedAtUtc is { } held
+                && (print is null || (ClosedStatuses.Contains(print.Status) && print.EndedAtUtc < held)))
+            {
+                return new CurrentPrint(null, null);
+            }
+
+            return print is { Source: PrintSource.Dispatched }
                 ? new CurrentPrint(print.Name, print.Id)
-                : new CurrentPrint(p.CurrentJobName, null));
+                : new CurrentPrint(p.CurrentJobName, null);
+        });
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)

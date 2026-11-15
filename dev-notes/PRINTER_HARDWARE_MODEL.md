@@ -68,10 +68,10 @@ Each extruder reports its own nozzle (`Printer.ObserveNozzles`) and is confirmed
   differ, for display only.
 
 A slot can serve a job only when its own extruder's confirmed nozzle equals the part's nozzle
-(`ProductionDispatchMatcher.CanServe`); extruders the job doesn't use may differ. The printer still has one machine
+(`ProductionDispatchMatcher.CanServe`); extruders the job doesn't use may differ. The file carries one machine
 preset, and every `nozzle_diameter` in it must equal the job's nozzle. Backup stock (a reload continuing onto another
 slot, `FilamentCover.Available`, `SpoolUsageRecordedHandler`) never crosses to another nozzle size. Profile
-assignments, machine-profile pickers and the readiness report work per distinct nozzle. Diagnostics name the
+assignments and the readiness report work per distinct nozzle. Diagnostics name the
 extruder with the wrong nozzle (`extruder-nozzle` check, models with more than one extruder).
 
 The printer detail page's Hardware card shows the model, driver, camera and one row per catalog extruder.

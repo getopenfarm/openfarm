@@ -8,8 +8,8 @@ using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Api.Mcp.Tools;
 
-/// <param name="Status">Idle, Printing or AwaitingClear (a print ended and the plate waits for a person to clear it).</param>
-/// <param name="AwaitingClearSinceUtc">Set while awaiting clear; pass it to openfarm_mark_printers_ready.</param>
+/// <param name="Status">Idle (the app says Ready), Printing, or AwaitingClear (the app says Not ready: a print ended and the plate waits for a person to clear it, or a person marked the printer not ready).</param>
+/// <param name="AwaitingClearSinceUtc">Set while AwaitingClear (Not ready); pass it to openfarm_mark_printers_ready.</param>
 /// <param name="CurrentPrint">The print on the printer: the one printing, or the one whose plate waits to be cleared.</param>
 /// <param name="Alerts">Active printer alerts, such as a filament runout or an error code.</param>
 public sealed record McpPrinter(Guid PrinterId, string Name, string Model, string Status, bool Online, DateTimeOffset? AwaitingClearSinceUtc,
@@ -32,7 +32,7 @@ public static class PrinterTools
     [
         McpTools.Read("openfarm_list_printers", "List printers",
             "Every printer with its status, whether it is online, the print on it with progress and time left, and active alerts. "
-            + "Printers awaiting clear carry awaitingClearSinceUtc for openfarm_mark_printers_ready.",
+            + "Status is Idle (the app says Ready), Printing or AwaitingClear (the app says Not ready). Not ready printers carry awaitingClearSinceUtc for openfarm_mark_printers_ready.",
             async (RequestContext<CallToolRequestParams> request,
                 [Description("Only printers with this status: Idle, Printing or AwaitingClear; or Offline for printers not reachable now")] string? status = null,
                 CancellationToken ct = default) =>
@@ -57,7 +57,7 @@ public static class PrinterTools
             },
             "printers:get-detail"),
         McpTools.Write("openfarm_mark_printers_ready", "Mark printers ready",
-            "Marks printers awaiting clear as ready, so each can take its next queued job at once. Call it only for printers the user says in this "
+            "Marks Not ready (AwaitingClear) printers as ready, so each can take its next queued job at once. It cannot mark a printer not ready. Call it only for printers the user says in this "
             + "conversation have a clear build plate; never because a print finished. Each printer is handled on its own.",
             destructive: false, idempotent: true, openWorld: true,
             async (RequestContext<CallToolRequestParams> request,

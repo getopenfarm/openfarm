@@ -20,15 +20,11 @@ public sealed record PrinterDetail(
     int? RemainingTimeMinutes,
     string? CurrentJobName,
     IReadOnlyList<FeedUnitReading> FeedReadings,
-    Guid? MachineProfileId,
-    string? MachineProfileName,
-    Guid? ProcessProfileId,
-    string? ProcessProfileName,
     BuildPlateType? BuildPlateType,
     string? BuildPlateTypeLabel,
     IReadOnlyList<BuildPlateTypeOption> CompatibleBuildPlateTypes,
-    decimal? ReportedNozzleDiameterMm = null, DateTimeOffset? NozzleObservedAtUtc = null, bool NozzleConfirmed = false, string? MachineProfileIssue = null,
+    decimal? ReportedNozzleDiameterMm = null, DateTimeOffset? NozzleObservedAtUtc = null, bool NozzleConfirmed = false,
     string? ReportedState = null, DateTimeOffset? StateObservedAtUtc = null, IReadOnlyList<PrinterAlert>? ActiveAlerts = null,
-    IReadOnlyList<ExtruderReading>? Extruders = null);
+    IReadOnlyList<ExtruderReading>? Extruders = null, IReadOnlyList<string>? SetupIssues = null);
 
 public sealed record BuildPlateTypeOption(BuildPlateType Value, string Label);

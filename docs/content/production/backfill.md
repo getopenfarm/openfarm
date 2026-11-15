@@ -1,6 +1,6 @@
 ---
 title: Continuous backfill
-description: Use idle compatible printers for repeat production after jobs with fixed quantities.
+description: Use ready compatible printers for repeat production after jobs with fixed quantities.
 ---
 
 Backfill repeatedly prints whole plates until you pause or remove the entry. It uses compatible printers that are available after jobs with fixed quantities.

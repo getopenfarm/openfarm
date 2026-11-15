@@ -11,7 +11,7 @@ namespace OpenFarm.Application.Profiles;
 /// <summary>Production uses the assigned printer's tracked spool and hardware-specific assignment only.</summary>
 public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository profiles, ISpoolRepository spools,
     IFilamentRepository filaments, IFeedUnitRepository feedUnits, IPrinterRepository printers,
-    IMachineProfileRepository machines, ProfileCompatibility compatibility)
+    ProfileCompatibility compatibility)
 {
     public async Task<FilamentMatchResult> ResolveAsync(Guid? printerId, string materialType, CancellationToken cancellationToken)
         => new((await ResolveLoadedAsync(printerId ?? throw new SlicingProfileUnconfiguredException("An assigned printer is required."),
@@ -35,12 +35,7 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
     {
         var required = new JobFilamentRequirementSpec(materialType, colorHex, narrowedVariantId, narrowedProfileId, narrowedFilamentId);
         var printer = await printers.GetByIdAsync(printerId, ct) ?? throw new PrinterNotFoundException(printerId);
-        var machine = printer.MachineProfileId is { } machineId ? await machines.GetByIdAsync(machineId, ct) : null;
-        try
-        {
-            if (machine is null) throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' needs a compatible machine profile.");
-            await compatibility.ValidateMachineAsync(printer, machine, ct, nozzleMm);
-        }
+        try { ProfileCompatibility.RequireConfirmedNozzle(printer, nozzleMm); }
         catch (SlicingProfileUnconfiguredException ex)
         { throw new SlicingProfileUnconfiguredException($"{ex.Message} Configure in /printers/{printer.Id}/edit."); }
         var units = await feedUnits.GetByPrinterIdAsync(printerId, ct);
@@ -84,8 +79,7 @@ public sealed class RepresentativeFilamentResolver(IFilamentProfileRepository pr
                     throw new SlicingProfileUnconfiguredException("The loaded filament assignment does not match the part's required filament profile.");
                 var profile = await profiles.GetByIdAsync(profileId, ct)
                     ?? throw new SlicingProfileUnconfiguredException("The assigned filament profile no longer exists.");
-                await compatibility.ValidateFilamentAsync(profile, filament.MaterialType, printer.Brand, printer.ModelCode,
-                    nozzle, ct, machine);
+                await compatibility.ValidateFilamentAsync(profile, filament.MaterialType, printer.Brand, printer.ModelCode, nozzle, ct);
                 return new(spool.Id, variant.Id, filament.Id, filament.MaterialType, profile, nozzle,
                     available, unit.Id, $"{variant.ColorName} {filament.MaterialType}");
             }

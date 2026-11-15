@@ -15,7 +15,7 @@ Open **Job diagnosis** on the job page, or select the blocking status in the que
 | Target model | Pre-sliced files match their declared target model. |
 | Material | Required filament is physically loaded and registered as an active tracked spool. |
 | Identity | The loaded spool matches the selected production color variant or the material and color requirements saved for the job. |
-| Profiles | All jobs need a compatible machine profile and filament-profile assignments for loaded spools. If a job needs slicing, it also needs a process profile. All three presets must have compatible matches in the job's pinned slicer catalog. |
+| File and profiles | The file must name the destination printer's model and the plate on its bed. All jobs need filament-profile assignments for loaded spools. If a job needs slicing, each filament preset must have a compatible match in the job's pinned slicer catalog. |
 | Build plate | A required slicing plate is selected and compatible. |
 | Stock | Known estimated use plus the fixed 10% margin fits available compatible stock. |
 
@@ -29,7 +29,7 @@ Unknown need does not block the stock check. After slicing, OpenFarm checks agai
 
 Use [When profiles apply](../library/profile-behavior.md) to distinguish settings used to slice a new file from profiles checked for an already-sliced file. Pre-sliced jobs do not apply your current process and filament settings to existing toolpaths.
 
-A saved nozzle size from an offline printer is not current confirmation. Reconnect the printer and wait for a fresh nozzle report. Select a compatible machine profile, then check the filament assignments for that hardware and nozzle size.
+A saved nozzle size from an offline printer is not current confirmation. Reconnect the printer and wait for a fresh nozzle report. Then check the filament assignments for that hardware and nozzle size.
 
 Changing the farm default does not change an existing part's saved slicer and version. If slicing is needed, a profile missing from that slicer's catalog can block the job. A user preset from another slicer can also block it. A similar name in another catalog is not enough.
 

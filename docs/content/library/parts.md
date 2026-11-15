@@ -7,7 +7,7 @@ Parts hold the files and requirements used to create jobs. Start from **Parts â†
 
 ## Supported uploads
 
-You can upload **STL**, **3MF** (including sliced `.gcode.3mf`), and raw **`.gcode` / `.gco` / `.g`** files. The complete upload request has a 500 MiB limit. Leave space for the form data sent with the file. A supported file extension does not guarantee readable metadata or compatibility with every printer.
+You can upload a **project 3MF**, a sliced **`.gcode.3mf`**, and raw **`.gcode` / `.gco` / `.g`** files. STL and geometry-only 3MF files are refused: they carry no machine, process, or plate to slice with. The complete upload request has a 500 MiB limit. Leave space for the form data sent with the file. A supported file extension does not guarantee readable metadata or compatibility with every printer.
 
 Use a file prepared for the intended printer; raw G-code cannot safely become a different machine's toolpath just by changing a profile.
 
@@ -24,7 +24,7 @@ See [When profiles apply](profile-behavior.md) for the file decision tree and th
 7. Choose **Production filament** for each material line: the file color (default), any color of the material, any color of one filament, or one color.
 8. Confirm the review to save the part records.
 
-For sliced 3MF and G-code, OpenFarm reads estimates stored in the file. For unsliced project 3MF, it can calculate estimates from embedded settings or supported named presets. You can review and save STL and geometry-only 3MF without estimates. Unknown time or filament weight stays unknown. It does not become zero.
+For sliced 3MF and G-code, OpenFarm reads estimates stored in the file. For unsliced project 3MF, it can calculate estimates from embedded settings or supported named presets. You can review and save a project 3MF without estimates. Unknown time or filament weight stays unknown. It does not become zero.
 
 ## Complete production requirements
 

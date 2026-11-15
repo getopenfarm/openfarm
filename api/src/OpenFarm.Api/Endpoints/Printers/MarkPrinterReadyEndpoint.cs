@@ -16,8 +16,8 @@ public sealed class MarkPrinterReadyRequest : IActivityLoggable
 }
 
 /// <summary>
-/// "Mark ready" per <c>contracts/printers-api.md</c> — the only manual status transition this
-/// phase supports (<c>AwaitingClear → Idle</c>). Illegal transitions surface as 409 via
+/// "Mark ready" per <c>contracts/printers-api.md</c> — <c>AwaitingClear → Idle</c>, from a finished print or an
+/// operator hold (<see cref="MarkPrinterNotReadyEndpoint"/>). Illegal transitions surface as 409 via
 /// <see cref="ExceptionHandling.DomainExceptionHandler"/>.
 /// </summary>
 [Permission("printers:mark-ready")]

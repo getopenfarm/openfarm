@@ -12,17 +12,24 @@ function sendingLabel({ stage, percent }: PrintJobSendProgress) {
 
 /** Bridges the printer status vocabulary into StatusBadge's generic `kind` prop.
  * Offline is checked first — it's tracked separately from PrinterStatus. An Idle printer
- * that a job is being sent to shows the send instead (display only, never a status). */
+ * that a job is being sent to shows the send instead, and an Idle printer that cannot take
+ * any job yet shows "Needs setup" (both display only, never a status). `solid` marks the states
+ * that need the operator: Awaiting clear and Needs setup. `setup` marks Needs setup, the chip that leads to the
+ * slicer settings. */
 export function printerStatusToBadge(
   status: PrinterStatus,
   isReachable: boolean,
   sending?: PrintJobSendProgress,
-): { kind: BadgeKind; label: string } {
+  setupIssues?: readonly string[] | null,
+): { kind: BadgeKind; label: string; solid?: boolean; setup?: boolean } {
   if (!isReachable) {
     return { kind: 'red', label: OFFLINE_META.label };
   }
   if (status === 'Idle' && sending) {
     return { kind: 'blue', label: sendingLabel(sending) };
+  }
+  if (status === 'Idle' && setupIssues?.length) {
+    return { kind: 'amber', label: 'Needs setup', solid: true, setup: true };
   }
 
   const meta = STATUS_META[status];
@@ -33,5 +40,5 @@ export function printerStatusToBadge(
         ? 'amber'
         : 'zinc';
 
-  return { kind, label: meta.label };
+  return { kind, label: meta.label, solid: status === 'AwaitingClear' };
 }

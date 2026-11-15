@@ -38,7 +38,7 @@ export const TIME_STATES = [
   { key: 'printing', label: 'Printing', color: 'var(--chart-printing)' },
   {
     key: 'awaitingClear',
-    label: 'Awaiting clear',
+    label: 'Not ready',
     color: 'var(--chart-awaiting-clear)',
   },
   { key: 'paused', label: 'Paused', color: 'var(--chart-paused)' },

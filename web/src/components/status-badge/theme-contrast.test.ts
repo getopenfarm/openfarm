@@ -66,3 +66,21 @@ describe('status badge text contrast', () => {
     }
   }
 });
+
+describe('solid status chips', () => {
+  for (const [mode, theme] of Object.entries({ light, dark })) {
+    for (const solid of ['--solid-amber', '--solid-red']) {
+      it(`${mode} ${solid} has AA contrast with white text and 3:1 against the surfaces`, () => {
+        const fill = luminance(rgb(solid, theme));
+        // white text (luminance 1)
+        expect(1.05 / (fill + 0.05)).toBeGreaterThanOrEqual(4.5);
+        for (const surface of ['--card', '--background']) {
+          const other = luminance(rgb(surface, theme));
+          expect(
+            (Math.max(fill, other) + 0.05) / (Math.min(fill, other) + 0.05),
+          ).toBeGreaterThanOrEqual(3);
+        }
+      });
+    }
+  }
+});

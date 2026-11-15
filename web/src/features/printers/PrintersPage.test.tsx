@@ -69,7 +69,7 @@ describe('PrintersPage', () => {
 
     expect(await screen.findByText('Test Printer')).toBeInTheDocument();
     const table = within(screen.getByRole('table'));
-    expect(table.getByText('Idle')).toBeInTheDocument();
+    expect(table.getByText('Ready')).toBeInTheDocument();
     expect(table.queryByText('Offline')).not.toBeInTheDocument();
     // User Story 2 (SC-003): Edit/Remove are relocated to the detail page only.
     expect(table.queryByText('Edit')).not.toBeInTheDocument();
@@ -168,7 +168,7 @@ describe('PrintersPage', () => {
     await screen.findByText('Unreachable Printer');
     const table = within(screen.getByRole('table'));
     expect(table.getByText('Offline')).toBeInTheDocument();
-    expect(table.queryByText('Idle')).not.toBeInTheDocument();
+    expect(table.queryByText('Ready')).not.toBeInTheDocument();
   });
 
   it('always renders a table without readiness controls despite a saved grid preference', async () => {
@@ -203,7 +203,7 @@ describe('PrintersPage', () => {
 
     expect(await screen.findByText('Finished Printer')).toBeInTheDocument();
     expect(screen.getByRole('table')).toBeInTheDocument();
-    expect(screen.getAllByText('Awaiting clear')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Not ready')[0]).toBeInTheDocument();
     expect(
       screen.queryByRole('button', {
         name: /grid view|table view|mark ready|^clear$|actions for/i,

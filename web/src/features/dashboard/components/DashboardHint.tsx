@@ -11,11 +11,15 @@ export function DashboardHint({
   children,
   details,
   className,
+  side = 'left',
+  align,
 }: {
   label: string;
   children: ReactNode;
   details: ReactNode;
   className?: string;
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  align?: 'start' | 'center' | 'end';
 }) {
   const [open, setOpen] = useState(false);
   const closing = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -51,7 +55,8 @@ export function DashboardHint({
       <PopoverContent
         aria-label={label}
         className="w-64 gap-1 text-xs"
-        side="left"
+        side={side}
+        align={align}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}
         onPointerEnter={show}

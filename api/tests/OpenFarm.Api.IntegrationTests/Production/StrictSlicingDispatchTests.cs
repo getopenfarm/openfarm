@@ -125,7 +125,6 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
     private static readonly SlicerRef Orca242 = SlicerBundleDouble.Orca242;
     private static readonly SlicerRef Bambu271 = SlicerBundleDouble.Bambu271;
     private const string MachineName = "Bambu Lab P1S 0.4 nozzle";
-    private const string ProcessName = "0.20mm Standard @BBL X1C";
     private const string FilamentName = "Bambu PLA Basic @BBL X1C";
 
     private StrictSlicingFactory Strict => (StrictSlicingFactory)Factory;
@@ -148,21 +147,20 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
 
     private sealed record Presets(
         IReadOnlyDictionary<SlicerRef, MachineProfile> Machine,
-        IReadOnlyDictionary<SlicerRef, ProcessProfile> Process,
         IReadOnlyDictionary<SlicerRef, FilamentProfile> Filament);
 
     private static string Marker(string kind, SlicerRef catalog) => $"{kind}|{catalog.Engine}-{catalog.Version}";
 
     private static ProfileSourceFormat FormatOf(SlicerRef catalog) => ProfileEngineCompatibility.NativeFormat(catalog.Engine)!.Value;
 
-    // The same three logical presets (ids GM014 / GP004 / GFSA00, one vendor) in each given catalog, every row's JSON
-    // carrying a marker naming its catalog. Catalogs not listed in <paramref name="without"/> for a kind get that kind.
-    private async Task<Presets> SeedAsync(string vendor, SlicerRef[] catalogs, SlicerRef[]? withoutProcess = null, SlicerRef[]? withoutFilament = null)
+    // The same two logical presets (ids GM014 / GFSA00, one vendor) in each given catalog, every row's JSON carrying a
+    // marker naming its catalog. A project brings its own machine and process; the machine row only names the printer the
+    // filament is compatible with. Catalogs listed in <paramref name="withoutFilament"/> get no filament.
+    private async Task<Presets> SeedAsync(string vendor, SlicerRef[] catalogs, SlicerRef[]? withoutFilament = null)
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
         var machines = new Dictionary<SlicerRef, MachineProfile>();
-        var processes = new Dictionary<SlicerRef, ProcessProfile>();
         var filaments = new Dictionary<SlicerRef, FilamentProfile>();
         foreach (var catalog in catalogs)
         {
@@ -171,15 +169,6 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
                 vendor, "GM014", isSelectable: true, vendorMachineModelName: null, includedTemplateNames: null, sourceVersion: catalog.Version);
             db.MachineProfiles.Add(machine);
             machines[catalog] = machine;
-            if (withoutProcess is null || !withoutProcess.Contains(catalog))
-            {
-                var process = ProcessProfile.CreateSystemProfile(ProcessName, FormatOf(catalog), null,
-                    $$"""{"type":"process","layer_height":"0.2","marker":"{{Marker("PROCESS", catalog)}}"}""",
-                    vendor, "GP004", isSelectable: true, compatibleMachineNames: [MachineName], sourceVersion: catalog.Version);
-                db.ProcessProfiles.Add(process);
-                processes[catalog] = process;
-            }
-
             if (withoutFilament is null || !withoutFilament.Contains(catalog))
             {
                 var filament = FilamentProfile.CreateSystemProfile(FilamentName, FormatOf(catalog), null,
@@ -192,25 +181,35 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
         }
 
         await db.SaveChangesAsync();
-        return new Presets(machines, processes, filaments);
+        return new Presets(machines, filaments);
     }
 
-    // A printer whose machine, process and filament assignment are the Orca 2.4.2 rows — the catalog the farm default
-    // picks from — as an operator would have selected them in the pickers.
+    // A printer whose filament assignment is the Orca 2.4.2 row — the catalog the farm default picks from — as an operator
+    // would have selected it in the picker.
     private Task<Printer> SelectedPrinterAsync(Presets presets) =>
-        PrinterAsync(machineProfile: presets.Machine[Orca242], processProfile: presets.Process[Orca242], existingFilamentProfile: presets.Filament[Orca242]);
+        PrinterAsync(existingFilamentProfile: presets.Filament[Orca242]);
 
+    // A project 3MF, sliced in production with its own machine and process: its settings name the plate it is made for (the
+    // simulator takes any plate and model) and one PLA slot. Each call is unique content.
     private async Task<Part> SlicingPartAsync(SlicerRef? pin)
     {
         using var scope = Factory.Services.CreateScope();
         var storage = scope.ServiceProvider.GetRequiredService<IPartFileStorage>();
         var name = Guid.NewGuid().ToString("N");
-        var bytes = Encoding.UTF8.GetBytes(
-            $"solid t{name}\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid t{name}\n");
+        using var zip = new MemoryStream();
+        using (var archive = new System.IO.Compression.ZipArchive(zip, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using (var model = new StreamWriter(archive.CreateEntry("3D/3dmodel.model").Open()))
+                await model.WriteAsync($"<model unit=\"millimeter\"><!-- {name} --><resources/><build/></model>");
+            using var settings = new StreamWriter(archive.CreateEntry("Metadata/project_settings.config").Open());
+            await settings.WriteAsync("""{"filament_type":["PLA"],"curr_bed_type":"High Temp Plate"}""");
+        }
+
+        var bytes = zip.ToArray();
         var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
         using var stream = new MemoryStream(bytes);
-        var path = await storage.SaveAsync(hash, "part.stl", stream, default);
-        var part = Part.Create($"Part {name}", PartFileFormat.Stl, true, "part.stl", path, bytes.Length, 0.4m,
+        var path = await storage.SaveAsync(hash, "part.3mf", stream, default);
+        var part = Part.Create($"Part {name}", PartFileFormat.ThreeMf, true, "part.3mf", path, bytes.Length, 0.4m,
             pin?.Engine, pin?.Version, EstimateStatus.Available, 60, 20, 1, 1, hash,
             [new FilamentRequirementSpec("PLA", null, null, null, null)], [], []);
         await scope.ServiceProvider.GetRequiredService<IPartRepository>().AddAsync(part, default);
@@ -279,7 +278,7 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
                         </config>
                         """);
             using var settings = new StreamWriter(archive.CreateEntry("Metadata/project_settings.config").Open());
-            await settings.WriteAsync("""{"filament_type":["PLA","PLA"],"filament_colour":["#FFFFFF","#000000"]}""");
+            await settings.WriteAsync("""{"filament_type":["PLA","PLA"],"filament_colour":["#FFFFFF","#000000"],"curr_bed_type":"High Temp Plate"}""");
         }
 
         var bytes = zip.ToArray();
@@ -347,8 +346,7 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
         var call = Spy.CallsFor(printer.Id).Should().ContainSingle().Subject;
         call.Slicer.Should().Be(Bambu271);
         call.Profiles.Pin.Should().Be(Bambu271);
-        call.Profiles.MachineSettingsJson.Should().Contain(Marker("MACHINE", Bambu271)).And.NotContain("OrcaSlicer");
-        call.Profiles.ProcessSettingsJson.Should().Contain(Marker("PROCESS", Bambu271)).And.NotContain("OrcaSlicer");
+        call.Profiles.FollowsProject.Should().BeTrue("the project keeps its own machine and process");
         call.Profiles.FilamentSettingsJson.Should().Contain(Marker("FILAMENT", Bambu271)).And.NotContain("OrcaSlicer");
         Recorder.Started.Where(s => s.SerialNumber == printer.SerialNumber).Should().ContainSingle();
         job.PrinterId.Should().Be(printer.Id);
@@ -358,7 +356,7 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
         detail.Provenance.Should().NotBeNull();
         detail.Provenance!.Engine.Should().Be("BambuStudio");
         detail.Provenance.Version.Should().Be("2.7.1");
-        detail.Provenance.Presets.Should().HaveCount(3).And.OnlyContain(p => p.Outcome == "MappedEngine" && p.SourceVersion == "2.7.1" && p.SettingId != null);
+        detail.Provenance.Presets.Should().HaveCount(1, "only the filament is OpenFarm's choice").And.OnlyContain(p => p.Outcome == "MappedEngine" && p.SourceVersion == "2.7.1" && p.SettingId != null);
     }
 
     // Each colour of a project slices with its own line's filament: one file per project slot, in slot order.
@@ -443,8 +441,8 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
 
         var call = Spy.CallsFor(printer.Id).Should().ContainSingle().Subject;
         call.Slicer.Should().Be(Orca242);
-        call.Profiles.ProcessSettingsJson.Should().Contain(Marker("PROCESS", Orca242)).And.NotContain("BambuStudio");
-        call.Profiles.Process.Outcome.Should().Be(ProfileResolutionOutcome.Exact);
+        call.Profiles.FilamentSettingsJson.Should().Contain(Marker("FILAMENT", Orca242)).And.NotContain("BambuStudio");
+        call.Profiles.Filament.Outcome.Should().Be(ProfileResolutionOutcome.Exact);
         Recorder.Started.Where(s => s.SerialNumber == printer.SerialNumber).Should().ContainSingle();
     }
 
@@ -497,29 +495,7 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
     // ---------------------------------------------------------------- fail closed: nothing is sent, the operator is told
 
     [Fact]
-    public async Task S1_PinnedSlicerHasNoTwinOfTheSelectedProcess_NothingIsSent_AndTheOperatorIsToldWhereToFixIt()
-    {
-        var vendor = $"Bambulab-{Guid.NewGuid():N}";
-        // Orca has "0.20mm Standard"; Bambu Studio's catalog is loaded (machine and filament twins exist) but lacks it.
-        var presets = await SeedAsync(vendor, [Orca242, Bambu271], withoutProcess: [Bambu271]);
-        var printer = await SelectedPrinterAsync(presets);
-        var part = await SlicingPartAsync(Bambu271);
-        var client = await ClientAsync();
-        var run = await RunAsync(client, part.Id, pinned: printer.Id);
-
-        await StartWorkerAsync(TimeSpan.FromSeconds(2));
-
-        var job = await JobAsync(run.Id);
-        AssertNothingSent(printer, job);
-        Spy.CallsFor(printer.Id).Should().BeEmpty("no file is made from presets the pinned slicer does not own");
-        var row = await QueueRowAsync(client, job.Id);
-        row.IsBlocked.Should().BeTrue();
-        row.BlockingReason.Should().Contain($"Process profile '{ProcessName}' is not in Bambu Studio 2.7.1")
-            .And.Contain($"/printers/{printer.Id}/edit");
-    }
-
-    [Fact]
-    public async Task S1b_PinnedSlicerHasNoTwinOfTheFilament_NothingIsSent_AndTheFilamentIsNamedWithItsLink()
+    public async Task S1_PinnedSlicerHasNoTwinOfTheFilament_NothingIsSent_AndTheFilamentIsNamedWithItsLink()
     {
         var vendor = $"Bambulab-{Guid.NewGuid():N}";
         var presets = await SeedAsync(vendor, [Orca242, Bambu271], withoutFilament: [Bambu271]);
@@ -602,22 +578,10 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
     }
 
     [Fact]
-    public async Task S8_PrinterSettingsChangeWhileTheFileIsBeingMade_AbortsTheSend()
+    public async Task S8_PrinterPlateChangesWhileTheFileIsBeingMade_AbortsTheSend()
     {
         var vendor = $"Bambulab-{Guid.NewGuid():N}";
         var presets = await SeedAsync(vendor, [Orca242, Bambu271]);
-        // A second Orca process the printer will be switched to mid-slice.
-        Guid otherProcessId;
-        using (var scope = Factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            var other = ProcessProfile.CreateSystemProfile("0.16mm Optimal @BBL X1C", ProfileSourceFormat.OrcaSlicer, null,
-                """{"type":"process","layer_height":"0.16"}""", vendor, "GP005", isSelectable: true, compatibleMachineNames: [MachineName], sourceVersion: "2.4.2");
-            db.ProcessProfiles.Add(other);
-            await db.SaveChangesAsync();
-            otherProcessId = other.Id;
-        }
-
         var printer = await SelectedPrinterAsync(presets);
         var part = await SlicingPartAsync(Orca242);
         var client = await ClientAsync();
@@ -626,7 +590,7 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
         {
             using var scope = Factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            (await db.Printers.SingleAsync(p => p.Id == printer.Id)).LinkProcessProfile(otherProcessId);
+            (await db.Printers.SingleAsync(p => p.Id == printer.Id)).SelectBuildPlate(BuildPlateType.Cool);
             await db.SaveChangesAsync();
         });
         try
@@ -634,11 +598,11 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
             await StartWorkerAsync(TimeSpan.FromSeconds(2));
 
             var job = await JobAsync(run.Id);
-            Guid? processNow;
+            BuildPlateType? plateNow;
             using (var scope = Factory.Services.CreateScope())
-                processNow = (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Printers.AsNoTracking().SingleAsync(p => p.Id == printer.Id)).ProcessProfileId;
+                plateNow = (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Printers.AsNoTracking().SingleAsync(p => p.Id == printer.Id)).BuildPlateType;
             Spy.CallsFor(printer.Id).Should().NotBeEmpty("the file was made — for settings that no longer apply");
-            processNow.Should().Be(otherProcessId, "the settings really did change mid-slice");
+            plateNow.Should().Be(BuildPlateType.Cool, "the settings really did change mid-slice");
             AssertNothingSent(printer, job);
             job.LastBlockReason.Should().Contain("settings changed");
         }
@@ -747,7 +711,8 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
     {
         var client = await ClientAsync();
         var vendor = $"Bambulab-{Guid.NewGuid():N}";
-        var presets = await SeedAsync(vendor, [Orca242, Bambu271], withoutProcess: [Bambu271]);
+        // Orca has the filament; Bambu Studio's catalog is loaded (the machine twin exists) but lacks it.
+        var presets = await SeedAsync(vendor, [Orca242, Bambu271], withoutFilament: [Bambu271]);
         var printer = await SelectedPrinterAsync(presets);
 
         var bambu = (await client.GetFromJsonAsync<OpenFarm.Api.Endpoints.Slicing.SlicingReadinessResponse>("/api/v1/slicing/readiness?engine=BambuStudio&version=2.7.1"))!;
@@ -755,12 +720,18 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
 
         bambu.Engine.Should().Be("BambuStudio");
         bambu.IsReady.Should().BeFalse();
-        var warning = bambu.Printers.Single(p => p.PrinterId == printer.Id).Issues.Should().ContainSingle().Subject;
-        warning.Kind.Should().Be("Process");
+        bambu.Printers.Single(p => p.PrinterId == printer.Id).Issues.Should().BeEmpty("a printer only needs its plate");
+        // Every simulator lists every assignment for its model and nozzle, so pick this scenario's filament by its profile.
+        Guid filamentId;
+        using (var scope = Factory.Services.CreateScope())
+            filamentId = await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Filaments
+                .Where(f => f.ProfileAssignments.Any(a => a.FilamentProfileId == presets.Filament[Orca242].Id)).Select(f => f.Id).SingleAsync();
+        var warning = bambu.Filaments.Single(f => f.FilamentId == filamentId).Issues.Should().ContainSingle().Subject;
+        warning.Kind.Should().Be("Filament");
         warning.Code.Should().Be("Missing");
-        warning.Message.Should().Contain($"Process profile '{ProcessName}' is not in Bambu Studio 2.7.1");
-        warning.Link.Should().Be($"/printers/{printer.Id}/edit");
-        orca.Printers.Single(p => p.PrinterId == printer.Id).Issues.Should().BeEmpty("the farm's own selection is Orca's, so Orca has everything");
+        warning.Message.Should().Contain($"Filament profile '{FilamentName}' is not in Bambu Studio 2.7.1");
+        warning.Link.Should().StartWith("/filament/");
+        orca.Filaments.Single(f => f.FilamentId == filamentId).Issues.Should().BeEmpty("the farm's own selection is Orca's, so Orca has everything");
     }
 
     [Fact]

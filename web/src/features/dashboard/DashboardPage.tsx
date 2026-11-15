@@ -1,11 +1,13 @@
 import { useQueries } from '@tanstack/react-query';
 import { Printer } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SlicerSettingsDialog } from '@/features/printers/components/SlicerSettingsDialog';
 import {
   type FarmConnectionStatus,
   farmConnectionQueryKey,
@@ -51,6 +53,7 @@ export function DashboardPage() {
     staleTime: Infinity,
   });
   const ready = useMarkPrinterReady();
+  const [slicerPrinterId, setSlicerPrinterId] = useState<string | null>(null);
   return (
     <Page>
       <PageHeader
@@ -108,12 +111,19 @@ export function DashboardPage() {
                 detailError={query?.isError ?? false}
                 onRetry={() => query?.refetch()}
                 onMarkReady={() => ready.mutate({ id: printer.id ?? '' })}
+                onSetup={() => setSlicerPrinterId(printer.id ?? null)}
                 readyPending={ready.isPending}
               />
             );
           })}
         </div>
       )}
+      <SlicerSettingsDialog
+        printerId={slicerPrinterId}
+        onOpenChange={(open) => {
+          if (!open) setSlicerPrinterId(null);
+        }}
+      />
     </Page>
   );
 }

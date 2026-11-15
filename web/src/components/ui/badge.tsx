@@ -17,6 +17,8 @@ const badgeVariants = cva(
         violet: 'bg-kind-violet/10 text-kind-violet',
         blue: 'bg-kind-blue/10 text-kind-blue',
       },
+      // Filled chip for a state that needs the operator; amber and red only (see `compoundVariants`).
+      solid: { true: '', false: '' },
       variant: {
         default: 'bg-primary text-primary-foreground [a]:hover:bg-primary/80',
         secondary:
@@ -30,6 +32,18 @@ const badgeVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
       },
     },
+    compoundVariants: [
+      {
+        kind: 'amber',
+        solid: true,
+        className: 'bg-solid-amber text-white font-semibold',
+      },
+      {
+        kind: 'red',
+        solid: true,
+        className: 'bg-solid-red text-white font-semibold',
+      },
+    ],
     defaultVariants: {
       variant: 'default',
     },
@@ -40,6 +54,7 @@ function Badge({
   className,
   variant = 'default',
   kind,
+  solid,
   asChild = false,
   ...props
 }: React.ComponentProps<'span'> &
@@ -51,7 +66,7 @@ function Badge({
       data-slot="badge"
       data-variant={variant}
       className={cn(
-        badgeVariants({ variant: kind ? null : variant, kind }),
+        badgeVariants({ variant: kind ? null : variant, kind, solid }),
         className,
       )}
       {...props}

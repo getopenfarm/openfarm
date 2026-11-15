@@ -200,7 +200,7 @@ describe('StatsPage', () => {
       '[data-slot="card"]',
     ) as HTMLElement;
     expect(time).toHaveTextContent('Printing40 h80%');
-    expect(time).toHaveTextContent('Plate clear, median18m');
+    expect(time).toHaveTextContent('Not ready, median18m');
 
     expect(screen.getByText('0300_8004')).toBeVisible();
     expect(screen.getByText('Filament runout')).toBeVisible();

@@ -1,4 +1,9 @@
-import { CheckCircle2Icon, PencilIcon, Trash2Icon } from 'lucide-react';
+import {
+  BanIcon,
+  CheckCircle2Icon,
+  PencilIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { PermissionButton as Button } from '@/components/PermissionButton';
 import type { PrinterStatus } from '@/components/printer-tile/status';
@@ -8,8 +13,10 @@ interface PrinterDetailActionsProps {
   status: PrinterStatus;
   isReachable: boolean;
   isMarkReadyPending: boolean;
+  isMarkNotReadyPending: boolean;
   isRemovePending: boolean;
   onMarkReady: () => void;
+  onMarkNotReady: () => void;
   onEdit: () => void;
   onRemove: () => void;
 }
@@ -18,7 +25,7 @@ function notImplemented() {
   toast('Not implemented.');
 }
 
-/** Only "Mark ready", "Edit" (→ /printers/:id/edit), and "Remove" are backed by real mutations
+/** Only "Mark ready", "Mark not ready", "Edit" (→ /printers/:id/edit), and "Remove" are backed by real mutations
  * today — every other status-driven action here is intentionally decorative, matching the redesign
  * mockup's own lack of wiring for them. Don't fake a state change for the disabled ones. Remove is
  * never blocked by status (FR-006) and is offered from every branch below, matching today's
@@ -27,8 +34,10 @@ export function PrinterDetailActions({
   status,
   isReachable,
   isMarkReadyPending,
+  isMarkNotReadyPending,
   isRemovePending,
   onMarkReady,
+  onMarkNotReady,
   onEdit,
   onRemove,
 }: PrinterDetailActionsProps) {
@@ -115,6 +124,19 @@ export function PrinterDetailActions({
     <div className="flex gap-2">
       <Button variant="outline" onClick={() => notImplemented()}>
         Assign job
+      </Button>
+      <Button
+        permission="printers:mark-ready"
+        variant="outline"
+        onClick={onMarkNotReady}
+        disabled={isMarkNotReadyPending}
+      >
+        {isMarkNotReadyPending ? (
+          <Spinner data-icon="inline-start" />
+        ) : (
+          <BanIcon data-icon="inline-start" />
+        )}
+        {isMarkNotReadyPending ? 'Marking not ready…' : 'Mark not ready'}
       </Button>
       <Button
         permission="printers:edit-connection"

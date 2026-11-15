@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using OpenFarm.Application.Printers;
 using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Printers;
@@ -8,21 +7,26 @@ using OpenFarm.Domain.Profiles;
 namespace OpenFarm.Application.Parts;
 
 /// <summary>
-/// The three real, flattened (ancestor-chain-merged) preset JSON blobs OrcaSlicer/Bambu Studio need to slice, plus
+/// The real, flattened (ancestor-chain-merged) preset JSON blobs OrcaSlicer/Bambu Studio need to slice, plus
 /// what each was selected as and resolved to under the pin (<see cref="Pin"/> — the engine and exact version they
 /// were resolved for). The preset records are the provenance of the slice: they are in the logs and the production
 /// configuration stamp. Names and formats are for logging/diagnostics — never sliced into the CLI args.
+/// Production slices a project with its own machine and process: those are <c>null</c> and only the filament is loaded.
+/// A library estimate from named presets has all three.
 /// </summary>
 public sealed record ResolvedSlicingProfiles(
-    SlicerRef Pin, string MachineSettingsJson, string ProcessSettingsJson, string FilamentSettingsJson,
-    ResolvedPreset Machine, ResolvedPreset Process, ResolvedPreset Filament)
+    SlicerRef Pin, string? MachineSettingsJson, string? ProcessSettingsJson, string FilamentSettingsJson,
+    ResolvedPreset? Machine, ResolvedPreset? Process, ResolvedPreset Filament)
 {
-    public string MachineProfileName => Machine.ResolvedName;
-    public string ProcessProfileName => Process.ResolvedName;
+    public string? MachineProfileName => Machine?.ResolvedName;
+    public string? ProcessProfileName => Process?.ResolvedName;
     public string FilamentProfileName => Filament.ResolvedName;
-    public ProfileSourceFormat MachineSourceFormat => Machine.Format;
-    public ProfileSourceFormat ProcessSourceFormat => Process.Format;
+    public ProfileSourceFormat? MachineSourceFormat => Machine?.Format;
+    public ProfileSourceFormat? ProcessSourceFormat => Process?.Format;
     public ProfileSourceFormat FilamentSourceFormat => Filament.Format;
+
+    /// <summary>The slice uses the project's own machine and process: nothing but filaments is loaded over it.</summary>
+    public bool FollowsProject => MachineSettingsJson is null && ProcessSettingsJson is null;
 
     /// <summary>
     /// Production only: the filament of each job line, in line order (the first is <see cref="FilamentSettingsJson"/>).
@@ -59,32 +63,18 @@ public sealed record ProfileSetResolution(ResolvedPresetSet? Set, IReadOnlyList<
 }
 
 /// <summary>
-/// Resolves production settings for explicitly selected presets: every preset is first resolved to the pinned
+/// Resolves slicing settings for explicitly selected presets: every preset is first resolved to the pinned
 /// slicer's own catalog (<see cref="ProfileResolver"/> — no fallback to another engine, version or preset), then the
-/// RESOLVED rows are checked against each other and the printer, flattened, and returned with their provenance.
-/// Library estimates use the same funnel; they never select from fleet or inventory.
+/// RESOLVED rows are checked against each other, flattened, and returned with their provenance. Production resolves only
+/// the filament (<see cref="ResolveFilamentAsync"/>); a project keeps its own machine and process. Library estimates from
+/// named presets resolve all three; they never select from fleet or inventory.
 /// </summary>
 public sealed class ResolveSlicingProfileSelection(
-    IPrinterRepository printerRepository,
     IMachineProfileRepository machineProfileRepository,
     IProcessProfileRepository processProfileRepository,
     IFilamentProfileRepository filamentProfileRepository,
-    RepresentativeFilamentResolver representativeFilamentResolver, ProfileCompatibility compatibility,
     ProfileResolver resolver)
 {
-    public async Task<ResolvedSlicingProfiles> ResolveAsync(
-        Guid? printerId, string materialType, Guid? narrowedFilamentProfileId, SlicerRef pin, CancellationToken cancellationToken)
-    {
-        if (printerId is not { } targetPrinterId)
-            throw new SlicingProfileUnconfiguredException("Production slicing requires an assigned printer; use explicit estimation settings for library estimates.");
-        var (printer, machineProfileId, processProfileId, buildPlateType) = await ResolveForPrinterAsync(targetPrinterId, cancellationToken);
-
-        var filament = await representativeFilamentResolver.ResolveLoadedAsync(targetPrinterId, materialType,
-            null, null, narrowedFilamentProfileId, cancellationToken);
-        var use = new ProfileUseContext(printer.Brand, printer.ModelCode, filament.NozzleMm, materialType);
-        return await ResolveProfilesAsync(machineProfileId, processProfileId, filament.Profile.Id, buildPlateType, pin, use, cancellationToken);
-    }
-
     /// <param name="use">The printer and material the set is for; <c>null</c> skips the checks that need them (library estimates).</param>
     public async Task<ResolvedSlicingProfiles> ResolveProfilesAsync(Guid machineProfileId, Guid processProfileId,
         Guid filamentProfileId, BuildPlateType buildPlateType, SlicerRef pin, ProfileUseContext? use, CancellationToken cancellationToken)
@@ -94,16 +84,16 @@ public sealed class ResolveSlicingProfileSelection(
     }
 
     /// <summary>
-    /// Everything that would stop this selection from being used with this pin — the very checks
-    /// <see cref="ResolveProfilesAsync(Guid, Guid, Guid, BuildPlateType, SlicerRef, ProfileUseContext?, CancellationToken)"/>
-    /// enforces, reported instead of thrown. Warnings built on it cannot disagree with what production does.
+    /// Everything that would stop this filament from being used with this pin — the very checks
+    /// <see cref="ResolveFilamentAsync"/> enforces, reported instead of thrown. Warnings built on it cannot disagree with
+    /// what production does.
     /// </summary>
-    public async Task<IReadOnlyList<ProfileIssue>> CheckAsync(Guid machineProfileId, Guid processProfileId, Guid filamentProfileId,
-        BuildPlateType buildPlateType, SlicerRef pin, ProfileUseContext? use, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ProfileIssue>> CheckFilamentAsync(Guid filamentProfileId, BuildPlateType plate,
+        SlicerRef pin, ProfileUseContext use, CancellationToken cancellationToken)
     {
         try
         {
-            await ResolveProfilesAsync(machineProfileId, processProfileId, filamentProfileId, buildPlateType, pin, use, cancellationToken);
+            await ResolveFilamentAsync(filamentProfileId, plate, null, pin, use, cancellationToken);
             return [];
         }
         catch (ProfileSetBlockedException blocked)
@@ -174,11 +164,48 @@ public sealed class ResolveSlicingProfileSelection(
         }
 
         // 012 US2 — pre-flight validate the resolved filament preset actually declares a real
-        // (non-"0") bed temperature for the printer's own selected plate (research.md R3) before
-        // injecting curr_bed_type into the merged process settings, so OrcaSlicer/Bambu Studio's own
+        // (non-"0") bed temperature for the selected plate (research.md R3) before injecting
+        // curr_bed_type into the merged process settings, so OrcaSlicer/Bambu Studio's own
         // CLI resolves the correct plate-specific bed temperature at slice time (FR-005).
-        var tempKey = BuildPlateTypeTempKeys.Resolve(buildPlateType);
-        var tempValue = JsonNode.Parse(filamentJson)!.AsObject()[tempKey] switch
+        RequireBedTemperature(filamentProfile, filamentJson, buildPlateType);
+
+        var processSettings = JsonNode.Parse(processJson)!.AsObject();
+        processSettings["curr_bed_type"] = BuildPlateTypeVendorNames.Resolve(buildPlateType);
+        processJson = processSettings.ToJsonString();
+
+        return new ResolvedSlicingProfiles(pin, machineJson, processJson, filamentJson,
+            set.MachinePreset, set.ProcessPreset, set.FilamentPreset);
+    }
+
+    /// <summary>
+    /// Production of a project: it keeps its own machine, process and plate, so only the filament is resolved to the pin's
+    /// catalog and checked — against the plate the file is made for, and against the file's machine preset when the pin's
+    /// catalog has exactly one by that name (a custom preset has no entry to check; the slicer refuses a real mismatch).
+    /// </summary>
+    /// <exception cref="ProfileSetBlockedException">The filament cannot be used with the pin.</exception>
+    public async Task<ResolvedSlicingProfiles> ResolveFilamentAsync(Guid filamentProfileId, BuildPlateType plate, string? fileMachineName,
+        SlicerRef pin, ProfileUseContext use, CancellationToken cancellationToken)
+    {
+        var filament = await filamentProfileRepository.GetByIdAsync(filamentProfileId, cancellationToken);
+        var resolution = filament is null ? null : await resolver.ResolveAsync(filament, pin, cancellationToken);
+        var issues = new List<ProfileIssue>();
+        Report(issues, ProfileKind.Filament, filament, resolution);
+        if (issues.Count > 0) throw new ProfileSetBlockedException(issues);
+
+        var resolved = resolution!.Resolved!;
+        var filamentJson = await MergeFilamentChainWithIncludesOrThrowAsync(resolved, pin, cancellationToken);
+        var machineName = fileMachineName is null ? null
+            : (await machineProfileRepository.FindByNameInCatalogAsync(resolved.SourceFormat, pin.Version, fileMachineName, cancellationToken)) is [_]
+                ? fileMachineName : null;
+        if (ProfileCompatibility.ValidateResolvedFilament(use, resolved, filamentJson, machineName) is { Count: > 0 } problems)
+            throw new ProfileSetBlockedException(problems);
+        RequireBedTemperature(resolved, filamentJson, plate);
+        return new ResolvedSlicingProfiles(pin, null, null, filamentJson, null, null, ResolvedPreset.From(ProfileKind.Filament, resolution));
+    }
+
+    private static void RequireBedTemperature(FilamentProfile filament, string filamentJson, BuildPlateType plate)
+    {
+        var tempValue = JsonNode.Parse(filamentJson)!.AsObject()[BuildPlateTypeTempKeys.Resolve(plate)] switch
         {
             JsonArray array when array.Count > 0 => array[0]?.GetValue<string>(),
             JsonValue value => value.GetValue<string>(),
@@ -188,15 +215,8 @@ public sealed class ResolveSlicingProfileSelection(
         if (tempValue is null or "0")
         {
             throw new SlicingProfileUnconfiguredException(
-                $"Filament profile '{filamentProfile.Name}' has no bed-temperature value for build plate '{BuildPlateTypeVendorNames.Resolve(buildPlateType)}'.");
+                $"Filament profile '{filament.Name}' has no bed-temperature value for build plate '{BuildPlateTypeVendorNames.Resolve(plate)}'.");
         }
-
-        var processSettings = JsonNode.Parse(processJson)!.AsObject();
-        processSettings["curr_bed_type"] = BuildPlateTypeVendorNames.Resolve(buildPlateType);
-        processJson = processSettings.ToJsonString();
-
-        return new ResolvedSlicingProfiles(pin, machineJson, processJson, filamentJson,
-            set.MachinePreset, set.ProcessPreset, set.FilamentPreset);
     }
 
     private Task<string> MergeMachineChainWithIncludesOrThrowAsync(MachineProfile machine, SlicerRef pin, CancellationToken ct) =>
@@ -250,24 +270,6 @@ public sealed class ResolveSlicingProfileSelection(
             return ProfileRawDataMerger.MergeAncestorChain(layers);
         }
         finally { visiting.Remove(id); }
-    }
-
-    private async Task<(Printer Printer, Guid MachineProfileId, Guid ProcessProfileId, BuildPlateType BuildPlateType)> ResolveForPrinterAsync(Guid printerId, CancellationToken cancellationToken)
-    {
-        var printer = await printerRepository.GetByIdAsync(printerId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException($"Printer '{printerId}' was not found.");
-
-        var machineProfileId = printer.MachineProfileId
-            ?? throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no machine profile selected.");
-        var processProfileId = printer.ProcessProfileId
-            ?? throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no process profile selected.");
-        var buildPlateType = printer.BuildPlateType
-            ?? throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no build plate selected.");
-
-        var machine = await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken)
-            ?? throw new SlicingProfileUnconfiguredException("The selected machine profile no longer exists.");
-        await compatibility.ValidateMachineAsync(printer, machine, cancellationToken);
-        return (printer, machineProfileId, processProfileId, buildPlateType);
     }
 
     private static async Task<string> MergeChainOrThrowAsync(

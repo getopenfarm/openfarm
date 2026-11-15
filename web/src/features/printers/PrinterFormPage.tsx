@@ -18,7 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { FieldGroup, FieldLabel, FieldTitle } from '@/components/ui/field';
+import { FieldGroup } from '@/components/ui/field';
 import {
   Form,
   FormControl,
@@ -39,12 +39,10 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
-import { ProfilePickerCombobox } from '@/features/profiles/components/ProfilePickerCombobox';
 import { invalidateSlicingChecks } from '@/features/slicing/invalidateSlicingChecks';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type {
-  BuildPlateTypeOptionResponse,
   DiscoveredPrinterResponse,
   PrinterCatalogResponse,
   PrinterDetailResponse,
@@ -60,7 +58,6 @@ import {
   useOpenFarmApiEndpointsPrintersRegisterPrinterEndpoint,
   useOpenFarmApiEndpointsPrintersVerifyPrinterConnectionEndpoint,
 } from '@/lib/api/generated/printers/printers';
-import { formatMm } from '@/lib/formatUnits';
 import { DiscoverPrinters } from './DiscoverPrinters';
 
 interface PrinterFormPageProps {
@@ -608,22 +605,7 @@ function EditPrinterForm() {
       modelCode={printer.modelCode ?? ''}
       model={printer.model}
       serialNumber={printer.serialNumber ?? ''}
-      confirmedNozzlesMm={[
-        ...new Set(
-          (printer.telemetry?.extruders ?? [])
-            .filter((e) => e.nozzleConfirmed && e.nozzleDiameterMm != null)
-            .map((e) => e.nozzleDiameterMm as number),
-        ),
-      ].sort((a, b) => a - b)}
-      nozzleConfirmed={printer.telemetry?.nozzleConfirmed ?? false}
       currentIpAddress={printer.ipAddress ?? ''}
-      machineProfileId={printer.machineProfileId}
-      machineProfileName={printer.machineProfileName}
-      machineProfileIssue={printer.machineProfileIssue}
-      processProfileId={printer.processProfileId}
-      processProfileName={printer.processProfileName}
-      buildPlateType={printer.buildPlateType}
-      compatibleBuildPlateTypes={printer.compatibleBuildPlateTypes}
     />
   );
 }
@@ -636,21 +618,7 @@ interface EditPrinterFormLoadedProps {
   model?: PrinterModelResponse | null;
   serialNumber: string;
   currentIpAddress: string;
-  /** Each distinct nozzle confirmed on the printer's extruders. */
-  confirmedNozzlesMm: number[];
-  nozzleConfirmed: boolean;
-  machineProfileId: string | null | undefined;
-  machineProfileName: string | null | undefined;
-  machineProfileIssue?: string | null;
-  processProfileId: string | null | undefined;
-  processProfileName: string | null | undefined;
-  buildPlateType: string | null | undefined;
-  compatibleBuildPlateTypes: BuildPlateTypeOptionResponse[] | undefined;
 }
-
-// 012 US1 — sentinel for Radix Select, which rejects an empty-string item value; matches the
-// "__any__" pattern PartFilamentRequirementsList already uses for its own clearable Select.
-const NO_BUILD_PLATE_VALUE = '__none__';
 
 function EditPrinterFormLoaded({
   printerId,
@@ -660,38 +628,10 @@ function EditPrinterFormLoaded({
   model,
   serialNumber,
   currentIpAddress,
-  confirmedNozzlesMm,
-  nozzleConfirmed,
-  machineProfileId,
-  machineProfileName,
-  machineProfileIssue,
-  processProfileId,
-  processProfileName,
-  buildPlateType,
-  compatibleBuildPlateTypes,
 }: EditPrinterFormLoadedProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [verified, setVerified] = useState(false);
-
-  const [selectedMachineProfileId, setSelectedMachineProfileId] = useState(
-    machineProfileId ?? null,
-  );
-  // undefined (distinct from null) tells ProfilePickerCombobox to resolve the display name itself
-  // via a GET-by-id lookup — used right after a fresh pick, when this component doesn't yet know
-  // the newly-selected item's name.
-  const [selectedMachineProfileName, setSelectedMachineProfileName] = useState<
-    string | null | undefined
-  >(machineProfileName);
-  const [selectedProcessProfileId, setSelectedProcessProfileId] = useState(
-    processProfileId ?? null,
-  );
-  const [selectedProcessProfileName, setSelectedProcessProfileName] = useState<
-    string | null | undefined
-  >(processProfileName);
-  const [selectedBuildPlateType, setSelectedBuildPlateType] = useState(
-    buildPlateType ?? null,
-  );
 
   const form = useForm<EditFormValues>({
     resolver: zodResolver(editSchema),
@@ -702,12 +642,8 @@ function EditPrinterFormLoaded({
     },
   });
 
-  // The profile and build-plate pickers live outside react-hook-form, so they join the dirty check here.
   const { ConfirmLeaveDialog, markClean } = useUnsavedChangesPrompt(
-    form.formState.isDirty ||
-      selectedMachineProfileId !== (machineProfileId ?? null) ||
-      selectedProcessProfileId !== (processProfileId ?? null) ||
-      selectedBuildPlateType !== (buildPlateType ?? null),
+    form.formState.isDirty,
   );
 
   const ipAddress = form.watch('ipAddress');
@@ -782,21 +718,6 @@ function EditPrinterFormLoaded({
     });
   }
 
-  function handleMachineProfileChange(id: string | null, name?: string | null) {
-    setSelectedMachineProfileId(id);
-    setSelectedMachineProfileName(name ?? null);
-    // FR-007: any machine profile change (clear or switch to a different one) clears the process
-    // profile too — a process selection can never outlive the exact machine it was validated
-    // against, so it always needs re-picking once the machine changes.
-    setSelectedProcessProfileId(null);
-    setSelectedProcessProfileName(null);
-  }
-
-  function handleProcessProfileChange(id: string | null, name?: string | null) {
-    setSelectedProcessProfileId(id);
-    setSelectedProcessProfileName(name ?? null);
-  }
-
   function onSubmit(values: EditFormValues) {
     editMutation.mutate({
       id: printerId,
@@ -805,16 +726,8 @@ function EditPrinterFormLoaded({
             name: values.name,
             ipAddress: values.ipAddress,
             accessCode: values.accessCode,
-            machineProfileId: selectedMachineProfileId,
-            processProfileId: selectedProcessProfileId,
-            buildPlateType: selectedBuildPlateType,
           }
-        : {
-            name: values.name,
-            machineProfileId: selectedMachineProfileId,
-            processProfileId: selectedProcessProfileId,
-            buildPlateType: selectedBuildPlateType,
-          },
+        : { name: values.name },
     });
   }
 
@@ -918,75 +831,6 @@ function EditPrinterFormLoaded({
                     Connection verified.
                   </p>
                 )}
-                <div className="flex flex-col gap-1.5">
-                  <FieldTitle>Machine profile</FieldTitle>
-                  <p className="text-xs text-muted-foreground">
-                    {nozzleConfirmed
-                      ? `Nozzle: ${confirmedNozzlesMm.map(formatMm).join(' · ')} (reported)`
-                      : 'Waiting for nozzle data…'}
-                  </p>
-                  {selectedMachineProfileId === machineProfileId &&
-                    machineProfileIssue && (
-                      <p className="text-sm text-destructive">
-                        {machineProfileIssue}
-                      </p>
-                    )}
-                  <ProfilePickerCombobox
-                    kind="machine"
-                    printerId={printerId}
-                    disabled={!nozzleConfirmed}
-                    disabledPlaceholder="Waiting for nozzle data…"
-                    value={selectedMachineProfileId}
-                    onChange={handleMachineProfileChange}
-                    selectedLabel={selectedMachineProfileName}
-                    placeholder="No machine profile linked"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <FieldTitle>Process profile</FieldTitle>
-                  <ProfilePickerCombobox
-                    kind="process"
-                    value={selectedProcessProfileId}
-                    onChange={handleProcessProfileChange}
-                    selectedLabel={selectedProcessProfileName}
-                    placeholder="No process profile linked"
-                    disabled={!selectedMachineProfileId || !nozzleConfirmed}
-                    disabledPlaceholder="Select a machine profile first"
-                    compatibleWithMachineName={
-                      selectedMachineProfileName ?? undefined
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <FieldLabel htmlFor="build-plate">Build plate</FieldLabel>
-                  <Select
-                    value={selectedBuildPlateType ?? NO_BUILD_PLATE_VALUE}
-                    onValueChange={(value) =>
-                      setSelectedBuildPlateType(
-                        value === NO_BUILD_PLATE_VALUE ? null : value,
-                      )
-                    }
-                  >
-                    <SelectTrigger id="build-plate" className="w-full">
-                      <SelectValue placeholder="Not selected" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value={NO_BUILD_PLATE_VALUE}>
-                          Not selected
-                        </SelectItem>
-                        {(compatibleBuildPlateTypes ?? []).map((option) => (
-                          <SelectItem
-                            key={option.value}
-                            value={option.value ?? ''}
-                          >
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
               </CardContent>
             </Card>
 

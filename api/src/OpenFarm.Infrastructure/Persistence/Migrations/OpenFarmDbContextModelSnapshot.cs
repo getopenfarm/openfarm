@@ -1308,9 +1308,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LastMessageUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("MachineProfileId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("ModelCode")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1331,8 +1328,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<int?>("PrintProgressPercent")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("ProcessProfileId")
-                        .HasColumnType("uuid");
+                    b.Property<DateTimeOffset?>("ReadinessChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("RemainingTimeMinutes")
                         .HasColumnType("integer");
@@ -1358,10 +1355,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("MachineProfileId");
-
-                    b.HasIndex("ProcessProfileId");
 
                     b.HasIndex("SerialNumber")
                         .IsUnique();
@@ -2654,19 +2647,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasForeignKey("PartId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("OpenFarm.Domain.Printers.Printer", b =>
-                {
-                    b.HasOne("OpenFarm.Domain.Profiles.MachineProfile", null)
-                        .WithMany()
-                        .HasForeignKey("MachineProfileId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("OpenFarm.Domain.Profiles.ProcessProfile", null)
-                        .WithMany()
-                        .HasForeignKey("ProcessProfileId")
-                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("OpenFarm.Domain.Printers.PrinterActivitySpan", b =>

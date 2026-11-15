@@ -43,6 +43,22 @@ public class PrinterActivityTests
     }
 
     [Fact]
+    public void HoldThenMarkReady_RecordsTheHoldAsAwaitingClearTime()
+    {
+        var printer = Reachable();
+
+        printer.TransitionTo(PrinterStatus.AwaitingClear, T0.AddMinutes(10));
+
+        printer.Activity.Should().Be(PrinterActivity.AwaitingClear);
+        printer.TransitionTo(PrinterStatus.Idle, T0.AddMinutes(40));
+
+        printer.Activity.Should().Be(PrinterActivity.Idle);
+        Spans(printer).Should().Equal(
+            (PrinterActivity.Idle, T0, T0.AddMinutes(10)),
+            (PrinterActivity.AwaitingClear, T0.AddMinutes(10), T0.AddMinutes(40)));
+    }
+
+    [Fact]
     public void FinishThenMarkReady_LeavesOneAwaitingClearStretch()
     {
         var printer = Reachable();

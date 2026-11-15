@@ -150,16 +150,16 @@ public sealed partial class PrintJobEligibilityQuery(IPrinterRepository printers
                     effective.Requirements.Select(r => r.MatchingValues).ToList(), ct, job.Id);
                 // A shortfall is checked last, so the profiles behind it passed.
                 var configIssue = issue is { Shortfall: null } ? issue.Message : null;
-                var url = configIssue is null ? null : System.Text.RegularExpressions.Regex.Match(configIssue, @"/(?:filament|printers)/[a-fA-F0-9-]+/edit").Value;
-                checks.Add(new("profiles", "Production profile readiness", configIssue is null ? "Passed" : "Failed",
-                    "Compatible machine and filament assignments; slicing settings when needed",
+                var url = configIssue is null ? null : System.Text.RegularExpressions.Regex.Match(configIssue, @"/(?:filament|printers)/[a-fA-F0-9-]+(?:/edit|\?settings=slicer)").Value;
+                checks.Add(new("profiles", "File and filament profiles", configIssue is null ? "Passed" : "Failed",
+                    "File made for this model and plate; filament profiles assigned",
                     configIssue is null ? "Ready" : "Needs configuration", configIssue, string.IsNullOrEmpty(url) ? null : url));
                 if (issue?.Shortfall is { } shortfall)
                     checks.Add(new("filament-stock", "Loaded filament weight", "Failed",
                         $"{shortfall.NeededGrams} g {shortfall.Label} ({shortfall.EstimatedGrams} g + 10%)",
                         $"{shortfall.AvailableGrams} g", issue.Message, $"/filament/spools/{shortfall.SpoolId}"));
             }
-            else checks.Add(new("profiles", "Production profile readiness", "NotEvaluated", null, null,
+            else checks.Add(new("profiles", "File and filament profiles", "NotEvaluated", null, null,
                 "Requires complete part requirements and a matching confirmed nozzle."));
             var eligible = jobChecks.All(c => c.Status == "Passed") && checks.All(c => c.Status == "Passed");
             string? scheduling = null;

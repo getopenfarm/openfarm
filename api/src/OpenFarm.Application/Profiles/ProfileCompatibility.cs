@@ -56,19 +56,14 @@ public sealed class ProfileCompatibility(IMachineProfileRepository machines, IFi
                 || (registered.VendorMachineModelName is { } model && ReadStrings(root, "printer_model").Contains(model, StringComparer.Ordinal)));
     }
 
-    /// <param name="nozzleMm">The job's nozzle: an extruder must have it confirmed, and the preset must fit it. Without one,
-    /// the preset must fit some confirmed nozzle.</param>
-    public async Task ValidateMachineAsync(Printer printer, MachineProfile profile, CancellationToken ct, decimal? nozzleMm = null)
+    /// <param name="nozzleMm">The job's nozzle: an extruder must have it confirmed by telemetry. Without one, some nozzle must be confirmed.</param>
+    public static void RequireConfirmedNozzle(Printer printer, decimal? nozzleMm = null)
     {
         var confirmed = printer.ConfirmedNozzlesMm();
         if (confirmed.Count == 0)
             throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' is waiting for nozzle telemetry from its current connection.");
         if (nozzleMm is { } wanted && !confirmed.Contains(wanted))
             throw new SlicingProfileUnconfiguredException($"Printer '{printer.Name}' has no extruder with a {wanted} mm nozzle.");
-        IReadOnlyList<decimal> nozzles = nozzleMm is { } job ? [job] : confirmed;
-        foreach (var nozzle in nozzles)
-            if (await MachineMatchesAsync(profile, printer.Brand, printer.ModelCode, nozzle, ct)) return;
-        throw new SlicingProfileUnconfiguredException($"Machine profile '{profile.Name}' does not match {printer.ModelCode} with its reported {string.Join("/", nozzles)} mm nozzle. Select a compatible machine profile.");
     }
 
     public async Task ValidateFilamentAsync(FilamentProfile profile, string materialType, string brand, string modelCode,
@@ -109,6 +104,20 @@ public sealed class ProfileCompatibility(IMachineProfileRepository machines, IFi
             : null;
         if (problem is not null) issues.Add(new(ProfileKind.Filament, ProfileResolutionOutcome.Incompatible, filament.Name, problem));
         return issues;
+    }
+
+    /// <summary>
+    /// The filament checks of <see cref="ValidateResolvedSet"/> for a project that keeps its own machine: the material, the
+    /// nozzle and, when the file's machine preset is known, the preset's compatible-printers list.
+    /// </summary>
+    public static IReadOnlyList<ProfileIssue> ValidateResolvedFilament(
+        ProfileUseContext use, FilamentProfile filament, string filamentJson, string? fileMachineName)
+    {
+        var (compatible, problem) = InspectFilamentJson(filament.Name, filamentJson, use.MaterialType, use.NozzleMm);
+        problem ??= fileMachineName is not null && compatible.Count > 0 && !compatible.Contains(fileMachineName, StringComparer.Ordinal)
+            ? $"Filament profile '{filament.Name}' is incompatible with the file's printer preset '{fileMachineName}'."
+            : null;
+        return problem is null ? [] : [new(ProfileKind.Filament, ProfileResolutionOutcome.Incompatible, filament.Name, problem)];
     }
 
     // The checks on a flattened filament preset that need no machine; also returns its declared compatible printers.

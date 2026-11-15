@@ -10,7 +10,7 @@ Open **Stats** to review the farm over a selected date range and compare it with
 | Figure | Interpretation |
 | --- | --- |
 | Prints and success | Includes ended prints that actually started. Success rate is completed prints divided by all completed, failed, and cancelled attempts. |
-| Printer time | Recorded periods of printing, awaiting-clear, paused, idle, and offline status. Unobserved time appears as no data. |
+| Printer time | Recorded periods of printing, not-ready, paused, idle, and offline status. Not-ready time covers both a finished plate waiting to be cleared and a printer you marked not ready. Unobserved time appears as no data. |
 | Utilization | Printing hours divided by observed hours. Offline time is observed; unknown time is excluded. |
 | Queue wait | Time from job creation to start, summarized for jobs that started in the range. |
 | Filament and waste | Compares recorded or estimated material use for completed work with material use for failed and cancelled work. |

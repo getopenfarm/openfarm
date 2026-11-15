@@ -39,7 +39,7 @@ public sealed class ResolveEstimationProfiles(ResolveSlicingProfileSelection res
         if (!Enum.IsDefined(selection.BuildPlateType))
             throw new SlicingProfileUnconfiguredException("The estimation build plate is invalid.");
         var profiles = await resolver.ResolveProfilesAsync(set, selection.BuildPlateType, use: null, cancellationToken);
-        using var machineJson = JsonDocument.Parse(profiles.MachineSettingsJson);
+        using var machineJson = JsonDocument.Parse(profiles.MachineSettingsJson!); // resolved from the named set just above
         var model = PrinterModelCatalog.Models
             .FirstOrDefault(m => m.VendorMachineModelName == (machine.VendorMachineModelName ?? ReadFirst(machineJson.RootElement, "printer_model")) && m.VendorMachineModelName is not null);
         if (model?.CompatiblePlateTypes is { } plates && !plates.Contains(selection.BuildPlateType))

@@ -77,7 +77,8 @@ After a print completes, fails, or is cancelled, the printer sits in Awaiting Cl
 **Acceptance Scenarios**:
 
 1. **Given** a printer in Awaiting Clear, **When** the operator performs "Mark ready," **Then** the printer becomes Idle and this action is recorded in the activity history.
-2. **Given** a printer in Idle, **When** an operator attempts to force it directly into Awaiting Clear (an illegal manual jump), **Then** the system rejects the action with a clear explanation.
+2. **Given** a printer in Idle, **When** the operator performs "Mark not ready" (an operator hold), **Then** the printer becomes Awaiting Clear, shown as Not ready, takes no job until "Mark ready", and the action is recorded in the activity history.
+2a. **Given** a printer in Printing or already in Awaiting Clear, **When** an operator attempts "Mark not ready" (an illegal manual jump), **Then** the system rejects the action with a clear explanation.
 3. **Given** any status change reported by the printer's connection (not manually triggered), **When** it occurs, **Then** it is also recorded in the activity history.
 
 ---
@@ -113,7 +114,7 @@ An operator can tell at a glance whether a printer is simply not printing (Idle)
 - **FR-001a**: System MUST verify that a printer's connection details (IP address and LAN access code) are reachable and valid before the printer can be added, and MUST keep the confirm/add action disabled until that verification succeeds — a printer is never added in a state that is already known to be unreachable.
 - **FR-001b**: System MUST reject an attempt to add a printer whose serial number matches an already-registered printer in the same organization, with a clear error identifying the conflicting printer; duplicate IP addresses across different printers are permitted.
 - **FR-002**: System MUST allow an operator to view, edit, and remove a registered printer. Editing a printer's connection details (IP address or LAN access code) is gated by the same verify-before-save requirement as FR-001a — the save action stays disabled until the new details are verified reachable. Removal is never blocked by the printer's current print status (including Printing) — the operator sees a confirmation warning first, but removal is always permitted.
-- **FR-003**: System MUST track each printer's status as one of Idle, Printing, or Awaiting Clear, and MUST NOT allow an illegal manual transition between these (e.g. skipping directly from Idle to Awaiting Clear) — any such attempt is rejected with a clear explanation.
+- **FR-003**: System MUST track each printer's status as one of Idle, Printing, or Awaiting Clear (shown to operators as Ready, Printing, and Not ready), and MUST NOT allow an illegal manual transition between these. The only manual transitions are Mark ready (Awaiting Clear → Idle) and Mark not ready, an operator hold (Idle → Awaiting Clear); any other attempt (e.g. Printing → Idle) is rejected with a clear explanation.
 - **FR-004**: System MUST accept and reconcile status changes reported by a printer's live connection even when they don't follow the manual-transition rules (e.g. a print started from the printer's own screen), rather than rejecting them.
 - **FR-005**: System MUST track a printer's network connectivity (reachable / unreachable) separately from its print status, so the two are never conflated in what the operator sees. A printer is marked unreachable/offline after approximately 30 seconds without a successful response from its live connection, to avoid flickering the indicator on brief network blips.
 - **FR-006**: System MUST store each printer's connection credential encrypted at rest, consistent with how connection secrets are already handled elsewhere in the system.

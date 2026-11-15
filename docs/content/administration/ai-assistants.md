@@ -141,7 +141,7 @@ The assistant sees only the tools that both its access and your account allow. I
 
 ## What you can ask
 
-- "What needs my attention?" — printers awaiting clear, offline or alerting, jobs that cannot be sent and why, failed jobs, late runs, low filament and maintenance due.
+- "What needs my attention?" — printers not ready, offline or alerting, jobs that cannot be sent and why, failed jobs, late runs, low filament and maintenance due.
 - "Queue 20 keychains and 5 desk sets." or "Make a production run for Friday's market." — the assistant shows the plan (plates, print hours, filament, shortages) and queues it only after you agree.
 - "I cleared the plates on P1 and P3." — marks those printers ready.
 - "Why is the bracket job not printing?" — the checks each printer fails: nozzle, material, colour, plate or pin.
@@ -165,10 +165,10 @@ With the matching access, an assistant can also:
 | Mark printers ready | Mark printers ready after their plates are cleared | Printers: Mark ready |
 | Cancel a job or stop a running print | Cancel jobs and stop running prints | Print jobs: Cancel |
 
-Queueing, marking ready and cancelling act on real printers: an idle printer can start the work at once, and a stopped print cannot be resumed.
+Queueing, marking ready and cancelling act on real printers: a ready printer can start the work at once, and a stopped print cannot be resumed.
 
 - **Queueing**: the assistant first shows you the plan and queues exactly that plan only after you agree. Asking twice never queues it twice.
-- **Mark ready**: the assistant marks a printer ready only when you tell it that printer's plate is clear. If another print ended on that printer after the assistant looked, it refuses and asks you again.
+- **Mark ready**: the assistant marks a printer ready only when you tell it that printer's plate is clear. If another print ended on that printer after the assistant looked, it refuses and asks you again. It cannot mark a printer not ready: that hold is yours to set.
 - **Cancel**: the assistant shows you the job, the printer and its progress and waits for your confirmation. Cancel also checks that the job is still where the assistant saw it.
 
 To reorder, pin, unpin, requeue or pause existing jobs, use OpenFarm. Assistants can read jobs and cancel them after your confirmation.

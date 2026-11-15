@@ -1,23 +1,26 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { SlidersHorizontalIcon } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { BackLink } from '@/components/back-link/BackLink';
 import { ConfirmDialog } from '@/components/confirm-dialog/ConfirmDialog';
 import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
+import { PermissionButton } from '@/components/PermissionButton';
 import { Page } from '@/components/page/Page';
 import { PageHeader } from '@/components/page-header/PageHeader';
 import type { PrinterStatus } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { monitoringStatus } from '@/features/dashboard/lib/monitoring';
 import type { PrinterDetailResponse } from '@/lib/api/generated/endpoints.schemas';
 import {
   getOpenFarmApiEndpointsPrintersListFleetEndpointQueryKey,
   useOpenFarmApiEndpointsPrintersGetPrinterDetailEndpoint,
   useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint,
 } from '@/lib/api/generated/printers/printers';
+import { useAllowed } from '@/lib/auth/AccessContext';
 import { CameraView } from './components/CameraView';
 import { CurrentJobCard } from './components/CurrentJobCard';
 import { FeedUnitsCard } from './components/FeedUnitsCard';
@@ -26,9 +29,14 @@ import { MaintenanceCard } from './components/MaintenanceCard';
 import { PrinterDetailActions } from './components/PrinterDetailActions';
 import { PrinterReportedStatus } from './components/PrinterReportedStatus';
 import { RecentActivityCard } from './components/RecentActivityCard';
+import { SlicerSettingsCard } from './components/SlicerSettingsCard';
+import {
+  SLICER_SETTINGS_PERMISSION,
+  SlicerSettingsDialog,
+} from './components/SlicerSettingsDialog';
+import { useMarkPrinterNotReady } from './hooks/useMarkPrinterNotReady';
 import { useMarkPrinterReady } from './hooks/useMarkPrinterReady';
 import { usePrinterSendProgress } from './hooks/usePrinterSendProgress';
-import { printerStatusToBadge } from './lib/printerStatusBadge';
 
 export function PrinterDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -41,6 +49,22 @@ export function PrinterDetailPage() {
   );
 
   const markReadyMutation = useMarkPrinterReady();
+  const markNotReadyMutation = useMarkPrinterNotReady();
+  const canMarkReady = useAllowed('printers:mark-ready');
+  const canEditSlicer = useAllowed(SLICER_SETTINGS_PERMISSION);
+  // The dialog lives in the URL so links and the Back button reach it: /printers/:id?settings=slicer.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const slicerOpen = searchParams.get('settings') === 'slicer';
+  const setSlicerOpen = (open: boolean) =>
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (open) next.set('settings', 'slicer');
+        else next.delete('settings');
+        return next;
+      },
+      { replace: !open },
+    );
 
   const removeMutation = useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint({
     mutation: {
@@ -109,12 +133,32 @@ export function PrinterDetailPage() {
               <span className="flex items-center gap-3">
                 {printer.name}
                 {(() => {
-                  const { kind, label } = printerStatusToBadge(
-                    (printer.status ?? 'Idle') as PrinterStatus,
-                    printer.isReachable ?? false,
-                    sending,
+                  const badge = monitoringStatus(printer, sending);
+                  const canClear =
+                    printer.isReachable && printer.status === 'AwaitingClear';
+                  return (
+                    <StatusBadge
+                      kind={badge.kind}
+                      solid={badge.solid}
+                      label={
+                        markReadyMutation.isPending
+                          ? 'Marking ready…'
+                          : badge.label
+                      }
+                      action={
+                        canClear && canMarkReady
+                          ? {
+                              onClick: () =>
+                                markReadyMutation.mutate({
+                                  id: printer.id ?? '',
+                                }),
+                              label: `Mark ${printer.name} ready`,
+                              disabled: markReadyMutation.isPending,
+                            }
+                          : undefined
+                      }
+                    />
                   );
-                  return <StatusBadge kind={kind} label={label} />;
                 })()}
               </span>
             }
@@ -124,17 +168,32 @@ export function PrinterDetailPage() {
               </span>
             }
             action={
-              <PrinterDetailActions
-                status={(printer.status ?? 'Idle') as PrinterStatus}
-                isReachable={printer.isReachable ?? false}
-                isMarkReadyPending={markReadyMutation.isPending}
-                isRemovePending={removeMutation.isPending}
-                onMarkReady={() =>
-                  markReadyMutation.mutate({ id: printer.id ?? '' })
-                }
-                onEdit={() => navigate(`/printers/${printer.id}/edit`)}
-                onRemove={() => setConfirmRemoveOpen(true)}
-              />
+              <div className="flex gap-2">
+                {/* Any status: plates are swapped while a printer prints. Primary while the printer cannot take a job. */}
+                <PermissionButton
+                  permission={SLICER_SETTINGS_PERMISSION}
+                  variant={printer.setupIssues?.length ? 'default' : 'outline'}
+                  onClick={() => setSlicerOpen(true)}
+                >
+                  <SlidersHorizontalIcon data-icon="inline-start" /> Slicer
+                  settings
+                </PermissionButton>
+                <PrinterDetailActions
+                  status={(printer.status ?? 'Idle') as PrinterStatus}
+                  isReachable={printer.isReachable ?? false}
+                  isMarkReadyPending={markReadyMutation.isPending}
+                  isMarkNotReadyPending={markNotReadyMutation.isPending}
+                  isRemovePending={removeMutation.isPending}
+                  onMarkReady={() =>
+                    markReadyMutation.mutate({ id: printer.id ?? '' })
+                  }
+                  onMarkNotReady={() =>
+                    markNotReadyMutation.mutate({ id: printer.id ?? '' })
+                  }
+                  onEdit={() => navigate(`/printers/${printer.id}/edit`)}
+                  onRemove={() => setConfirmRemoveOpen(true)}
+                />
+              </div>
             }
           />
           <PrinterReportedStatus
@@ -161,48 +220,17 @@ export function PrinterDetailPage() {
                 model={printer.model}
                 extruders={printer.telemetry?.extruders}
               />
+              <SlicerSettingsCard printer={printer} />
               <MaintenanceCard printerId={printer.id ?? ''} />
-              <Card className="gap-0 py-0">
-                <CardHeader className="border-b px-[18px] py-3.5">
-                  <CardTitle className="text-sm font-semibold">
-                    Machine &amp; process profile
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-2 px-[18px] py-3.5">
-                  {printer.machineProfileIssue && (
-                    <p className="text-sm text-destructive">
-                      {printer.machineProfileIssue}
-                    </p>
-                  )}
-                  <p className="text-sm">
-                    Machine:{' '}
-                    <span className="text-muted-foreground">
-                      {printer.machineProfileName ?? 'Not linked'}
-                    </span>
-                  </p>
-                  <p className="text-sm">
-                    Process:{' '}
-                    <span className="text-muted-foreground">
-                      {printer.processProfileName ?? 'Not linked'}
-                    </span>
-                  </p>
-                  <p className="text-sm">
-                    Build plate:{' '}
-                    <span className="text-muted-foreground">
-                      {printer.buildPlateTypeLabel ?? 'Not selected'}
-                    </span>
-                  </p>
-                  {!printer.machineProfileId && (
-                    <p className="text-xs text-muted-foreground">
-                      Select a machine profile that matches the reported nozzle.
-                      Do this before production.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
               <RecentActivityCard printerId={printer.id ?? ''} />
             </div>
           </div>
+          <SlicerSettingsDialog
+            printerId={
+              slicerOpen && canEditSlicer ? (printer.id ?? null) : null
+            }
+            onOpenChange={setSlicerOpen}
+          />
           <ConfirmDialog
             open={confirmRemoveOpen}
             onOpenChange={setConfirmRemoveOpen}

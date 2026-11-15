@@ -232,8 +232,7 @@ export function AddOrReplacePartDialog({
         </SelectContent>
       </Select>
       <p className="text-muted-foreground text-xs">
-        Only used for files that need slicing (STL or an unsliced 3MF) — ignored
-        otherwise. The slicer uses only its own profiles.
+        Slicer for project 3MF files. Ignored for sliced files.
       </p>
     </Field>
   );
@@ -258,9 +257,9 @@ export function AddOrReplacePartDialog({
               {partName ?? 'part'}
             </DialogTitle>
             <DialogDescription>
-              Attach an STL, 3MF, or G-code file — material and nozzle diameter
-              resolve automatically from the file and the fleet, no selection
-              needed. Save enables as soon as those are ready; the
+              Attach a project 3MF, sliced 3MF, or G-code file — material and
+              nozzle diameter resolve automatically from the file and the fleet,
+              no selection needed. Save enables as soon as those are ready; the
               print-time/weight estimate may still be resolving in the
               background.
             </DialogDescription>
@@ -328,7 +327,7 @@ export function AddOrReplacePartDialog({
                     or drag and drop a file
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    STL, 3MF, or G-code
+                    Project 3MF, sliced 3MF, or G-code
                   </p>
                 </button>
                 <input

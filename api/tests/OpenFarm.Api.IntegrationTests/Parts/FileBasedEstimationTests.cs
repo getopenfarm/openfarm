@@ -51,18 +51,19 @@ public sealed class FileBasedEstimationTests(EstimationTestFactory factory) : IC
     private readonly HttpClient _client = factory.CreateClient();
     private static readonly byte[] Stl = Encoding.UTF8.GetBytes("solid t\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid t");
 
+    // Geometry carries no machine, process or plate: nothing to slice it with, so it is refused at upload.
     [Fact]
-    public async Task GeometryFiles_RemainSaveableWithoutEstimates()
+    public async Task GeometryFiles_AreRefused_WithAReasonThatSaysWhatToUpload()
     {
         var client = await AuthenticatedClientAsync(_client);
-        foreach (var (bytes, name) in new[] { (Stl, "part.stl"), (ThreeMf(null), "geometry.3mf") })
+        foreach (var (bytes, name, reason) in new[] { (Stl, "part.stl", "STL files carry no slicing settings"), (ThreeMf(null), "geometry.3mf", "This 3MF carries no slicing settings") })
         {
-            var preview = await UploadAsync(client, bytes, name);
-            preview.Preview!.EstimateStatus.Should().Be("Unavailable");
-            preview.Preview.NozzleDiameterMm.Should().BeNull();
-            preview.Preview.EstimateUnavailableReason.Should().Contain("embedded slicing settings");
-            var confirmed = await client.PostAsJsonAsync($"/api/v1/part-processing-jobs/{preview.Id}/confirm", new { name });
-            confirmed.EnsureSuccessStatusCode();
+            using var form = new MultipartFormDataContent { { new ByteArrayContent(bytes), "File", name } };
+
+            var response = await client.PostAsync("/api/v1/parts", form);
+
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            (await response.Content.ReadAsStringAsync()).Should().Contain(reason);
         }
     }
 

@@ -8,11 +8,15 @@ namespace OpenFarm.Domain.Printers;
 public static class PrinterStatusTransitions
 {
     /// <summary>
-    /// The only manual transition this phase supports (FR-011: no manual print dispatch).
+    /// The only manual transitions (FR-011: no manual print dispatch): Mark ready (AwaitingClear -&gt; Idle) and
+    /// Mark not ready, an operator hold (Idle -&gt; AwaitingClear). A Printing printer cannot be held: its print end
+    /// already makes it Not ready.
     /// </summary>
     public static void EnsureValidManualTransition(PrinterStatus from, PrinterStatus to)
     {
-        if (from != PrinterStatus.AwaitingClear || to != PrinterStatus.Idle)
+        var markReady = from == PrinterStatus.AwaitingClear && to == PrinterStatus.Idle;
+        var hold = from == PrinterStatus.Idle && to == PrinterStatus.AwaitingClear;
+        if (!markReady && !hold)
         {
             throw new InvalidPrinterStatusTransitionException(from, to);
         }

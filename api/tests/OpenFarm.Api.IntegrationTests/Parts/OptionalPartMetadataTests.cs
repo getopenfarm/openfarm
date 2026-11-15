@@ -25,9 +25,8 @@ public class OptionalPartMetadataTests(EmptySlicerBundleWebApplicationFactory fa
 
         var files = new (string Name, byte[] Bytes)[]
         {
-            ("part.stl", Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test")),
             ("part.gcode", Encoding.UTF8.GetBytes("G28\nG1 X10 Y10")),
-            ("part.3mf", Zip(("3D/3dmodel.model", "<model><resources/><build/></model>"), ("Metadata/slice_info.config", "<config/>"))),
+            ("part.3mf", ProjectThreeMf.Bytes()),
             ("part.gcode.3mf", Zip(("Metadata/plate_1.gcode", "G28\nG1 X10 Y10"))),
         };
         PartResponse? saved = null;

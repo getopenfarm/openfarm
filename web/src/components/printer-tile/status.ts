@@ -1,3 +1,4 @@
+/** `Idle` shows as Ready. `AwaitingClear` shows as Not ready: after a print ends, or when an operator holds a Ready printer. */
 export type PrinterStatus = 'Idle' | 'Printing' | 'AwaitingClear';
 
 interface StatusMeta {
@@ -8,7 +9,7 @@ interface StatusMeta {
 
 export const STATUS_META: Record<PrinterStatus, StatusMeta> = {
   Idle: {
-    label: 'Idle',
+    label: 'Ready',
     textClass: 'text-status-idle',
     dotClass: 'bg-status-idle',
   },
@@ -18,7 +19,7 @@ export const STATUS_META: Record<PrinterStatus, StatusMeta> = {
     dotClass: 'bg-status-printing',
   },
   AwaitingClear: {
-    label: 'Awaiting clear',
+    label: 'Not ready',
     textClass: 'text-status-attention',
     dotClass: 'bg-status-attention',
   },

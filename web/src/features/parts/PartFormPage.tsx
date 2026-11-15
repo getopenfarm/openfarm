@@ -204,9 +204,8 @@ export function PartFormPage() {
                           </SelectContent>
                         </Select>
                         <p className="text-muted-foreground text-xs">
-                          Only used for files that need slicing (STL or an
-                          unsliced 3MF) — ignored otherwise. The slicer uses
-                          only its own profiles.
+                          Slicer for project 3MF files. Ignored for sliced
+                          files.
                         </p>
                       </Field>
                     )}
@@ -234,7 +233,7 @@ export function PartFormPage() {
                           or drag and drop a file
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          STL, 3MF, or G-code
+                          Project 3MF, sliced 3MF, or G-code
                         </p>
                       </button>
                       <input

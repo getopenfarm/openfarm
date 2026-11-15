@@ -233,7 +233,7 @@ public class JobMatchingDiagnosticsTests(ProductionTestFactory factory) : Produc
     public async Task MixedNozzleU1_NamesTheHeadWithTheWrongNozzle()
     {
         var client = await ClientAsync();
-        var part = await PartAsync(contents: "; printer_model = Snapmaker U1\nG28\n");
+        var part = await PartAsync(contents: "; printer_model = Snapmaker U1\n; curr_bed_type = High Temp Plate\nG28\n");
         var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
         // The job needs a 0.4 mm nozzle; its only spool is on T2, which has 0.6 mm.
         await AttachHeadsAsync(printer.Id, [0.4m, 0.6m, 0.4m, 0.4m], head: 1);

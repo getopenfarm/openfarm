@@ -10,7 +10,6 @@ public sealed class ListProcessProfilesRequest
     public string? Origin { get; set; }
     public string? Q { get; set; }
     public string? CompatibleWithMachineName { get; set; }
-    public Guid? PrinterId { get; set; }
     public int? Page { get; set; }
     public int? PageSize { get; set; }
 }
@@ -53,9 +52,6 @@ public sealed class ListProcessProfilesResponse
     public int Page { get; set; }
     public int PageSize { get; set; }
     public int TotalCount { get; set; }
-
-    // Only meaningful on a `printerId`-driven call (contracts/profiles-api.md) — null otherwise.
-    public bool? Available { get; set; }
 }
 
 // GET /api/v1/profiles/process (extended for US2 picker use, contracts/profiles-api.md).
@@ -72,7 +68,7 @@ public sealed class ListProcessProfilesEndpoint(IQueryHandler<GetProcessProfiles
     public override async Task HandleAsync(ListProcessProfilesRequest req, CancellationToken ct)
     {
         var result = await handler.HandleAsync(
-            new GetProcessProfilesQuery(req.Origin, req.Q, req.CompatibleWithMachineName, req.PrinterId, req.Page, req.PageSize), ct);
+            new GetProcessProfilesQuery(req.Origin, req.Q, req.CompatibleWithMachineName, req.Page, req.PageSize), ct);
 
         Response = new ListProcessProfilesResponse
         {
@@ -80,7 +76,6 @@ public sealed class ListProcessProfilesEndpoint(IQueryHandler<GetProcessProfiles
             Page = result.Page,
             PageSize = result.PageSize,
             TotalCount = result.TotalCount,
-            Available = result.Available,
         };
     }
 }

@@ -59,6 +59,7 @@ export function activityEventKind(
   if (eventType === 'ConnectedAppAdded') return 'green';
   if (eventType === 'ConnectedAppRevoked') return 'red';
   const type = eventType.toLowerCase();
+  if (type.includes('markednotready')) return 'amber';
   if (type.includes('removed') || type.includes('failed')) return 'red';
   if (
     type.includes('registered') ||

@@ -1,5 +1,6 @@
 using OpenFarm.Infrastructure.Printers.Bambu;
 using System.Collections.Concurrent;
+using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -190,7 +191,7 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
     public async Task SnapmakerU1_SpoolOnAToolhead_IsDispatchedToThatHead()
     {
         var client = await ClientAsync();
-        var part = await PartAsync(contents: "; printer_model = Snapmaker U1\nG28\n");
+        var part = await PartAsync(contents: "; printer_model = Snapmaker U1\n; curr_bed_type = High Temp Plate\nG28\n");
         var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
         // The U1's four heads are one four-slot unit; slot 2 is T3.
         await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, externalFeeding: false);
@@ -205,7 +206,7 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
     public async Task SnapmakerU1_MixedNozzles_SendsTheJobToAHeadWithItsNozzle()
     {
         var client = await ClientAsync();
-        var part = await PartAsync(contents: "; printer_model = Snapmaker U1\nG28\n");
+        var part = await PartAsync(contents: "; printer_model = Snapmaker U1\n; curr_bed_type = High Temp Plate\nG28\n");
         var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
         // The job's filament is on T1 with a 0.6 mm nozzle and on T3 with the job's 0.4 mm.
         var slots = await AttachHeadsAsync(printer.Id, [0.6m, 0.4m, 0.4m, 0.4m], head: 0);
@@ -224,11 +225,34 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         mapping!.Tools.Should().Equal(new FeedSlotRef(FeedUnitKindCatalog.MultiMaterialUnit, 0, 2));
     }
 
+    // The file is the one source of how a part prints, so it only goes to a printer with the plate it was made for.
+    [Fact]
+    public async Task FileMadeForAnotherPlate_IsNotSent_AndTheQueueSaysWhy()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync(contents: "; printer_model = Bambu Lab P1S\n; curr_bed_type = Cool Plate\nG28\n");
+        // PrinterAsync puts a High Temp Plate on the bed.
+        var printer = await PrinterAsync(brand: "Bambu", modelCode: "P1S");
+        await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, externalFeeding: false);
+        var run = await RunAsync(client, part.Id, pinned: printer.Id);
+
+        using var worker = Worker();
+        await worker.StartAsync(default);
+        try { await Task.Delay(1500); }
+        finally { await worker.StopAsync(default); }
+
+        var job = (await JobsAsync(run.Id)).Single();
+        job.PrinterId.Should().BeNull();
+        SentTo(printer).Should().BeEmpty();
+        var queue = await client.GetFromJsonAsync<OpenFarm.Api.Endpoints.PrintJobs.ListQueueJobsResponse>("/api/v1/print-jobs?view=queue&pageSize=1000");
+        queue!.Items.Single(i => i.JobId == job.Id).BlockingReason.Should().Contain("File is for Cool Plate, not the printer's High Temp Plate");
+    }
+
     [Fact]
     public async Task SnapmakerU1_FileSlicedForAnotherModel_IsNotSent()
     {
         var client = await ClientAsync();
-        var part = await PartAsync(contents: "; printer_model = Bambu Lab P1S\nG28\n");
+        var part = await PartAsync(contents: "; printer_model = Bambu Lab P1S\n; curr_bed_type = High Temp Plate\nG28\n");
         var printer = await PrinterAsync(brand: "Snapmaker", modelCode: "U1");
         await AttachAmsAsync(printer.Id, moveSpoolToSlot: 2, externalFeeding: false);
         var run = await RunAsync(client, part.Id, pinned: printer.Id);

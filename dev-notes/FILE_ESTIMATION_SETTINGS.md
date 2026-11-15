@@ -3,8 +3,8 @@
 Slicing defaults selects the farm's slicer engine and version. Estimation profiles
 are no longer configured in Settings. Sliced 3MF and G-code use embedded metadata;
 unsliced project 3MF uses embedded settings and its named project presets when
-supported. STL and geometry-only 3MF remain reviewable and saveable without
-estimates. Missing values remain unknown rather than zero.
+supported. STL and geometry-only 3MF are refused at upload: they carry no machine,
+process or plate. Missing values remain unknown rather than zero.
 
 Existing part estimates and processing snapshots are preserved. Reprocessing
 resolves the file again using the current slicer selection.

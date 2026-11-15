@@ -780,8 +780,6 @@ export interface ListProcessProfilesResponse {
   page?: number;
   pageSize?: number;
   totalCount?: number;
-  /** @nullable */
-  available?: boolean | null;
 }
 
 export interface ListProcessProfilesRequest {
@@ -1607,10 +1605,9 @@ export interface EditPrinterRequest {
   modelCode?: string | null;
   /** @nullable */
   serialNumber?: string | null;
-  /** @nullable */
-  machineProfileId?: string | null;
-  /** @nullable */
-  processProfileId?: string | null;
+}
+
+export interface EditPrinterSlicerSettingsRequest {
   /** @nullable */
   buildPlateType?: string | null;
 }
@@ -1741,20 +1738,11 @@ export interface PrinterDetailResponse {
   telemetry?: PrinterDetailTelemetryResponse;
   feedReadings?: FeedReadingResponse[];
   /** @nullable */
-  machineProfileId?: string | null;
-  /** @nullable */
-  machineProfileName?: string | null;
-  /** @nullable */
-  machineProfileIssue?: string | null;
-  /** @nullable */
-  processProfileId?: string | null;
-  /** @nullable */
-  processProfileName?: string | null;
-  /** @nullable */
   buildPlateType?: string | null;
   /** @nullable */
   buildPlateTypeLabel?: string | null;
   compatibleBuildPlateTypes?: BuildPlateTypeOptionResponse[];
+  setupIssues?: string[];
 }
 
 export interface FleetPrinterResponse {
@@ -1788,10 +1776,15 @@ export interface FleetPrinterResponse {
   currentPrintJobId?: string | null;
   /** @nullable */
   filamentColorHex?: string | null;
+  setupIssues?: string[];
 }
 
 export interface ListFleetResponse {
   printers?: FleetPrinterResponse[];
+}
+
+export interface MarkPrinterNotReadyRequest {
+  [key: string]: unknown;
 }
 
 export interface MarkPrinterReadyRequest {
@@ -3581,10 +3574,6 @@ export type OpenFarmApiEndpointsProfilesListMachineProfilesEndpointParams = {
   /**
    * @nullable
    */
-  printerId?: string | null;
-  /**
-   * @nullable
-   */
   sortBy?: string | null;
   /**
    * @nullable
@@ -3621,10 +3610,6 @@ export type OpenFarmApiEndpointsProfilesListProcessProfilesEndpointParams = {
    * @nullable
    */
   compatibleWithMachineName?: string | null;
-  /**
-   * @nullable
-   */
-  printerId?: string | null;
   /**
    * @nullable
    */

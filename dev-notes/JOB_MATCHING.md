@@ -29,11 +29,12 @@ material and colour; an any-colour choice also survives a one-for-one colour swa
 material (`Part.PreviousRequirementFor`).
 
 Production still needs an available printer, confirmed nozzle telemetry, an active
-loaded spool, and compatible machine and filament profile assignments. Each
+loaded spool, filament profile assignments, and a file made for the printer's
+model and the plate on its bed (`EnsureFileFitsPrinterAsync`). Each
 required filament must be loaded on an extruder whose confirmed nozzle is the
 part's nozzle; on a printer with several extruders the `extruder-nozzle` check
-names the one that differs ("T2: 0.6 mm, job needs 0.4 mm."). Files that
-need slicing also require process and build-plate settings. Reloaders contribute
+names the one that differs ("T2: 0.6 mm, job needs 0.4 mm."). A project 3MF is
+sliced with its own machine and process. Reloaders contribute
 only their selected feeding slot; standby and archived slots do not qualify.
 
 Snapshot jobs store their filament choices when created. Follow-latest jobs resolve

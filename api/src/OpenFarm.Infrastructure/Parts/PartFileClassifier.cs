@@ -1,6 +1,4 @@
 using System.IO.Compression;
-using System.Buffers.Binary;
-using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 using OpenFarm.Application.Parts;
@@ -17,45 +15,17 @@ public sealed class PartFileClassifier : IPartFileClassifier
     public PartFileClassification Classify(Stream fileStream, string fileName)
     {
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
-        if (extension == ".stl") ValidateStl(fileStream);
-
         return extension switch
         {
-            ".stl" => new PartFileClassification(PartFileFormat.Stl, RequiresSlicing: true),
+            ".stl" => throw new UnsupportedPartFileFormatException(fileName,
+                "STL files carry no slicing settings. Save the model as a project 3MF in OrcaSlicer or Bambu Studio."),
             ".gcode" or ".gco" or ".g" => new PartFileClassification(PartFileFormat.GCode, RequiresSlicing: false),
-            ".3mf" => new PartFileClassification(PartFileFormat.ThreeMf, RequiresSlicing: !HasPlateGCode(fileStream)),
+            ".3mf" => new PartFileClassification(PartFileFormat.ThreeMf, RequiresSlicing: !HasPlateGCode(fileStream, fileName)),
             _ => throw new UnsupportedPartFileFormatException(fileName),
         };
     }
 
-    private static void ValidateStl(Stream stream)
-    {
-        var position = stream.CanSeek ? stream.Position : 0;
-        try
-        {
-            Span<byte> header = stackalloc byte[84];
-            var read = stream.ReadAtLeast(header, 84, throwOnEndOfStream: false);
-            if (read == 84 && stream.CanSeek)
-            {
-                var triangles = BinaryPrimitives.ReadUInt32LittleEndian(header[80..]);
-                if (triangles > 0 && stream.Length - position == 84L + 50L * triangles) return;
-            }
-            if (!stream.CanSeek) throw new UnsupportedPartFileFormatException("STL validation requires a seekable upload.");
-            stream.Position = position;
-            using var reader = new StreamReader(stream, leaveOpen: true);
-            var text = reader.ReadToEnd();
-            if (!text.TrimStart().StartsWith("solid", StringComparison.OrdinalIgnoreCase)
-                || !text.Contains("endsolid", StringComparison.OrdinalIgnoreCase)
-                || Regex.Count(text, @"(?im)^\s*vertex\s+[-+0-9.e]+\s+[-+0-9.e]+\s+[-+0-9.e]+\s*$", RegexOptions.IgnoreCase) < 3)
-                throw new UnsupportedPartFileFormatException("The STL contains no readable triangles.");
-        }
-        finally
-        {
-            if (stream.CanSeek) stream.Position = position;
-        }
-    }
-
-    private static bool HasPlateGCode(Stream fileStream)
+    private static bool HasPlateGCode(Stream fileStream, string fileName)
     {
         ZipArchive archive;
         try
@@ -87,6 +57,10 @@ public sealed class PartFileClassifier : IPartFileClassifier
             {
                 throw new UnsupportedPartFileFormatException("The 3MF model XML could not be read.");
             }
+            // A file to slice carries its own machine, process and plate: a geometry-only 3MF has nothing to slice with.
+            if (SlicedPlateMetadata.Find(archive, "Metadata/project_settings.config") is null)
+                throw new UnsupportedPartFileFormatException(fileName,
+                    "This 3MF carries no slicing settings. Save it as a project from OrcaSlicer or Bambu Studio, or upload the sliced file.");
             return false;
         }
     }

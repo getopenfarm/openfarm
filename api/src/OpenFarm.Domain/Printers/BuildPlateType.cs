@@ -37,6 +37,14 @@ public static class BuildPlateTypeVendorNames
     };
 
     public static string Resolve(BuildPlateType buildPlateType) => Names[buildPlateType];
+
+    /// <summary>The plate a <c>curr_bed_type</c> string names; <c>null</c> when it is blank or not one of the known plates.</summary>
+    public static BuildPlateType? Parse(string? vendorName)
+    {
+        foreach (var (type, name) in Names)
+            if (string.Equals(name, vendorName, StringComparison.OrdinalIgnoreCase)) return type;
+        return null;
+    }
 }
 
 /// <summary>

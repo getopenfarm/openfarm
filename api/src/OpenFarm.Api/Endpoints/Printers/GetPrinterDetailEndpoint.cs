@@ -89,25 +89,17 @@ public sealed class PrinterDetailResponse
     /// <summary>The feed units and slots the printer last reported, with what it detects in each.</summary>
     public IReadOnlyList<FeedReadingResponse> FeedReadings { get; set; } = [];
 
-    /// <summary>Optional selected preset; never a source of nozzle diameter.</summary>
-    public Guid? MachineProfileId { get; set; }
-
-    public string? MachineProfileName { get; set; }
-
-    public string? MachineProfileIssue { get; set; }
-
-    public Guid? ProcessProfileId { get; set; }
-
-    public string? ProcessProfileName { get; set; }
-
     /// <summary>Null iff no build plate has been selected yet (012, every printer until an operator acts).</summary>
     public string? BuildPlateType { get; set; }
 
     /// <summary>Backend-resolved display label (FR-012) — null exactly when <see cref="BuildPlateType"/> is null.</summary>
     public string? BuildPlateTypeLabel { get; set; }
 
-    /// <summary>Always non-empty for a registered printer — derived purely from Brand/ModelCode, independent of MachineProfileId.</summary>
+    /// <summary>Always non-empty for a registered printer — derived purely from Brand/ModelCode.</summary>
     public IReadOnlyList<BuildPlateTypeOptionResponse> CompatibleBuildPlateTypes { get; set; } = [];
+
+    /// <summary>What stops every job going to this printer until the operator sets it, e.g. "Select a build plate". Empty when ready.</summary>
+    public IReadOnlyList<string> SetupIssues { get; set; } = [];
 
     public static PrinterDetailResponse From(PrinterDetail detail)
     {
@@ -140,13 +132,9 @@ public sealed class PrinterDetailResponse
                 CurrentJobName = detail.CurrentJobName,
             },
             FeedReadings = FeedReadingResponse.From(detail.FeedReadings, model),
-            MachineProfileId = detail.MachineProfileId,
-            MachineProfileName = detail.MachineProfileName,
-            MachineProfileIssue = detail.MachineProfileIssue,
-            ProcessProfileId = detail.ProcessProfileId,
-            ProcessProfileName = detail.ProcessProfileName,
             BuildPlateType = detail.BuildPlateType?.ToString(),
             BuildPlateTypeLabel = detail.BuildPlateTypeLabel,
+            SetupIssues = detail.SetupIssues ?? [],
             CompatibleBuildPlateTypes = detail.CompatibleBuildPlateTypes
                 .Select(option => new BuildPlateTypeOptionResponse { Value = option.Value.ToString(), Label = option.Label })
                 .ToList(),

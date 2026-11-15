@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using OpenFarm.Domain.Printers;
-using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Infrastructure.Persistence.Configurations;
 
@@ -83,9 +82,6 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
                 extruders => extruders.Aggregate(0, (hash, extruder) => HashCode.Combine(hash, extruder.GetHashCode())),
                 extruders => extruders.ToList()));
 
-        builder.Property(p => p.MachineProfileId);
-        builder.Property(p => p.ProcessProfileId);
-
         builder.Property(p => p.BuildPlateType)
             .HasConversion<string>();
 
@@ -99,6 +95,8 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         builder.Property(p => p.ActivitySinceUtc)
             .IsRequired();
 
+        builder.Property(p => p.ReadinessChangedAtUtc);
+
         // Closed stretches are only appended through the printer and read back by stats SQL; the collection is never loaded.
         builder.HasMany(p => p.ClosedActivitySpans).WithOne().HasForeignKey(s => s.PrinterId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(p => p.ClosedActivitySpans).UsePropertyAccessMode(PropertyAccessMode.Field);
@@ -107,21 +105,6 @@ public sealed class PrinterConfiguration : IEntityTypeConfiguration<Printer>
         // stay unique.
         builder.HasIndex(p => p.SerialNumber)
             .IsUnique();
-
-        // Enforced FK, unlike PartFilamentRequirement's narrow overrides — FR-005a's nozzle-diameter
-        // auto-detection is a farm-wide correctness computation with no per-part tolerance for a
-        // dangling reference (research.md §6, Part Library Phase).
-        builder.HasOne<MachineProfile>()
-            .WithMany()
-            .HasForeignKey(p => p.MachineProfileId)
-            .OnDelete(DeleteBehavior.SetNull);
-
-        // Parallel to MachineProfileId (009) — one process selection per printer, matching
-        // MachineProfileId's own FK treatment.
-        builder.HasOne<ProcessProfile>()
-            .WithMany()
-            .HasForeignKey(p => p.ProcessProfileId)
-            .OnDelete(DeleteBehavior.SetNull);
     }
 }
 

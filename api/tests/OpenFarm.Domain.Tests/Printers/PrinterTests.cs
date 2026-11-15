@@ -103,10 +103,60 @@ public class PrinterTests
     {
         var printer = CreateValidPrinter();
 
-        var act = () => printer.TransitionTo(PrinterStatus.AwaitingClear);
+        var act = () => printer.TransitionTo(PrinterStatus.Printing);
 
         act.Should().Throw<InvalidPrinterStatusTransitionException>();
         printer.Status.Should().Be(PrinterStatus.Idle);
+        printer.ReadinessChangedAtUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void TransitionTo_FromIdleToAwaitingClear_HoldsThePrinterAndStampsTheChange()
+    {
+        var printer = CreateValidPrinter();
+        var at = DateTimeOffset.UtcNow.AddMinutes(1);
+
+        printer.TransitionTo(PrinterStatus.AwaitingClear, at);
+
+        printer.Status.Should().Be(PrinterStatus.AwaitingClear);
+        printer.ReadinessChangedAtUtc.Should().Be(at);
+    }
+
+    [Fact]
+    public void TransitionTo_FromAwaitingClearToIdle_StampsTheChange()
+    {
+        var printer = CreateValidPrinter();
+        printer.ObserveStatus("FINISH");
+        printer.ReadinessChangedAtUtc.Should().BeNull();
+        var at = DateTimeOffset.UtcNow.AddMinutes(1);
+
+        printer.TransitionTo(PrinterStatus.Idle, at);
+
+        printer.ReadinessChangedAtUtc.Should().Be(at);
+    }
+
+    [Fact]
+    public void ObserveStatus_ReportedIdle_DoesNotReleaseAHold()
+    {
+        var printer = CreateValidPrinter();
+        printer.TransitionTo(PrinterStatus.AwaitingClear);
+
+        var changed = printer.ObserveStatus("IDLE");
+
+        changed.Should().BeFalse();
+        printer.Status.Should().Be(PrinterStatus.AwaitingClear);
+    }
+
+    [Fact]
+    public void ObserveStatus_ReportedPrintStart_TakesOverAHold()
+    {
+        var printer = CreateValidPrinter();
+        printer.TransitionTo(PrinterStatus.AwaitingClear);
+
+        var changed = printer.ObserveStatus("RUNNING");
+
+        changed.Should().BeTrue();
+        printer.Status.Should().Be(PrinterStatus.Printing);
     }
 
     [Fact]

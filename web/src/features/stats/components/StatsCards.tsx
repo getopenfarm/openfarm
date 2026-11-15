@@ -248,7 +248,7 @@ export function PrinterTimeCard({ summary }: { summary: StatsSummary }) {
           rows={[
             ['No data', formatHours(activity?.noData ?? 0)],
             [
-              'Plate clear, median',
+              'Not ready, median',
               summary.plateClearMinutes == null
                 ? '—'
                 : formatMinutes(summary.plateClearMinutes),

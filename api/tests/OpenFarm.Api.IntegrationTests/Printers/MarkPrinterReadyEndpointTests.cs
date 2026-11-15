@@ -131,6 +131,60 @@ public class MarkPrinterReadyEndpointTests(CustomWebApplicationFactory factory) 
         (await db.Printers.SingleAsync(p => p.Id == printer.Id)).Activity.Should().Be(PrinterActivity.Idle);
     }
 
+    private static async Task<PrinterSummaryResponse> RegisterIdlePrinterAsync(HttpClient client, string name, string ipAddress)
+    {
+        var registerResponse = await client.PostAsJsonAsync(
+            new Uri("/api/v1/printers", UriKind.Relative),
+            new RegisterPrinterRequest
+            {
+                Name = name,
+                Brand = "System",
+                ModelCode = "Simulation",
+                IpAddress = ipAddress,
+                SerialNumber = $"MR-{Guid.NewGuid():N}",
+                AccessCode = "12345678",
+            });
+        return (await registerResponse.Content.ReadFromJsonAsync<PrinterSummaryResponse>())!;
+    }
+
+    [Fact]
+    public async Task MarkNotReady_FromIdle_HoldsThePrinterUntilMarkReadyAndWritesActivityLogEntries()
+    {
+        var client = await AuthenticatedClientAsync();
+        var printer = await RegisterIdlePrinterAsync(client, "Held Printer", "10.0.0.72");
+        await WaitForReachableAsync(client, printer.Id);
+
+        var hold = await client.PostAsJsonAsync(new Uri($"/api/v1/printers/{printer.Id}/mark-not-ready", UriKind.Relative), new { });
+
+        hold.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await hold.Content.ReadFromJsonAsync<PrinterSummaryResponse>())!.Status.Should().Be("AwaitingClear");
+
+        // The simulator keeps reporting IDLE; a report must not release an operator hold.
+        await Task.Delay(TimeSpan.FromMilliseconds(300));
+        var fleet = await (await client.GetAsync(new Uri("/api/v1/printers", UriKind.Relative))).Content.ReadFromJsonAsync<ListFleetResponse>();
+        fleet!.Printers.Single(p => p.Id == printer.Id).Status.Should().Be("AwaitingClear");
+
+        var release = await client.PostAsJsonAsync(new Uri($"/api/v1/printers/{printer.Id}/mark-ready", UriKind.Relative), new { });
+        release.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await release.Content.ReadFromJsonAsync<PrinterSummaryResponse>())!.Status.Should().Be("Idle");
+
+        var page = await (await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=50", UriKind.Relative)))
+            .Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        page!.Items.Where(e => e.EntityId == printer.Id.ToString()).Select(e => e.EventType)
+            .Should().Contain(["PrinterMarkedNotReady", "PrinterMarkedReady"]);
+    }
+
+    [Fact]
+    public async Task MarkNotReady_FromAwaitingClear_Returns409()
+    {
+        var client = await AuthenticatedClientAsync();
+        var printer = await RegisterAwaitingClearPrinterAsync(client);
+
+        var response = await client.PostAsJsonAsync(new Uri($"/api/v1/printers/{printer.Id}/mark-not-ready", UriKind.Relative), new { });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
     [Fact]
     public async Task MarkReady_FromIdle_Returns409AndDoesNotChangeStatus()
     {

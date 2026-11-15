@@ -27,7 +27,7 @@ Credentials stay encrypted on the server. Enter or replace them from the printer
 
 ## Configure production
 
-Wait for the connected printer to report its nozzle size. Edit the printer and select a compatible **machine profile**, **process profile**, and **build plate**. Register the physical spools and assign compatible filament profiles. Then [load the tracked spools](../filament/spools.md) into the correct AMS or external slots.
+Wait for the connected printer to report its nozzle size. Edit the printer and select the **build plate** on the bed. Register the physical spools and assign compatible filament profiles. Then [load the tracked spools](../filament/spools.md) into the correct AMS or external slots.
 
 Pre-sliced files must match the model they were sliced for. Being able to connect does not mean an arbitrary sliced file is compatible.
 

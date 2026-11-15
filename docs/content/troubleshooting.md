@@ -43,7 +43,7 @@ If slicing is needed, each selected profile must have a compatible match in the 
 
 ## Upload has no estimate or is incomplete
 
-You can save STL and geometry-only 3MF files without estimates. Missing time or filament weight remains unknown. Review the required material and nozzle fields, then finish the file review. If you correct the source file or quantity, reprocess the part. See [Parts](library/parts.md).
+You can save a project 3MF without estimates. Missing time or filament weight remains unknown. STL and geometry-only 3MF files are refused: save the model as a project from OrcaSlicer or Bambu Studio. Review the required material and nozzle fields, then finish the file review. If you correct the source file or quantity, reprocess the part. See [Parts](library/parts.md).
 
 ## Partial plate or output confirmation is blocked
 

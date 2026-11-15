@@ -4,7 +4,7 @@ Filament inventory and profile configuration are separate. Inventory can be save
 
 ## Hardware identity
 
-The profile-assignment card groups the fleet by registered brand, model, and **reported nozzle diameter**. Duplicate printers share one row; a printer whose extruders have different nozzles is in one group per size. Machine profiles never supply a nozzle diameter. Last reported sizes remain available for offline configuration, but production and new machine-profile selections require confirmation from the current printer connection.
+The profile-assignment card groups the fleet by registered brand, model, and **reported nozzle diameter**. Duplicate printers share one row; a printer whose extruders have different nozzles is in one group per size. Last reported sizes remain available for offline configuration, but production requires confirmation from the current printer connection.
 
 Bambu telemetry accepts numeric and string diameters, including uniform nested nozzle reports. Partial reports preserve the last observation. Each extruder is confirmed at its own reported nozzle; an explicit unknown report removes that extruder's confirmation. Reconnection, connection edits, and reachability loss remove confirmation until a fresh valid nozzle report arrives (`dev-notes/PRINTER_HARDWARE_MODEL.md`, Nozzles).
 
@@ -40,13 +40,13 @@ to the model they were sliced for. SuperSlicer slices one filament.
 - `PUT /api/v1/filaments/{id}` atomically replaces the filament's fields and its `profileAssignments` (defaults and colour overrides).
 - `GET /api/v1/slicing/readiness?engine=&version=` reports which printers and filament assignments would block production for one slicer pin (see Slicer resolution).
 - Filament creation accepts `profileAssignments`; the former scalar `filamentProfileId` is removed.
-- Machine profile listing accepts `printerId`; filament profile listing accepts `brand`, `modelCode`, and `nozzleDiameterMm`.
+- Filament profile listing accepts `brand`, `modelCode`, and `nozzleDiameterMm`.
 
 The persisted nozzle state and the assignment rows are part of the initial schema (`InitialCreate`). Generated frontend clients come from the OpenAPI contract. `export-openapi` exports contracts without running database initialization or printer workers.
 
 ## Slicer resolution (native-only, fail-closed)
 
-A profile choice (a printer's machine and process, a filament's assignment, the estimation defaults) is stored as one row of one engine's catalog. A part is pinned to one slicer engine and exact version. Production resolves each choice to **that slicer's own copy** and to nothing else. `ProfileResolver` decides, per selected row and pin:
+A filament's assignment is stored as one row of one engine's catalog. A printer has no machine or process profile: a project 3MF is sliced with its own, and a sliced file runs as it is. The printer only declares its build plate, and the file's model and plate must equal the printer's. A part is pinned to one slicer engine and exact version. Production resolves each choice to **that slicer's own copy** and to nothing else. `ProfileResolver` decides, per selected row and pin:
 
 - System row of the pin's engine and version: used as it is (`Exact`).
 - System row of another version of the same engine: mapped by the vendor's `setting_id`, so a renamed profile is still found (`MappedVersion`). Rows without an id match by vendor and name.

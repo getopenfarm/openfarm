@@ -839,7 +839,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     private static partial void LogFileResolutionFailed(ILogger logger, Guid jobId, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Job {JobId} to printer {PrinterId} sliced with {Engine} {Version}: machine={Machine} process={Process} filaments={Filaments}")]
-    private static partial void LogSlicingProfilesUsed(ILogger logger, Guid jobId, Guid printerId, SlicerEngine engine, string version, OpenFarm.Application.Profiles.ResolvedPreset machine, OpenFarm.Application.Profiles.ResolvedPreset process, string filaments);
+    private static partial void LogSlicingProfilesUsed(ILogger logger, Guid jobId, Guid printerId, SlicerEngine engine, string version, OpenFarm.Application.Profiles.ResolvedPreset? machine, OpenFarm.Application.Profiles.ResolvedPreset? process, string filaments);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Job {JobId} not sent (failed attempt {Attempts}, next try in {Delay}): {Reason}")]
     private static partial void LogJobBlocked(ILogger logger, Guid jobId, int attempts, TimeSpan delay, string reason);

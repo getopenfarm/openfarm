@@ -37,14 +37,14 @@ public class RealSlicerStrictResolutionTests(ITestOutputHelper output)
         var native = await ResolveAsync(catalogs, selectedIn: Orca, manifest);
         var mapped = await ResolveAsync(catalogs, selectedIn: Bambu, manifest);
 
-        new[] { native.Machine, native.Process, native.Filament }.Select(p => p.Outcome)
+        new[] { native.Machine!, native.Process!, native.Filament }.Select(p => p.Outcome)
             .Should().OnlyContain(o => o == ProfileResolutionOutcome.Exact);
-        new[] { mapped.Machine, mapped.Process, mapped.Filament }.Select(p => p.Outcome)
+        new[] { mapped.Machine!, mapped.Process!, mapped.Filament }.Select(p => p.Outcome)
             .Should().OnlyContain(o => o == ProfileResolutionOutcome.MappedEngine);
         mapped.Pin.Should().Be(Orca);
-        (mapped.Machine.ResolvedId, mapped.Process.ResolvedId, mapped.Filament.ResolvedId)
-            .Should().Be((native.Machine.ResolvedId, native.Process.ResolvedId, native.Filament.ResolvedId), "Orca's own rows are used, not Bambu Studio's");
-        (mapped.Machine.SelectedId, mapped.Process.SelectedId, mapped.Filament.SelectedId)
+        (mapped.Machine!.ResolvedId, mapped.Process!.ResolvedId, mapped.Filament.ResolvedId)
+            .Should().Be((native.Machine!.ResolvedId, native.Process!.ResolvedId, native.Filament.ResolvedId), "Orca's own rows are used, not Bambu Studio's");
+        (mapped.Machine!.SelectedId, mapped.Process!.SelectedId, mapped.Filament.SelectedId)
             .Should().NotBe((mapped.Machine.ResolvedId, mapped.Process.ResolvedId, mapped.Filament.ResolvedId), "the operator selected the other engine's rows");
         new[] { mapped.Machine, mapped.Process, mapped.Filament }.Should().OnlyContain(p => p.Format == ProfileSourceFormat.OrcaSlicer && p.SourceVersion == Orca.Version);
         (mapped.MachineSettingsJson, mapped.ProcessSettingsJson, mapped.FilamentSettingsJson)

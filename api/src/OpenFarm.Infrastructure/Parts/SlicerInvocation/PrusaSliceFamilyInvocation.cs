@@ -37,17 +37,23 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
             ?? throw new SlicingFailedException("OrcaSlicer/Bambu Studio require a resolved machine/process/filament profile to slice.");
 
         var dropInherits = ResolvesInherits(slicer);
-        var machineSettingsPath = Path.Combine(workDirectoryPath, "machine_settings.json");
-        File.WriteAllText(machineSettingsPath, ForCli(JsonNode.Parse(profiles.MachineSettingsJson)!.AsObject(), "machine", dropInherits));
+        // A project's own machine and process are left alone: no --load-settings, so only the filaments are loaded over it.
+        var loadSettings = string.Empty;
+        if (!profiles.FollowsProject)
+        {
+            var machineSettingsPath = Path.Combine(workDirectoryPath, "machine_settings.json");
+            File.WriteAllText(machineSettingsPath, ForCli(JsonNode.Parse(profiles.MachineSettingsJson!)!.AsObject(), "machine", dropInherits));
 
-        var processSettingsPath = Path.Combine(workDirectoryPath, "process_settings.json");
-        File.WriteAllText(processSettingsPath, ForCli(JsonNode.Parse(profiles.ProcessSettingsJson)!.AsObject(), "process", dropInherits));
+            var processSettingsPath = Path.Combine(workDirectoryPath, "process_settings.json");
+            File.WriteAllText(processSettingsPath, ForCli(JsonNode.Parse(profiles.ProcessSettingsJson!)!.AsObject(), "process", dropInherits));
+            loadSettings = $"--load-settings \"{machineSettingsPath};{processSettingsPath}\" ";
+        }
 
         var filamentSettingsPaths = WriteFilamentSettings(profiles, workDirectoryPath, dropInherits);
 
         var outputPath = Path.Combine(workDirectoryPath, "output.gcode.3mf");
 
-        var arguments = $"--slice {profiles.Plate} --allow-newer-file --load-settings \"{machineSettingsPath};{processSettingsPath}\" --load-filaments \"{string.Join(';', filamentSettingsPaths)}\" " +
+        var arguments = $"--slice {profiles.Plate} --allow-newer-file {loadSettings}--load-filaments \"{string.Join(';', filamentSettingsPaths)}\" " +
             $"--export-3mf \"{outputPath}\" \"{modelFilePath}\"";
 
         return new SlicerProcessInvocation(slicer.ExecutablePath, arguments, outputPath, ProducesGCodeBearingThreeMf: true);

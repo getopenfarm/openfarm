@@ -1,14 +1,9 @@
-using OpenFarm.Application.Profiles;
 using FluentAssertions;
-using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.ConnectionSecrets;
 using OpenFarm.Application.Printers;
-using OpenFarm.Application.Tests.Profiles.Fakes;
-using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Printers;
-using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Tests.Printers;
 
@@ -124,218 +119,17 @@ public class EditPrinterCommandHandlerTests
         await act.Should().ThrowAsync<PrinterNotFoundException>();
     }
 
-    // --- 009 US2: machine/process profile selection + compatibility gate (TDD, plan.md's Constitution Check) ---
-
     [Fact]
-    public async Task HandleAsync_ProcessProfileWithNoMachineProfile_ThrowsRequiresMachineProfile()
+    public async Task HandleAsync_EditsLeaveTheBuildPlateAlone()
     {
         var printer = CreatePrinter();
-        var repository = new InMemoryPrinterRepository(printer);
-        var processRepo = new FakeProcessProfileRepository();
-        var process = ProcessProfile.CreateSystemProfile(
-            "0.20mm Standard", ProfileSourceFormat.OrcaSlicer, null, "{}", "Bambulab", "GP004", true, null, sourceVersion: "1.0.0");
-        await processRepo.AddAsync(process, CancellationToken.None);
-        var handler = CreateHandler(repository, processRepo: processRepo);
-
-        var act = () => handler.HandleAsync(
-            Command(printer.Id, "Printer 1", processProfileId: processRepo.Rows[0].Id),
-            CancellationToken.None);
-
-        await act.Should().ThrowAsync<ProcessProfileRequiresMachineProfileException>();
-    }
-
-    [Fact]
-    public async Task HandleAsync_ProcessProfileNotCompatibleWithMachine_ThrowsIncompatible()
-    {
-        var printer = CreatePrinter();
-        var repository = new InMemoryPrinterRepository(printer);
-        var machineRepo = new FakeMachineProfileRepository();
-        var machine = MachineProfile.CreateSystemProfile(
-            "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""",
-            "Bambulab", "GM010", true, "Bambu Lab P1S", null, sourceVersion: "1.0.0");
-        await machineRepo.AddAsync(machine, CancellationToken.None);
-
-        var processRepo = new FakeProcessProfileRepository();
-        var process = ProcessProfile.CreateSystemProfile(
-            "0.20mm Standard @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, "{}",
-            "Bambulab", "GP004", true, ["Bambu Lab X1 Carbon 0.4 nozzle"], sourceVersion: "1.0.0");
-        await processRepo.AddAsync(process, CancellationToken.None);
-
-        var handler = CreateHandler(repository, machineRepo: machineRepo, processRepo: processRepo);
-
-        var act = () => handler.HandleAsync(
-            Command(printer.Id, "Printer 1", machineProfileId: machine.Id, processProfileId: process.Id),
-            CancellationToken.None);
-
-        await act.Should().ThrowAsync<ProcessProfileIncompatibleWithMachineException>();
-    }
-
-    [Fact]
-    public async Task HandleAsync_UnknownMachineProfileId_ThrowsInvalidProfileReference()
-    {
-        var printer = CreatePrinter();
+        printer.SelectBuildPlate(BuildPlateType.HighTemp);
         var repository = new InMemoryPrinterRepository(printer);
         var handler = CreateHandler(repository);
 
-        var act = () => handler.HandleAsync(
-            Command(printer.Id, "Printer 1", machineProfileId: Guid.NewGuid()),
-            CancellationToken.None);
+        var result = await handler.HandleAsync(Command(printer.Id, "Renamed"), CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidProfileReferenceException>();
-    }
-
-    [Fact]
-    public async Task HandleAsync_CompatibleMachineAndProcess_LinksBothAndLogsGranularEvents()
-    {
-        var printer = CreatePrinter();
-        var repository = new InMemoryPrinterRepository(printer);
-        var machineRepo = new FakeMachineProfileRepository();
-        var machine = MachineProfile.CreateSystemProfile(
-            "Bambu Lab P1S 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""",
-            "Bambulab", "GM001", true, "Bambu Lab P1S", null, sourceVersion: "1.0.0");
-        await machineRepo.AddAsync(machine, CancellationToken.None);
-
-        var processRepo = new FakeProcessProfileRepository();
-        var process = ProcessProfile.CreateSystemProfile(
-            "0.20mm Standard @BBL X1C", ProfileSourceFormat.OrcaSlicer, null, "{}",
-            "Bambulab", "GP004", true, ["Bambu Lab P1S 0.4 nozzle"], sourceVersion: "1.0.0");
-        await processRepo.AddAsync(process, CancellationToken.None);
-
-        var activityLogWriter = new RecordingActivityLogWriter();
-        var handler = CreateHandler(repository, machineRepo: machineRepo, processRepo: processRepo, activityLogWriter: activityLogWriter);
-
-        var result = await handler.HandleAsync(
-            Command(printer.Id, "Printer 1", machineProfileId: machine.Id, processProfileId: process.Id),
-            CancellationToken.None);
-
-        result.MachineProfileId.Should().Be(machine.Id);
-        result.ProcessProfileId.Should().Be(process.Id);
-        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterMachineProfileLinked");
-        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterProcessProfileLinked");
-    }
-
-    [Fact]
-    public async Task HandleAsync_ResendingTheSameAlreadyLinkedProfiles_DoesNotLogAnyGranularEvent()
-    {
-        var printer = CreatePrinter();
-        var machineRepo = new FakeMachineProfileRepository();
-        var machine = MachineProfile.CreateSystemProfile(
-            "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
-            "Bambulab", "GM001", true, "Bambu Lab X1 Carbon", null, sourceVersion: "1.0.0");
-        await machineRepo.AddAsync(machine, CancellationToken.None);
-        printer.LinkMachineProfile(machine.Id);
-
-        var repository = new InMemoryPrinterRepository(printer);
-        var activityLogWriter = new RecordingActivityLogWriter();
-        var handler = CreateHandler(repository, machineRepo: machineRepo, activityLogWriter: activityLogWriter);
-
-        await handler.HandleAsync(Command(printer.Id, "Printer 1", machineProfileId: machine.Id), CancellationToken.None);
-
-        activityLogWriter.Entries.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task HandleAsync_ClearingMachineProfile_LogsUnlinkedEvent()
-    {
-        var printer = CreatePrinter();
-        var machineRepo = new FakeMachineProfileRepository();
-        var machine = MachineProfile.CreateSystemProfile(
-            "Bambu Lab X1 Carbon 0.4 nozzle", ProfileSourceFormat.OrcaSlicer, null, "{}",
-            "Bambulab", "GM001", true, "Bambu Lab X1 Carbon", null, sourceVersion: "1.0.0");
-        await machineRepo.AddAsync(machine, CancellationToken.None);
-        printer.LinkMachineProfile(machine.Id);
-
-        var repository = new InMemoryPrinterRepository(printer);
-        var activityLogWriter = new RecordingActivityLogWriter();
-        var handler = CreateHandler(repository, machineRepo: machineRepo, activityLogWriter: activityLogWriter);
-
-        var result = await handler.HandleAsync(Command(printer.Id, "Printer 1"), CancellationToken.None);
-
-        result.MachineProfileId.Should().BeNull();
-        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterMachineProfileUnlinked");
-    }
-
-    // --- 012 US1: build-plate selection + compatibility gate (TDD, plan.md's Constitution Check) ---
-
-    [Fact]
-    public async Task HandleAsync_CompatibleBuildPlate_PersistsAndLogsSelectedEvent()
-    {
-        var printer = CreatePrinter();
-        var repository = new InMemoryPrinterRepository(printer);
-        var activityLogWriter = new RecordingActivityLogWriter();
-        var handler = CreateHandler(repository, activityLogWriter: activityLogWriter);
-
-        var result = await handler.HandleAsync(
-            Command(printer.Id, "Printer 1", buildPlateType: BuildPlateType.TexturedPei),
-            CancellationToken.None);
-
-        result.BuildPlateType.Should().Be(BuildPlateType.TexturedPei);
-        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterBuildPlateSelected");
-    }
-
-    [Fact]
-    public async Task HandleAsync_IncompatibleBuildPlate_ThrowsIncompatibleBuildPlateAndLeavesPrinterUnchanged()
-    {
-        // Printer model is P1S (CreatePrinter) — compatible set is {Cool, HighTemp, TexturedPei,
-        // Supertack}; Engineering is not in that set.
-        var printer = CreatePrinter();
-        var repository = new InMemoryPrinterRepository(printer);
-        var handler = CreateHandler(repository);
-
-        var act = () => handler.HandleAsync(
-            Command(printer.Id, "Printer 1", buildPlateType: BuildPlateType.Engineering),
-            CancellationToken.None);
-
-        await act.Should().ThrowAsync<IncompatibleBuildPlateException>();
-        printer.BuildPlateType.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task HandleAsync_NoMachineProfilePrerequisite_BuildPlateSelectsOnItsOwn()
-    {
-        var printer = CreatePrinter();
-        var repository = new InMemoryPrinterRepository(printer);
-        var handler = CreateHandler(repository);
-
-        var result = await handler.HandleAsync(
-            Command(printer.Id, "Printer 1", buildPlateType: BuildPlateType.HighTemp),
-            CancellationToken.None);
-
-        result.MachineProfileId.Should().BeNull();
         result.BuildPlateType.Should().Be(BuildPlateType.HighTemp);
-    }
-
-    [Fact]
-    public async Task HandleAsync_ClearingBuildPlate_LogsClearedEvent()
-    {
-        var printer = CreatePrinter();
-        printer.SelectBuildPlate(BuildPlateType.HighTemp);
-
-        var repository = new InMemoryPrinterRepository(printer);
-        var activityLogWriter = new RecordingActivityLogWriter();
-        var handler = CreateHandler(repository, activityLogWriter: activityLogWriter);
-
-        var result = await handler.HandleAsync(Command(printer.Id, "Printer 1"), CancellationToken.None);
-
-        result.BuildPlateType.Should().BeNull();
-        activityLogWriter.Entries.Should().Contain(e => e.EventType == "PrinterBuildPlateCleared");
-    }
-
-    [Fact]
-    public async Task HandleAsync_ResendingTheSameAlreadySelectedBuildPlate_DoesNotLogAnyGranularEvent()
-    {
-        var printer = CreatePrinter();
-        printer.SelectBuildPlate(BuildPlateType.HighTemp);
-
-        var repository = new InMemoryPrinterRepository(printer);
-        var activityLogWriter = new RecordingActivityLogWriter();
-        var handler = CreateHandler(repository, activityLogWriter: activityLogWriter);
-
-        await handler.HandleAsync(
-            Command(printer.Id, "Printer 1", buildPlateType: BuildPlateType.HighTemp),
-            CancellationToken.None);
-
-        activityLogWriter.Entries.Should().BeEmpty();
     }
 
     private static EditPrinterCommand Command(
@@ -345,29 +139,19 @@ public class EditPrinterCommandHandlerTests
         string? accessCode = null,
         string? brand = null,
         string? modelCode = null,
-        string? serialNumber = null,
-        Guid? machineProfileId = null,
-        Guid? processProfileId = null,
-        BuildPlateType? buildPlateType = null) =>
-        new(printerId, name, ipAddress, accessCode, brand, modelCode, serialNumber, machineProfileId, processProfileId, buildPlateType, null, ActorType.System);
+        string? serialNumber = null) =>
+        new(printerId, name, ipAddress, accessCode, brand, modelCode, serialNumber);
 
     private static EditPrinterCommandHandler CreateHandler(
         InMemoryPrinterRepository repository,
         RecordingPrinterConnectorFactory? connectorFactory = null,
-        RecordingPrinterConnectionManager? connectionManager = null,
-        FakeMachineProfileRepository? machineRepo = null,
-        FakeProcessProfileRepository? processRepo = null,
-        RecordingActivityLogWriter? activityLogWriter = null) =>
+        RecordingPrinterConnectionManager? connectionManager = null) =>
         new(
             connectorFactory ?? new RecordingPrinterConnectorFactory(verifies: true),
             repository,
             new InMemoryConnectionSecretRepository(),
             new PassthroughSecretProtector(),
-            connectionManager ?? new RecordingPrinterConnectionManager(),
-            machineRepo ?? new FakeMachineProfileRepository(),
-            processRepo ?? new FakeProcessProfileRepository(),
-            activityLogWriter ?? new RecordingActivityLogWriter(),
-            new ProfileCompatibility(machineRepo ?? new FakeMachineProfileRepository(), new FakeFilamentProfileRepository()));
+            connectionManager ?? new RecordingPrinterConnectionManager());
 
     private static Printer CreatePrinter()
     {
@@ -471,17 +255,6 @@ public class EditPrinterCommandHandlerTests
 
             public Task StopJobAsync(PrinterConnectionDetails details, CancellationToken cancellationToken) =>
                 throw new NotSupportedException();
-        }
-    }
-
-    private sealed class RecordingActivityLogWriter : IActivityLogWriter
-    {
-        public List<ActivityLogEntry> Entries { get; } = [];
-
-        public Task WriteAsync(ActivityLogEntry entry, CancellationToken cancellationToken)
-        {
-            Entries.Add(entry);
-            return Task.CompletedTask;
         }
     }
 }

@@ -20,4 +20,4 @@ public sealed record FleetPrinterSummary(
     int? RemainingTimeMinutes,
     string? CurrentJobName,
     string? FilamentColorHex, decimal? NozzleDiameterMm = null, DateTimeOffset? NozzleObservedAtUtc = null, bool NozzleConfirmed = false, Guid? CurrentPrintJobId = null,
-    DateTimeOffset? StatusSinceUtc = null, IReadOnlyList<PrinterAlert>? Alerts = null);
+    DateTimeOffset? StatusSinceUtc = null, IReadOnlyList<PrinterAlert>? Alerts = null, IReadOnlyList<string>? SetupIssues = null);

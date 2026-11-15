@@ -20,7 +20,7 @@ Discovery uses mDNS on UDP **5353**. If discovery finds no printer, you can stil
 
 ## Configure slicing and toolheads
 
-Use **OrcaSlicer** for U1 production; Bambu Studio does not provide U1 presets. Choose the compatible machine and process profiles and the supported high-temperature build plate.
+Use **OrcaSlicer** for U1 production; Bambu Studio does not provide U1 presets. Select the supported high-temperature build plate.
 
 The U1 appears with four toolhead slots **T1–T4**. Load tracked spools into their actual slots. Each required filament must be on a head with the nozzle size the part needs. Heads can have different nozzle sizes; a preset at one diameter does not make every head compatible.
 

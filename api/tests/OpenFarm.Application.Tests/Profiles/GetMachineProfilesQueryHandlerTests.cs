@@ -13,7 +13,7 @@ namespace OpenFarm.Application.Tests.Profiles;
 public class GetMachineProfilesQueryHandlerTests
 {
     private static GetMachineProfilesQueryHandler CreateHandler(FakeMachineProfileRepository machineRepo) =>
-        new(machineRepo, new StubProfileBundleParser(), new FakePrinterRepository(), new ProfileCompatibility(machineRepo, new FakeFilamentProfileRepository()));
+        new(machineRepo, new StubProfileBundleParser());
 
     [Fact]
     public async Task HandleAsync_LegacyBrowseCall_ExcludesSystemRows()
@@ -68,8 +68,7 @@ public class GetMachineProfilesQueryHandlerTests
 
         var versions = CatalogVersionsFactory.Create(machineRepo, new SlicerRef(SlicerEngine.OrcaSlicer, "2.4.2"),
             CatalogVersionsFactory.Bundled(SlicerEngine.OrcaSlicer, "2.3.1"), CatalogVersionsFactory.Bundled(SlicerEngine.OrcaSlicer, "2.4.2"));
-        var handler = new GetMachineProfilesQueryHandler(machineRepo, new StubProfileBundleParser(), new FakePrinterRepository(),
-            new ProfileCompatibility(machineRepo, new FakeFilamentProfileRepository()), versions);
+        var handler = new GetMachineProfilesQueryHandler(machineRepo, new StubProfileBundleParser(), versions);
 
         var page = await handler.HandleAsync(new GetMachineProfilesQuery(Origin: "All"), CancellationToken.None);
 
@@ -100,8 +99,7 @@ public class GetMachineProfilesQueryHandlerTests
 
         var versions = CatalogVersionsFactory.Create(machineRepo, new SlicerRef(SlicerEngine.OrcaSlicer, "2.4.2"),
             CatalogVersionsFactory.Bundled(SlicerEngine.OrcaSlicer, "2.4.2"), CatalogVersionsFactory.Bundled(SlicerEngine.BambuStudio, "2.7.1"));
-        var handler = new GetMachineProfilesQueryHandler(machineRepo, new StubProfileBundleParser(), new FakePrinterRepository(),
-            new ProfileCompatibility(machineRepo, new FakeFilamentProfileRepository()), versions);
+        var handler = new GetMachineProfilesQueryHandler(machineRepo, new StubProfileBundleParser(), versions);
 
         var picker = await handler.HandleAsync(new GetMachineProfilesQuery(Origin: "All"), CancellationToken.None);
         var imports = await handler.HandleAsync(new GetMachineProfilesQuery(), CancellationToken.None);

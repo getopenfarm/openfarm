@@ -242,7 +242,9 @@ permissions, but cannot call the removed MCP tools.
   a clear plate. `openfarm_mark_printers_ready` takes each printer's `awaitingClearSinceUtc` from `openfarm_list_printers`;
   `MarkPrinterReadyCommand.ExpectedSinceUtc` refuses a printer whose activity changed since (another print
   ended, so the plate the user cleared may not be this one) with `ChangedSinceRead`. Each printer is handled on
-  its own and gets its own activity row.
+  its own and gets its own activity row. The app calls `Idle` Ready and `AwaitingClear` Not ready; the tool contract keeps the
+  original names. A printer a person marked not ready (an operator hold) is also `AwaitingClear`, so the same tool releases it
+  with the user's word. There is no tool to mark a printer not ready: a hold is the operator's to set.
 - Printer cancellation (`openfarm_cancel_print_job`) returns `{ job, confirmed, note }`: confirmed is false
   until telemetry reports the change, as REST's 202.
 - `openfarm_cancel_print_job` requires `expectedPhase` (`PrintJobPhases.Of`: Queued, Starting, Printing, Paused). A

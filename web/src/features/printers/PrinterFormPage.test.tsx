@@ -87,10 +87,6 @@ function printerDetailBody(overrides?: Record<string, unknown>) {
     isReachable: true,
     telemetry: {},
     feedReadings: [],
-    machineProfileId: null,
-    machineProfileName: null,
-    processProfileId: null,
-    processProfileName: null,
     buildPlateType: null,
     buildPlateTypeLabel: null,
     compatibleBuildPlateTypes: [
@@ -754,60 +750,7 @@ describe('PrinterFormPage edit mode', () => {
     ).toBeInTheDocument();
   });
 
-  it('blocks navigation when only a picker outside the form changed', async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: RequestInfo | URL) => {
-        const url = typeof input === 'string' ? input : input.toString();
-        if (url.includes(`/api/v1/printers/${PRINTER_ID}`)) {
-          return Promise.resolve(jsonResponse(printerDetailBody()));
-        }
-        return Promise.resolve(jsonResponse({}));
-      }),
-    );
-
-    renderRoute(`/printers/${PRINTER_ID}/edit`);
-
-    await screen.findByLabelText('Name');
-    await user.click(screen.getByRole('combobox'));
-    await user.click(
-      await screen.findByRole('option', { name: 'High Temp Plate' }),
-    );
-    await user.click(screen.getByRole('link', { name: 'Nav away' }));
-
-    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
-      'Discard unsaved changes?',
-    );
-  });
-
-  // --- 012 US1: build plate <Select> (test-after, plan.md's TDD scoping) ---
-
-  it('renders the backend-supplied compatible build plate labels, not a hand-maintained list', async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = typeof input === 'string' ? input : input.toString();
-      if (url.includes(`/api/v1/printers/${PRINTER_ID}`)) {
-        return Promise.resolve(jsonResponse(printerDetailBody()));
-      }
-      return Promise.resolve(jsonResponse({}));
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    renderRoute(`/printers/${PRINTER_ID}/edit`);
-
-    await screen.findByLabelText('Name');
-    await user.click(screen.getByRole('combobox'));
-
-    expect(
-      await screen.findByRole('option', { name: 'Textured PEI Plate' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('option', { name: 'High Temp Plate' }),
-    ).toBeInTheDocument();
-  });
-
-  it('submits the selected build plate enum value on Save, with no machine-profile prerequisite gate', async () => {
+  it('leaves the build plate to Slicer settings: no plate field, no plate in the PATCH', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
@@ -818,14 +761,7 @@ describe('PrinterFormPage edit mode', () => {
         return Promise.resolve(jsonResponse({ id: PRINTER_ID }));
       }
       if (url.includes(`/api/v1/printers/${PRINTER_ID}`)) {
-        return Promise.resolve(
-          jsonResponse(
-            printerDetailBody({
-              machineProfileId: null,
-              machineProfileName: null,
-            }),
-          ),
-        );
+        return Promise.resolve(jsonResponse(printerDetailBody()));
       }
       return Promise.resolve(jsonResponse({}));
     });
@@ -833,26 +769,19 @@ describe('PrinterFormPage edit mode', () => {
 
     renderRoute(`/printers/${PRINTER_ID}/edit`);
 
-    await screen.findByLabelText('Name');
-    const saveButton = screen.getByRole('button', { name: 'Save' });
-    expect(saveButton).not.toBeDisabled();
+    const name = await screen.findByLabelText('Name');
+    expect(screen.queryByText('Build plate')).not.toBeInTheDocument();
+    await user.type(name, ' 2');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    await user.click(screen.getByRole('combobox'));
-    await user.click(
-      await screen.findByRole('option', { name: 'Textured PEI Plate' }),
-    );
-    await user.click(saveButton);
-
-    let patchCalls: typeof fetchMock.mock.calls = [];
     await waitFor(() => {
-      patchCalls = fetchMock.mock.calls.filter(
+      const patch = fetchMock.mock.calls.find(
         ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH',
       );
-      expect(patchCalls).toHaveLength(1);
+      expect(patch).toBeDefined();
+      expect(
+        JSON.parse((patch as [unknown, RequestInit])[1].body as string),
+      ).not.toHaveProperty('buildPlateType');
     });
-
-    const [, patchInit] = patchCalls[0];
-    const body = JSON.parse((patchInit as RequestInit).body as string);
-    expect(body.buildPlateType).toBe('TexturedPei');
   });
 });

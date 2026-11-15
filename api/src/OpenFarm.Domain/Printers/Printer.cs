@@ -177,27 +177,19 @@ public sealed class Printer
     public IReadOnlyList<ExtruderReading> Extruders { get; private set; }
 
     /// <summary>
-    /// Optional link to a Machine Profile (Phase 2), filling the deferred link `dev-notes/FEATURE_PLAN.md`'s
-    /// own Phase 1 notes earmarked (FR-005b). `null` at creation time — a matching profile might not be
-    /// imported yet.
-    /// </summary>
-    public Guid? MachineProfileId { get; private set; }
-
-    /// <summary>
-    /// Optional link to a Process Profile (009), parallel to <see cref="MachineProfileId"/> — one
-    /// process selection per printer, not per machine profile, so two printers sharing a machine
-    /// profile can independently pick different processes. Gated on machine-selected-first and
-    /// machine/process compatibility in the Application-layer command handler, not here (data-model.md).
-    /// </summary>
-    public Guid? ProcessProfileId { get; private set; }
-
-    /// <summary>
-    /// The printer's own currently-installed physical build plate (012) — independent of
-    /// <see cref="MachineProfileId"/>/<see cref="ProcessProfileId"/>, no machine-profile prerequisite,
-    /// and never re-validated by <see cref="LinkMachineProfile"/>/<see cref="UnlinkMachineProfile"/>
-    /// (FR-008). <c>null</c> for every printer until an operator selects one (data-model.md).
+    /// The printer's own currently-installed physical build plate (012). A file only goes to a printer whose plate it was made
+    /// for; the file carries its own machine and process. <c>null</c> for every printer until an operator selects one (data-model.md).
     /// </summary>
     public BuildPlateType? BuildPlateType { get; private set; }
+
+    /// <summary>
+    /// A real printer cannot take any job until the plate on its bed is declared: a file only goes to the plate it was made for.
+    /// The simulator stands in for every plate; a model the catalog does not know (only test doubles) has none to declare.
+    /// </summary>
+    public bool NeedsBuildPlate => BuildPlateType is null && PrinterModelCatalog.Find(Brand, ModelCode) is { Driver: not PrinterDriver.Simulator };
+
+    /// <summary>What stops every job going to this printer until the operator sets it; empty when nothing does. Derived on read, never stored.</summary>
+    public IReadOnlyList<string> SetupIssues => NeedsBuildPlate ? ["Select a build plate"] : [];
 
     public DateTimeOffset CreatedAtUtc { get; }
 
@@ -230,13 +222,22 @@ public sealed class Printer
     }
 
     /// <summary>
-    /// The only manual status transition this phase supports: AwaitingClear -&gt; Idle ("Mark ready").
+    /// When an operator last marked this printer ready or not ready; null if never. A finished print that ended before
+    /// this was already dealt with, so it is not shown as the current job of a held printer.
+    /// </summary>
+    public DateTimeOffset? ReadinessChangedAtUtc { get; private set; }
+
+    /// <summary>
+    /// The manual status transitions: AwaitingClear -&gt; Idle ("Mark ready") and Idle -&gt; AwaitingClear
+    /// ("Mark not ready", an operator hold).
     /// </summary>
     public void TransitionTo(PrinterStatus target, DateTimeOffset? atUtc = null)
     {
         PrinterStatusTransitions.EnsureValidManualTransition(Status, target);
+        var at = atUtc ?? DateTimeOffset.UtcNow;
         Status = target;
-        SyncActivity(atUtc ?? DateTimeOffset.UtcNow);
+        ReadinessChangedAtUtc = at;
+        SyncActivity(at);
     }
 
     /// <summary>
@@ -395,14 +396,6 @@ public sealed class Printer
         IpAddress = ipAddress;
         BeginConnection();
     }
-
-    public void LinkMachineProfile(Guid machineProfileId) => MachineProfileId = machineProfileId;
-
-    public void UnlinkMachineProfile() => MachineProfileId = null;
-
-    public void LinkProcessProfile(Guid processProfileId) => ProcessProfileId = processProfileId;
-
-    public void UnlinkProcessProfile() => ProcessProfileId = null;
 
     public void SelectBuildPlate(BuildPlateType buildPlateType) => BuildPlateType = buildPlateType;
 

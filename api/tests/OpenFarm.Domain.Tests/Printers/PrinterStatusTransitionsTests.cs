@@ -13,8 +13,16 @@ public class PrinterStatusTransitionsTests
         act.Should().NotThrow();
     }
 
+    // An operator hold: the printer is Not ready until Mark ready, same as after a print.
+    [Fact]
+    public void EnsureValidManualTransition_IdleToAwaitingClear_DoesNotThrow()
+    {
+        var act = () => PrinterStatusTransitions.EnsureValidManualTransition(PrinterStatus.Idle, PrinterStatus.AwaitingClear);
+
+        act.Should().NotThrow();
+    }
+
     [Theory]
-    [InlineData(PrinterStatus.Idle, PrinterStatus.AwaitingClear)]
     [InlineData(PrinterStatus.Idle, PrinterStatus.Printing)]
     [InlineData(PrinterStatus.Printing, PrinterStatus.Idle)]
     [InlineData(PrinterStatus.Printing, PrinterStatus.AwaitingClear)]

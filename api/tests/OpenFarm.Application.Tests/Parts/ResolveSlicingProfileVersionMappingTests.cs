@@ -16,12 +16,7 @@ public class ResolveSlicingProfileVersionMappingTests
 {
     private static ResolveSlicingProfileSelection SelectionOver(TwoEngineCatalog catalog)
     {
-        var printers = new FakePrinterRepository();
-        var compatibility = new ProfileCompatibility(catalog.Machines, catalog.Filaments);
-        return new ResolveSlicingProfileSelection(
-            printers, catalog.Machines, catalog.Processes, catalog.Filaments,
-            new RepresentativeFilamentResolver(catalog.Filaments, new FakeSpoolRepository(), new FakeFilamentRepository(), new FakeFeedUnitRepository(), printers, catalog.Machines, compatibility),
-            compatibility, catalog.Resolver);
+        return new ResolveSlicingProfileSelection(catalog.Machines, catalog.Processes, catalog.Filaments, catalog.Resolver);
     }
 
     private static Task<ResolvedSlicingProfiles> ResolveAsync(
@@ -59,8 +54,8 @@ public class ResolveSlicingProfileVersionMappingTests
         var result = await ResolveAsync(SelectionOver(catalog), machine[Orca231], process[Orca231], filament[Orca231], Orca231);
 
         result.FilamentSettingsJson.Should().Contain(Marker("FILAMENT", "Bambu PLA Basic @BBL X1C", Orca231)).And.NotContain("2.4.2");
-        result.Machine.Outcome.Should().Be(ProfileResolutionOutcome.Exact);
-        result.Process.Outcome.Should().Be(ProfileResolutionOutcome.Exact);
+        result.Machine!.Outcome.Should().Be(ProfileResolutionOutcome.Exact);
+        result.Process!.Outcome.Should().Be(ProfileResolutionOutcome.Exact);
         result.Filament.Outcome.Should().Be(ProfileResolutionOutcome.Exact);
     }
 
@@ -181,7 +176,7 @@ public class ResolveSlicingProfileVersionMappingTests
         result.FilamentSettingsJson.Should().Contain(Marker("FILAMENT", "Bambu PLA Basic @BBL X1C", Bambu271)).And.NotContain("OrcaSlicer");
         new[] { result.MachineSourceFormat, result.ProcessSourceFormat, result.FilamentSourceFormat }
             .Should().OnlyContain(format => format == ProfileSourceFormat.BambuStudio);
-        new[] { result.Machine.Outcome, result.Process.Outcome, result.Filament.Outcome }
+        new[] { result.Machine!.Outcome, result.Process!.Outcome, result.Filament.Outcome }
             .Should().OnlyContain(outcome => outcome == ProfileResolutionOutcome.MappedEngine);
     }
 

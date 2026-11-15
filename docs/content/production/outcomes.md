@@ -28,7 +28,7 @@ These operations preserve the original attempt and prevent resolving the same lo
 
 ## When the start acknowledgement is uncertain
 
-If OpenFarm cannot confirm a start request that uses object controls, it does not automatically send the request again. Check the printer first. The print might have started despite the network failure. If the printer is idle and the bed is clear, use **Confirm print did not start**. This cancels the attempt so you can requeue it.
+If OpenFarm cannot confirm a start request that uses object controls, it does not automatically send the request again. Check the printer first. The print might have started despite the network failure. If the printer is ready and the bed is clear, use **Confirm print did not start**. This cancels the attempt so you can requeue it.
 
 ## Retained execution files
 

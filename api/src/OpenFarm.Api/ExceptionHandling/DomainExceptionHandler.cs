@@ -47,8 +47,6 @@ public sealed class DomainExceptionHandler : IExceptionHandler
             InvalidPrinterStatusTransitionException => (StatusCodes.Status409Conflict, "Invalid printer status transition"),
             OpenFarm.Application.Printers.PrinterChangedSinceReadException => (StatusCodes.Status409Conflict, "Printer changed since it was read"),
             PrinterNotFoundException => (StatusCodes.Status404NotFound, "Printer not found"),
-            ProcessProfileRequiresMachineProfileException => (StatusCodes.Status422UnprocessableEntity, "Machine profile required"),
-            ProcessProfileIncompatibleWithMachineException => (StatusCodes.Status422UnprocessableEntity, "Process profile incompatible with machine"),
             InvalidProfileReferenceException => (StatusCodes.Status400BadRequest, "Invalid profile reference"),
             UnsupportedProfileBundleFormatException => (StatusCodes.Status422UnprocessableEntity, "Unsupported or corrupted profile bundle"),
             ProfileSelectionMismatchException => (StatusCodes.Status422UnprocessableEntity, "Selection does not match the uploaded bundle"),

@@ -166,7 +166,7 @@ public class RealSlicerGoldenFileTests
     // fixture sliced against a non-default plate needs it injected directly into the process JSON.
     private static ResolvedSlicingProfiles WithBedTypeOverride(ResolvedSlicingProfiles profiles, string bedType)
     {
-        var processSettings = JsonNode.Parse(profiles.ProcessSettingsJson)!.AsObject();
+        var processSettings = JsonNode.Parse(profiles.ProcessSettingsJson!)!.AsObject();
         processSettings["curr_bed_type"] = bedType;
 
         return profiles with { ProcessSettingsJson = processSettings.ToJsonString() };

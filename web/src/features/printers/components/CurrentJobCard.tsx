@@ -1,7 +1,7 @@
-import { EmptyState } from '@/components/empty-state/EmptyState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import type { PrinterDetailTelemetryResponse } from '@/lib/api/generated/endpoints.schemas';
+import { cn } from '@/lib/utils';
 
 export interface CurrentJobCardProps {
   telemetry: PrinterDetailTelemetryResponse;
@@ -33,37 +33,40 @@ export function CurrentJobCard({ telemetry }: CurrentJobCardProps) {
         <CardTitle className="text-sm font-semibold">Current job</CardTitle>
       </CardHeader>
       <CardContent className="px-[18px] py-4">
-        {isActive ? (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-baseline justify-between gap-2.5">
-                <span className="truncate text-sm">
-                  {telemetry.currentJobName ?? 'Printing'}
-                </span>
-                <span className="shrink-0 font-mono text-sm font-medium text-status-printing">
-                  {progress}%
-                </span>
-              </div>
-              <Progress
-                value={progress}
-                className="h-1.5"
-                indicatorClassName="bg-status-printing"
-              />
+        {/* Same layout idle or printing: an empty bar and dashes keep the card's shape. */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-baseline justify-between gap-2.5">
+              <span
+                className={cn(
+                  'truncate text-sm',
+                  !isActive && 'text-muted-foreground',
+                )}
+              >
+                {telemetry.currentJobName ??
+                  (isActive ? 'Printing' : 'No active print')}
+              </span>
+              <span className="shrink-0 font-mono text-sm font-medium text-status-printing">
+                {isActive ? `${progress}%` : '—'}
+              </span>
             </div>
-            <div className="flex gap-8">
-              <MetaField
-                label="Time left"
-                value={formatEta(telemetry.remainingTimeMinutes)}
-              />
-              <MetaField
-                label="Stage"
-                value={telemetry.currentStageLabel ?? '—'}
-              />
-            </div>
+            <Progress
+              value={progress ?? 0}
+              className="h-1.5"
+              indicatorClassName="bg-status-printing"
+            />
           </div>
-        ) : (
-          <EmptyState size="sm" bordered={false} title="No active print" />
-        )}
+          <div className="flex gap-8">
+            <MetaField
+              label="Time left"
+              value={isActive ? formatEta(telemetry.remainingTimeMinutes) : '—'}
+            />
+            <MetaField
+              label="Stage"
+              value={telemetry.currentStageLabel ?? '—'}
+            />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

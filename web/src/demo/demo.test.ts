@@ -34,6 +34,21 @@ describe('marketing-site demo API', () => {
     expect((await call('GET', '/nothing-here')).status).toBe(404);
   });
 
+  it('changes a printer build plate from Slicer settings', async () => {
+    const id = printers[0].id;
+    const plate = async (value: string) =>
+      (
+        await call('PUT', `/printers/${id}/slicer-settings`, {
+          buildPlateType: value,
+        })
+      ).status;
+    expect(await plate('HighTemp')).toBe(200);
+    expect(
+      (await (await call('GET', `/printers/${id}`)).json()).buildPlateType,
+    ).toBe('HighTemp');
+    expect(await plate('Engineering')).toBe(422);
+  });
+
   it('quotes an assembly for the Build panel and Pricing', async () => {
     const quote = await (
       await call('POST', '/assemblies/quote', {
@@ -71,5 +86,24 @@ describe('marketing-site demo API', () => {
     expect(printer?.status).toBe('Printing');
     expect(job?.name).toBe('Control knob');
     expect(job?.status).toBe('Printing');
+  });
+
+  // The simulator started in the test above.
+  it('holds a ready printer, sends it nothing, and refuses a printing or held one', async () => {
+    const ready = printers.find((p) => p.status === 'Idle');
+    const printing = printers.find((p) => p.status === 'Printing');
+    expect(ready).toBeDefined();
+    const hold = (id?: string) =>
+      call('POST', `/printers/${id}/mark-not-ready`);
+    expect((await hold(printing?.id)).status).toBe(409);
+    expect((await hold(ready?.id)).status).toBe(200);
+    expect(ready?.status).toBe('AwaitingClear');
+    await vi.advanceTimersByTimeAsync(7000);
+    expect(ready?.status).toBe('AwaitingClear');
+    expect((await hold(ready?.id)).status).toBe(409);
+    expect(
+      (await call('POST', `/printers/${ready?.id}/mark-ready`)).status,
+    ).toBe(200);
+    expect(ready?.status).toBe('Idle');
   });
 });

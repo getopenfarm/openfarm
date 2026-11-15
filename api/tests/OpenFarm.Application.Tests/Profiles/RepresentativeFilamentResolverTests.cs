@@ -30,7 +30,6 @@ public sealed class RepresentativeFilamentResolverTests
             var machine = MachineProfile.Create("P1S 0.4", ProfileSourceFormat.OrcaSlicer, null,
                 """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""");
             Machines.AddAsync(machine, default).GetAwaiter().GetResult();
-            Printer.LinkMachineProfile(machine.Id);
             Printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
             var printers = new FakePrinterRepository(Printer);
             Default = FilamentProfile.Create("My PLA", ProfileSourceFormat.OrcaSlicer, null,
@@ -40,7 +39,7 @@ public sealed class RepresentativeFilamentResolverTests
             Black = Filament.AddVariant("Black", "#000000");
             Filaments.AddAsync(Filament, default).GetAwaiter().GetResult();
             var compatibility = new ProfileCompatibility(Machines, Profiles);
-            Resolver = new(Profiles, Spools, Filaments, Units, printers, Machines, compatibility);
+            Resolver = new(Profiles, Spools, Filaments, Units, printers, compatibility);
             Assignments = new(Profiles, printers, compatibility, new FakeSlicingDefaultsQuery(), new ProfileResolver(Machines, new FakeProcessProfileRepository(), Profiles));
         }
 
@@ -155,11 +154,11 @@ public sealed class RepresentativeFilamentResolverTests
     }
 
     [Fact]
-    public async Task NozzleChangeRejectsOldMachinePreset()
+    public async Task NozzleChangeNeedsAnAssignmentForTheNewNozzle()
     {
         var f = new Fixture(); await f.LoadAsync(); await f.AssignAsync(); f.Printer.ObserveNozzle(0.6m, DateTimeOffset.UtcNow);
         var act = () => f.Resolver.ResolveAsync(f.Printer.Id, "PLA", default);
-        await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>().WithMessage("*does not match*");
+        await act.Should().ThrowAsync<SlicingProfileUnconfiguredException>().WithMessage("*Assign a profile*0.6 mm*");
     }
 
     [Fact]

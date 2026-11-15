@@ -11,12 +11,11 @@ public class AddPartCommandValidatorTests
     private static readonly AddPartCommandValidator Validator = new();
 
     [Theory]
-    [InlineData("bracket.stl")]
     [InlineData("bracket.3mf")]
     [InlineData("bracket.gcode")]
     [InlineData("bracket.gco")]
     [InlineData("bracket.g")]
-    [InlineData("BRACKET.STL")]
+    [InlineData("BRACKET.3MF")]
     public void Validate_RecognizedExtension_Passes(string fileName)
     {
         var result = Validator.Validate(new AddPartCommand(new MemoryStream(), fileName, null, null, null));
@@ -25,6 +24,8 @@ public class AddPartCommandValidatorTests
     }
 
     [Theory]
+    [InlineData("bracket.stl")] // carries no slicing settings: a project 3MF or a sliced file is needed
+    [InlineData("BRACKET.STL")]
     [InlineData("bracket.obj")]
     [InlineData("bracket")]
     [InlineData("")]
@@ -38,7 +39,7 @@ public class AddPartCommandValidatorTests
     [Fact]
     public void Validate_BlankSlicerVersionOverride_Fails()
     {
-        var result = Validator.Validate(new AddPartCommand(new MemoryStream(), "bracket.stl", SlicerEngine.OrcaSlicer, "   ", null));
+        var result = Validator.Validate(new AddPartCommand(new MemoryStream(), "bracket.3mf", SlicerEngine.OrcaSlicer, "   ", null));
 
         result.IsValid.Should().BeFalse();
     }
@@ -46,7 +47,7 @@ public class AddPartCommandValidatorTests
     [Fact]
     public void Validate_SlicerVersionOverrideWithoutEngine_Fails()
     {
-        var result = Validator.Validate(new AddPartCommand(new MemoryStream(), "bracket.stl", null, "2.2.0", null));
+        var result = Validator.Validate(new AddPartCommand(new MemoryStream(), "bracket.3mf", null, "2.2.0", null));
 
         result.IsValid.Should().BeFalse();
     }
@@ -54,7 +55,7 @@ public class AddPartCommandValidatorTests
     [Fact]
     public void Validate_SlicerEngineAndVersionOverrideBothPresent_Passes()
     {
-        var result = Validator.Validate(new AddPartCommand(new MemoryStream(), "bracket.stl", SlicerEngine.OrcaSlicer, "2.2.0", null));
+        var result = Validator.Validate(new AddPartCommand(new MemoryStream(), "bracket.3mf", SlicerEngine.OrcaSlicer, "2.2.0", null));
 
         result.IsValid.Should().BeTrue();
     }
@@ -62,7 +63,7 @@ public class AddPartCommandValidatorTests
     [Fact]
     public void Validate_SlicerEngineOverrideOnlyNoVersion_Passes()
     {
-        var result = Validator.Validate(new AddPartCommand(new MemoryStream(), "bracket.stl", SlicerEngine.OrcaSlicer, null, null));
+        var result = Validator.Validate(new AddPartCommand(new MemoryStream(), "bracket.3mf", SlicerEngine.OrcaSlicer, null, null));
 
         result.IsValid.Should().BeTrue();
     }

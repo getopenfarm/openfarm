@@ -10,7 +10,7 @@ using OpenFarm.Domain.Printers;
 
 namespace OpenFarm.Api.IntegrationTests.Parts;
 
-// quickstart Story 3 step 1, research.md §0a — a printer whose machine/process are Bambu-Studio-
+// quickstart Story 3 step 1, research.md §0a — a machine/process that are Bambu-Studio-
 // sourced must resolve settings JSON that actually contains the `include`-folded-in gcode fields
 // (machine_start_gcode/change_filament_gcode/etc.), not silently drop them the way a plain
 // ancestor-chain merge (with no `include` awareness) would.
@@ -19,7 +19,7 @@ public class BambuStudioSlicingResolutionTests(CustomWebApplicationFactory facto
     private static readonly string FixturesRoot = Path.Combine(AppContext.BaseDirectory, "Profiles", "Fixtures", "VendorIndex");
 
     [Fact]
-    public async Task ResolveAsync_PrinterWithBambuStudioSourcedMachineAndProcess_ResolvesIncludedGcodeFields()
+    public async Task ResolveProfilesAsync_BambuStudioSourcedMachineAndProcess_ResolvesIncludedGcodeFields()
     {
         var vendorName = $"Bambulab-{Guid.NewGuid():N}";
         var leaf = StageBambuStudioLeaf(vendorName);
@@ -29,23 +29,11 @@ public class BambuStudioSlicingResolutionTests(CustomWebApplicationFactory facto
 
         var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
         var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
-        var printerRepo = scope.ServiceProvider.GetRequiredService<IPrinterRepository>();
 
         var machine = (await machineRepo.ListAsync(CancellationToken.None))
             .Single(p => p.VendorName == vendorName && p.ExternalId == "GM001");
         var process = (await processRepo.ListAsync(CancellationToken.None))
             .Single(p => p.VendorName == vendorName && p.ExternalId == "GP004");
-
-        var printer = Printer.Create(
-            "Bambu Studio Resolution Test Printer",
-            "Bambu", "X1C", "10.0.0.96", $"BS-{Guid.NewGuid():N}");
-        printer.LinkMachineProfile(machine.Id);
-        printer.LinkProcessProfile(process.Id);
-        // 012 — required for ResolveForPrinterAsync to succeed; the ingested BambuStudio PLA fixture
-        // declares a real (non-"0") hot_plate_temp.
-        printer.SelectBuildPlate(BuildPlateType.HighTemp);
-        await printerRepo.AddAsync(printer, CancellationToken.None);
-        await printerRepo.SaveChangesAsync(CancellationToken.None);
 
         var resolver = scope.ServiceProvider.GetRequiredService<ResolveSlicingProfileSelection>();
 
@@ -56,8 +44,8 @@ public class BambuStudioSlicingResolutionTests(CustomWebApplicationFactory facto
         result.MachineSettingsJson.Should().Contain("change_filament_gcode");
     }
 
-    // Two Bambu Studio versions ingested from the same vendor data, the second with edited presets. A printer keeps
-    // pointing at the first version's rows; slicing for the second version must flatten the second version's data —
+    // Two Bambu Studio versions ingested from the same vendor data, the second with edited presets. Rows picked
+    // in the first version; slicing for the second version must flatten the second version's data —
     // through real Postgres queries (the identity lookup and the ingested-versions check are SQL, which fakes cannot prove).
     [Fact]
     public async Task ResolveProfilesAsync_RowsPickedInAnOlderVersion_FlattenWithTheRunningVersionsData()

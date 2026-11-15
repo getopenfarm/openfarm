@@ -18,12 +18,7 @@ public class ResolveProjectEstimationProfilesTests
 
     private ResolveProjectEstimationProfiles Sut()
     {
-        var printers = new FakePrinterRepository();
-        var compatibility = new ProfileCompatibility(_catalog.Machines, _catalog.Filaments);
-        var selection = new ResolveSlicingProfileSelection(printers, _catalog.Machines, _catalog.Processes, _catalog.Filaments,
-            new RepresentativeFilamentResolver(_catalog.Filaments, new FakeSpoolRepository(), new FakeFilamentRepository(), new FakeFeedUnitRepository(),
-                printers, _catalog.Machines, compatibility),
-            compatibility, _catalog.Resolver);
+        var selection = new ResolveSlicingProfileSelection(_catalog.Machines, _catalog.Processes, _catalog.Filaments, _catalog.Resolver);
         return new ResolveProjectEstimationProfiles(_catalog.Machines, _catalog.Processes, _catalog.Filaments, new ResolveEstimationProfiles(selection));
     }
 

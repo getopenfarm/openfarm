@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PrintersTable } from './PrintersTable';
 
 describe('PrintersTable', () => {
-  it('shows awaiting-clear status without readiness controls and supports detail navigation', async () => {
+  it('shows not-ready status without readiness controls and supports detail navigation', async () => {
     const onOpen = vi.fn();
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -43,7 +43,7 @@ describe('PrintersTable', () => {
       'href',
       '/printers/ready',
     );
-    await userEvent.click(screen.getByText('Awaiting clear'));
+    await userEvent.click(screen.getByText('Not ready'));
     expect(onOpen).toHaveBeenCalledWith('ready');
   });
 });

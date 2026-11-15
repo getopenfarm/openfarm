@@ -16,12 +16,7 @@ public class ResolveEstimationProfilesTests
 
     private ResolveEstimationProfiles Sut()
     {
-        var printers = new FakePrinterRepository();
-        var compatibility = new ProfileCompatibility(_catalog.Machines, _catalog.Filaments);
-        var selection = new ResolveSlicingProfileSelection(printers, _catalog.Machines, _catalog.Processes, _catalog.Filaments,
-            new RepresentativeFilamentResolver(_catalog.Filaments, new FakeSpoolRepository(), new FakeFilamentRepository(), new FakeFeedUnitRepository(),
-                printers, _catalog.Machines, compatibility),
-            compatibility, _catalog.Resolver);
+        var selection = new ResolveSlicingProfileSelection(_catalog.Machines, _catalog.Processes, _catalog.Filaments, _catalog.Resolver);
         return new ResolveEstimationProfiles(selection);
     }
 
@@ -38,7 +33,7 @@ public class ResolveEstimationProfilesTests
         profiles.MachineSettingsJson.Should().Contain(Marker("MACHINE", MachineName, Bambu271)).And.NotContain(Marker("MACHINE", MachineName, Orca242));
         profiles.ProcessSettingsJson.Should().Contain(Marker("PROCESS", "0.20mm Standard @BBL X1C", Bambu271));
         profiles.FilamentSettingsJson.Should().Contain(Marker("FILAMENT", "Bambu PLA Basic @BBL X1C", Bambu271));
-        new[] { profiles.Machine, profiles.Process, profiles.Filament }.Should().OnlyContain(p => p.Outcome == ProfileResolutionOutcome.MappedEngine);
+        new[] { profiles.Machine!, profiles.Process!, profiles.Filament }.Should().OnlyContain(p => p.Outcome == ProfileResolutionOutcome.MappedEngine);
         details.Source.Should().Be("DefaultProfiles");
     }
 

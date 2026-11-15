@@ -41,6 +41,21 @@ public class RealSlicerMultiColourTests
         AssertBothSlotsPrint(gcode);
     }
 
+    // Production follows the project: no --load-settings, so its own machine, process and plate stay, and only the filaments
+    // are loaded over it — each slot with its own line's preset and colour.
+    [RealSlicerFact(SlicerEngine.OrcaSlicer, "2.3.1")]
+    public async Task OrcaSlicer231_TwoColourProject_FollowingItsOwnMachineAndProcess_LoadsOnlyTheFilaments()
+    {
+        var gcode = await SliceTwoColourProjectAsync("Bambu Lab P1S 0.4 nozzle", "0.20mm Standard @BBL X1C",
+            "Bambu PLA Basic @BBL X1C", "Bambu PLA Matte @BBL X1C", BuildPlateType.TexturedPei, perSlotFiles: true, followProject: true);
+
+        AssertBothSlotsPrint(gcode);
+        var values = GCodeMetadataHelper.ParseComments(gcode);
+        values["printer_settings_id"].Should().Be("Bambu Lab P1S 0.4 nozzle");
+        values["print_settings_id"].Should().Be("0.20mm Standard @BBL X1C");
+        values["curr_bed_type"].Should().Be("Textured PEI Plate");
+    }
+
     private static void AssertBothSlotsPrint(string gcode)
     {
         var values = GCodeMetadataHelper.ParseComments(gcode);
@@ -50,7 +65,7 @@ public class RealSlicerMultiColourTests
     }
 
     private static async Task<string> SliceTwoColourProjectAsync(string machineName, string processName, string firstFilament,
-        string secondFilament, BuildPlateType plate, bool perSlotFiles)
+        string secondFilament, BuildPlateType plate, bool perSlotFiles, bool followProject = false)
     {
         var (available, reason) = RealSlicerBundleLocator.TryResolve(Orca231.Engine, Orca231.Version);
         available.Should().NotBeNull(reason);
@@ -68,6 +83,7 @@ public class RealSlicerMultiColourTests
             Filaments = [new(first.FilamentSettingsJson, first.Filament), new(second.FilamentSettingsJson, second.Filament)],
             Slots = perSlotFiles ? [new SlotFilament(0, "#FF0000"), new SlotFilament(1, "#0000FF")] : [],
         };
+        if (followProject) profiles = profiles with { MachineSettingsJson = null, ProcessSettingsJson = null, Machine = null, Process = null, Plate = 1 };
         return await RealSlicerProcessRunner.SliceAsync(available!, new PrusaSliceFamilyInvocation(), project, PartFileFormat.ThreeMf,
             "PLA", 0.4m, profiles, CancellationToken.None);
     }
@@ -85,8 +101,8 @@ public class RealSlicerMultiColourTests
                 return path;
             }
 
-            var machine = Write("machine.json", first.MachineSettingsJson);
-            var process = Write("process.json", first.ProcessSettingsJson);
+            var machine = Write("machine.json", first.MachineSettingsJson!);
+            var process = Write("process.json", first.ProcessSettingsJson!);
             var red = Write("red.json", WithColour(first.FilamentSettingsJson, "#FF0000"));
             var blue = Write("blue.json", WithColour(second.FilamentSettingsJson, "#0000FF"));
             var left = Write("left.stl", Cube(20));

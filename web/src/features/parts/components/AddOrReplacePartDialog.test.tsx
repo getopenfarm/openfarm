@@ -124,7 +124,7 @@ describe('AddOrReplacePartDialog (replace mode)', () => {
       await screen.findByRole('option', { name: 'SuperSlicer 2.5.59.13' }),
     );
 
-    const file = new File(['solid test'], 'benchy.stl', {
+    const file = new File(['solid test'], 'benchy.3mf', {
       type: 'application/octet-stream',
     });
     // The dialog content is portaled to document.body by Radix, so it lives outside the

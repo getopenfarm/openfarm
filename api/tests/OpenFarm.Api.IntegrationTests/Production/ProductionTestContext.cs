@@ -119,26 +119,15 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
         return (await scope.ServiceProvider.GetRequiredService<IPrintJobRepository>().ListByProductionRunIdAsync(runId, default)).ToList();
     }
 
-    /// <param name="machineProfile">Existing presets to point the printer (and its filament assignment) at; the default is a fresh imported machine and filament profile.</param>
+    /// <param name="existingFilamentProfile">An existing filament preset to assign to the printer's spool; the default is a fresh imported one.</param>
     protected async Task<Printer> PrinterAsync(bool manual = false, string state = "IDLE",
-        MachineProfile? machineProfile = null, ProcessProfile? processProfile = null, FilamentProfile? existingFilamentProfile = null,
-        string brand = "System", string modelCode = "Simulation")
+        FilamentProfile? existingFilamentProfile = null, string brand = "System", string modelCode = "Simulation")
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        // A vendor's machine preset names its model; the simulator's names none.
-        var vendorModel = PrinterModelCatalog.Resolve(brand, modelCode).VendorMachineModelName;
-        var profile = machineProfile ?? MachineProfile.Create($"Machine {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
-            vendorModel is null ? "{\"nozzle_diameter\":[\"0.4\"]}" : $$"""{"nozzle_diameter":["0.4"],"printer_model":"{{vendorModel}}"}""");
-        if (machineProfile is null) db.MachineProfiles.Add(profile);
         var printer = Printer.Create($"Printer {Guid.NewGuid():N}", brand, modelCode, "127.0.0.1", $"SN{Guid.NewGuid():N}");
-        printer.LinkMachineProfile(profile.Id);
-        if (processProfile is not null)
-        {
-            printer.LinkProcessProfile(processProfile.Id);
-            printer.SelectBuildPlate(BuildPlateType.HighTemp);
-        }
-
+        // The file brings its own machine and process; the printer only says which plate is on its bed.
+        printer.SelectBuildPlate(BuildPlateType.HighTemp);
         printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
         var filamentProfile = existingFilamentProfile ?? FilamentProfile.Create($"PLA {Guid.NewGuid():N}", ProfileSourceFormat.OrcaSlicer, null,
             """{"filament_type":["PLA"],"hot_plate_temp":["55"]}""");

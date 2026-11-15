@@ -132,6 +132,9 @@ const PLATE_LABELS: Record<string, string> = {
   HighTemp: 'High Temp Plate',
 };
 
+// The plate a visitor picked in Slicer settings; the rest of the farm keeps the model's default.
+const plateOverrides = new Map<string, string>();
+
 // --- printers ------------------------------------------------------------------------------------------------
 function loadedSpool(printer: Printer, slotIndex = -1) {
   const slots = printer.feed.flatMap((unit) => unit.slots);
@@ -220,7 +223,9 @@ export function fleetPrinter(printer: Printer): FleetPrinterResponse {
   };
 }
 function printerDetail(printer: Printer): PrinterDetailResponse {
-  const plate = printer.modelCode === 'U1' ? 'HighTemp' : 'TexturedPei';
+  const plate =
+    plateOverrides.get(printer.id) ??
+    (printer.modelCode === 'U1' ? 'HighTemp' : 'TexturedPei');
   return {
     id: printer.id,
     name: printer.name,
@@ -233,11 +238,6 @@ function printerDetail(printer: Printer): PrinterDetailResponse {
     isReachable: printer.reachable,
     telemetry: telemetry(printer),
     feedReadings: feedReadings(printer),
-    machineProfileId: id('3ac1', printers.indexOf(printer) + 1),
-    machineProfileName: `${MODELS[printer.modelCode].name} ${printer.nozzle} nozzle`,
-    machineProfileIssue: null,
-    processProfileId: id('3ac2', 1),
-    processProfileName: '0.20mm Standard',
     buildPlateType: plate,
     buildPlateTypeLabel: PLATE_LABELS[plate],
     compatibleBuildPlateTypes: Object.entries(PLATE_LABELS).map(
@@ -577,14 +577,14 @@ export function printerChecks(job: Job, printer: Printer): MatchingCheck[] {
     nozzleMatches
       ? check(
           'profiles',
-          'Production profile readiness',
+          'File and filament profiles',
           true,
-          'Compatible machine and filament assignments; slicing settings when needed',
+          'File made for this model and plate; filament profiles assigned',
           'Ready',
         )
       : {
           code: 'profiles',
-          label: 'Production profile readiness',
+          label: 'File and filament profiles',
           status: 'NotEvaluated',
           required: null,
           actual: null,
@@ -1262,7 +1262,7 @@ function tasks(): MaintenanceTaskResponse[] {
 // --- accounts ------------------------------------------------------------------------------------------------
 // Every permission (PermissionCatalog.cs): the demo operator sees and can try everything.
 const PERMISSIONS =
-  'activity-log:list assemblies:create assemblies:delete assemblies:edit assemblies:view feed-units:add feed-units:configure feed-units:list feed-units:remove filaments:assign-profiles filaments:create filaments:list library:delete library:manage library:view maintenance:complete maintenance:delete maintenance:manage maintenance:view non-printed-components:create non-printed-components:delete non-printed-components:edit non-printed-components:view parts:create parts:delete parts:edit parts:list parts:read parts:replace-file parts:view print-jobs:cancel print-jobs:pin print-jobs:remote-control print-jobs:reorder print-jobs:requeue print-jobs:update-status print-jobs:view print-jobs:write-off printers:edit-connection printers:get-detail printers:list printers:mark-ready printers:register printers:remove printers:verify-connection production-runs:cancel production-runs:close production-runs:create production-runs:edit production-runs:view profiles:confirm-import profiles:edit-filament-raw-data profiles:edit-machine-raw-data profiles:get-filament profiles:get-machine profiles:get-process profiles:list-filament profiles:list-machine profiles:list-process profiles:preview-import settings:fees:read settings:fees:update settings:general:read settings:general:update settings:printer-costs:read settings:printer-costs:update settings:slicing-defaults:read settings:slicing-defaults:update spools:list spools:load spools:override-weight spools:record-usage spools:register spools:unload tags:list users:manage vendors:create vendors:list auth:self'.split(
+  'activity-log:list assemblies:create assemblies:delete assemblies:edit assemblies:view feed-units:add feed-units:configure feed-units:list feed-units:remove filaments:assign-profiles filaments:create filaments:list library:delete library:manage library:view maintenance:complete maintenance:delete maintenance:manage maintenance:view non-printed-components:create non-printed-components:delete non-printed-components:edit non-printed-components:view parts:create parts:delete parts:edit parts:list parts:read parts:replace-file parts:view print-jobs:cancel print-jobs:pin print-jobs:remote-control print-jobs:reorder print-jobs:requeue print-jobs:update-status print-jobs:view print-jobs:write-off printers:edit-connection printers:edit-slicer-settings printers:get-detail printers:list printers:mark-ready printers:register printers:remove printers:verify-connection production-runs:cancel production-runs:close production-runs:create production-runs:edit production-runs:view profiles:confirm-import profiles:edit-filament-raw-data profiles:edit-machine-raw-data profiles:get-filament profiles:get-machine profiles:get-process profiles:list-filament profiles:list-machine profiles:list-process profiles:preview-import settings:fees:read settings:fees:update settings:general:read settings:general:update settings:printer-costs:read settings:printer-costs:update settings:slicing-defaults:read settings:slicing-defaults:update spools:list spools:load spools:override-weight spools:record-usage spools:register spools:unload tags:list users:manage vendors:create vendors:list auth:self'.split(
     ' ',
   );
 const whoami: WhoAmIResult = {
@@ -1359,6 +1359,7 @@ const fakeToken = () =>
 /** The simulator's hooks for state changes the visitor starts (see simulator.ts). */
 export const actions = {
   markReady: (_printer: Printer) => {},
+  markNotReady: (_printer: Printer) => {},
   remote: (_job: Job, _action: 'pause' | 'resume' | 'cancel') => {},
   changed: () => {},
 };
@@ -1612,21 +1613,40 @@ route('GET', '/printers/{id}/camera.jpg', async ({ params, headers }) => {
 route('GET', '/printers/{printerId}/feed-units', ({ params }) => ({
   feedUnits: feedUnits(printerById(params.printerId) ?? printers[0]),
 }));
+route('PUT', '/printers/{id}/slicer-settings', ({ params, body }) => {
+  const printer = printerById(params.id);
+  const plate = (body as { buildPlateType?: string | null }).buildPlateType;
+  if (!printer || !plate || !(plate in PLATE_LABELS))
+    return problem(422, 'Build plate incompatible with printer model.');
+  plateOverrides.set(printer.id, plate);
+  return { id: printer.id, name: printer.name, status: printer.status };
+});
+const printerSummary = (printer: Printer) => ({
+  id: printer.id,
+  name: printer.name,
+  brand: printer.brand,
+  modelCode: printer.modelCode,
+  ipAddress: printer.ip,
+  serialNumber: printer.serial,
+  status: printer.status,
+  isReachable: printer.reachable,
+});
 route('POST', '/printers/{id}/mark-ready', ({ params }) => {
   const printer = printerById(params.id);
   if (printer?.status !== 'AwaitingClear')
-    return problem(409, 'Printer is not awaiting clear.');
+    return problem(
+      409,
+      'Only a printer that is not ready can be marked ready.',
+    );
   actions.markReady(printer);
-  return {
-    id: printer.id,
-    name: printer.name,
-    brand: printer.brand,
-    modelCode: printer.modelCode,
-    ipAddress: printer.ip,
-    serialNumber: printer.serial,
-    status: printer.status,
-    isReachable: printer.reachable,
-  };
+  return printerSummary(printer);
+});
+route('POST', '/printers/{id}/mark-not-ready', ({ params }) => {
+  const printer = printerById(params.id);
+  if (printer?.status !== 'Idle')
+    return problem(409, 'Only a ready printer can be marked not ready.');
+  actions.markNotReady(printer);
+  return printerSummary(printer);
 });
 
 // Notifications: the low-stock colours (maintenance due comes from its own endpoint).

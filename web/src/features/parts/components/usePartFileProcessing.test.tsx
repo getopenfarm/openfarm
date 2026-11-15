@@ -11,7 +11,7 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function makeFile(name = 'benchy.stl') {
+function makeFile(name = 'benchy.3mf') {
   return new File(['solid test'], name, { type: 'application/octet-stream' });
 }
 

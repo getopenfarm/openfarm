@@ -19,7 +19,7 @@ The Print dialog also sets:
 For an exact unit target or complete assembly sets, use [Runs](runs.md). For repeat production during idle capacity, use [Continuous backfill](backfill.md).
 
 :::caution Ready printers may start
-A queued job can start automatically on a compatible idle printer. Before you send work to the queue, check the physical bed and material path.
+A queued job can start automatically on a compatible ready printer. Before you send work to the queue, check the physical bed and material path.
 :::
 
 ## Follow a job

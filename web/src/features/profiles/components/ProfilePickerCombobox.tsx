@@ -65,8 +65,6 @@ export interface ProfilePickerComboboxProps {
   searchPlaceholder?: string;
   /** process/filament only (contracts/profiles-api.md). */
   compatibleWithMachineName?: string | null;
-  /** process only — sugar over compatibleWithMachineName. */
-  printerId?: string | null;
   brand?: string;
   modelCode?: string;
   nozzleDiameterMm?: number;
@@ -128,7 +126,6 @@ export function ProfilePickerCombobox({
   placeholder = 'Select a profile…',
   searchPlaceholder = 'Search profiles…',
   compatibleWithMachineName,
-  printerId,
   materialType,
   brand,
   modelCode,
@@ -144,7 +141,6 @@ export function ProfilePickerCombobox({
       {
         origin: 'All',
         q,
-        printerId: printerId ?? undefined,
         page: 1,
         pageSize: 50,
       },
@@ -156,7 +152,6 @@ export function ProfilePickerCombobox({
         origin: 'All',
         q,
         compatibleWithMachineName: compatibleWithMachineName ?? undefined,
-        printerId: printerId ?? undefined,
         page: 1,
         pageSize: 50,
       },

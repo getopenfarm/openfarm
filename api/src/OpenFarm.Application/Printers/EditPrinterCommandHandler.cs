@@ -1,12 +1,7 @@
-using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Common;
-using OpenFarm.Application.Production;
 using OpenFarm.Application.ConnectionSecrets;
-using OpenFarm.Application.Profiles;
-using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.Printers;
-using OpenFarm.Domain.Profiles;
 
 namespace OpenFarm.Application.Printers;
 
@@ -15,10 +10,7 @@ public sealed class EditPrinterCommandHandler(
     IPrinterRepository printerRepository,
     IConnectionSecretRepository connectionSecretRepository,
     ISecretProtector secretProtector,
-    IPrinterConnectionManager connectionManager,
-    IMachineProfileRepository machineProfileRepository,
-    IProcessProfileRepository processProfileRepository,
-    IActivityLogWriter activityLogWriter, ProfileCompatibility compatibility, IProductionDispatcher? dispatcher = null) : ICommandHandler<EditPrinterCommand, Printer>
+    IPrinterConnectionManager connectionManager) : ICommandHandler<EditPrinterCommand, Printer>
 {
     public async Task<Printer> HandleAsync(EditPrinterCommand command, CancellationToken cancellationToken)
     {
@@ -64,57 +56,6 @@ public sealed class EditPrinterCommandHandler(
             }
         }
 
-        // 009 US2 — machine/process profile selection, validated before any mutation lands (same
-        // zero-partial-success philosophy as the identity-field and connection checks above).
-        if (command.ProcessProfileId is not null && command.MachineProfileId is null)
-        {
-            throw new ProcessProfileRequiresMachineProfileException();
-        }
-
-        MachineProfile? machineProfile = null;
-        if (command.MachineProfileId is { } machineProfileId)
-        {
-            machineProfile = await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken)
-                ?? throw new InvalidProfileReferenceException("machine", machineProfileId);
-            if (printer.MachineProfileId != machineProfileId || printer.ProcessProfileId != command.ProcessProfileId)
-                await compatibility.ValidateMachineAsync(printer, machineProfile, cancellationToken);
-        }
-
-        ProcessProfile? processProfile = null;
-        if (command.ProcessProfileId is { } processProfileId)
-        {
-            processProfile = await processProfileRepository.GetByIdAsync(processProfileId, cancellationToken)
-                ?? throw new InvalidProfileReferenceException("process", processProfileId);
-
-            if (processProfile.Origin != ProfileOrigin.System)
-            {
-                throw new InvalidProfileReferenceException("process", processProfileId);
-            }
-
-            if (processProfile.CompatibleMachineNames is null || !processProfile.CompatibleMachineNames.Contains(machineProfile!.Name, StringComparer.Ordinal))
-            {
-                throw new ProcessProfileIncompatibleWithMachineException(processProfile.Name, machineProfile!.Name);
-            }
-        }
-
-        // 012 US1 — gated purely by the printer's own registered Brand/ModelCode (PrinterModelCatalog),
-        // never by whichever machine profile happens to be linked (FR-002, clarification Q4); no
-        // machine-profile prerequisite, unlike process profile above. PrinterModelCatalog.Resolve
-        // cannot fail here — this printer's Brand/ModelCode already passed catalog resolution at
-        // registration and are immutable thereafter.
-        if (command.BuildPlateType is { } requestedBuildPlateType)
-        {
-            var model = PrinterModelCatalog.Resolve(printer.Brand, printer.ModelCode);
-            if (model.CompatiblePlateTypes is null || !model.CompatiblePlateTypes.Contains(requestedBuildPlateType))
-            {
-                throw new IncompatibleBuildPlateException(requestedBuildPlateType, printer.Brand, printer.ModelCode);
-            }
-        }
-
-        var previousMachineProfileId = printer.MachineProfileId;
-        var previousProcessProfileId = printer.ProcessProfileId;
-        var previousBuildPlateType = printer.BuildPlateType;
-
         printer.Rename(command.Name);
 
         if (connectionChanged)
@@ -126,33 +67,6 @@ public sealed class EditPrinterCommandHandler(
             await connectionSecretRepository.AddAsync(secret, cancellationToken);
         }
 
-        if (machineProfile is not null)
-        {
-            printer.LinkMachineProfile(machineProfile.Id);
-        }
-        else
-        {
-            printer.UnlinkMachineProfile();
-        }
-
-        if (processProfile is not null)
-        {
-            printer.LinkProcessProfile(processProfile.Id);
-        }
-        else
-        {
-            printer.UnlinkProcessProfile();
-        }
-
-        if (command.BuildPlateType is { } buildPlateType)
-        {
-            printer.SelectBuildPlate(buildPlateType);
-        }
-        else
-        {
-            printer.ClearBuildPlate();
-        }
-
         await printerRepository.SaveChangesAsync(cancellationToken);
 
         if (connectionChanged)
@@ -162,37 +76,6 @@ public sealed class EditPrinterCommandHandler(
             connectionManager.StartConnection(printer.Id, CancellationToken.None);
         }
 
-        // FR-016 — granular events alongside the base PrinterEdited event the endpoint's
-        // IActivityLoggable/global post-processor already writes for every successful call here.
-        // Written directly (not via the post-processor, which only ever writes one event type per
-        // request) only when the aspect actually changed — resending the same already-linked id on
-        // every save (the printer form's own "submit full current state" convention) must not spam
-        // a Linked event with no real change.
-        if (printer.MachineProfileId != previousMachineProfileId)
-        {
-            var eventType = printer.MachineProfileId is not null ? "PrinterMachineProfileLinked" : "PrinterMachineProfileUnlinked";
-            await activityLogWriter.WriteAsync(
-                ActivityLogEntry.Create("Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
-                cancellationToken);
-        }
-
-        if (printer.ProcessProfileId != previousProcessProfileId)
-        {
-            var eventType = printer.ProcessProfileId is not null ? "PrinterProcessProfileLinked" : "PrinterProcessProfileUnlinked";
-            await activityLogWriter.WriteAsync(
-                ActivityLogEntry.Create("Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
-                cancellationToken);
-        }
-
-        if (printer.BuildPlateType != previousBuildPlateType)
-        {
-            var eventType = printer.BuildPlateType is not null ? "PrinterBuildPlateSelected" : "PrinterBuildPlateCleared";
-            await activityLogWriter.WriteAsync(
-                ActivityLogEntry.Create("Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
-                cancellationToken);
-        }
-
-        if (printer.Status == PrinterStatus.Idle) dispatcher?.RequestDispatchAttempt(printer.Id);
         return printer;
     }
 }

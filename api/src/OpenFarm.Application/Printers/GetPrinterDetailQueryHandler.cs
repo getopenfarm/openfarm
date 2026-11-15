@@ -1,15 +1,11 @@
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Production;
-using OpenFarm.Application.Profiles;
 using OpenFarm.Domain.Printers;
 using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Printers;
 
-public sealed class GetPrinterDetailQueryHandler(
-    IPrinterRepository printerRepository,
-    IMachineProfileRepository machineProfileRepository,
-    IProcessProfileRepository processProfileRepository, ProfileCompatibility compatibility, IPrintRepository printRepository)
+public sealed class GetPrinterDetailQueryHandler(IPrinterRepository printerRepository, IPrintRepository printRepository)
     : IQueryHandler<GetPrinterDetailQuery, PrinterDetail?>
 {
     public async Task<PrinterDetail?> HandleAsync(GetPrinterDetailQuery query, CancellationToken cancellationToken)
@@ -20,29 +16,8 @@ public sealed class GetPrinterDetailQueryHandler(
             return null;
         }
 
-        // The link can dangle if its Machine/Process Profile was deleted independently — treated as
-        // unlinked for display purposes rather than surfacing as an error here.
-        var machineProfileName = printer.MachineProfileId is { } machineProfileId
-            ? (await machineProfileRepository.GetByIdAsync(machineProfileId, cancellationToken))?.Name
-            : null;
-
-        string? machineProfileIssue = null;
-        if (printer.MachineProfileId is { } selectedId)
-        {
-            var machine = await machineProfileRepository.GetByIdAsync(selectedId, cancellationToken);
-            if (machine is null) machineProfileIssue = "The linked machine profile no longer exists.";
-            else
-                try { await compatibility.ValidateMachineAsync(printer, machine, cancellationToken); }
-                catch (SlicingProfileUnconfiguredException ex) { machineProfileIssue = ex.Message; }
-        }
-
-        var processProfileName = printer.ProcessProfileId is { } processProfileId
-            ? (await processProfileRepository.GetByIdAsync(processProfileId, cancellationToken))?.Name
-            : null;
-
         // 012 — pure, non-throwing lookup: this printer's Brand/ModelCode already passed catalog
-        // resolution at registration and are immutable thereafter (unlike the dangling-FK tolerance
-        // machine/process profile names need above).
+        // resolution at registration and are immutable thereafter.
         var model = PrinterModelCatalog.Resolve(printer.Brand, printer.ModelCode);
         var buildPlateTypeLabel = printer.BuildPlateType is { } buildPlateType
             ? BuildPlateTypeVendorNames.Resolve(buildPlateType)
@@ -69,13 +44,9 @@ public sealed class GetPrinterDetailQueryHandler(
             printer.RemainingTimeMinutes,
             printNames[printer.Id].Name,
             printer.FeedReadings,
-            printer.MachineProfileId,
-            machineProfileName,
-            printer.ProcessProfileId,
-            processProfileName,
             printer.BuildPlateType,
             buildPlateTypeLabel,
-            compatibleBuildPlateTypes, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, machineProfileIssue, printer.ReportedState, printer.StateObservedAtUtc, printer.ActiveAlerts,
-            printer.Extruders);
+            compatibleBuildPlateTypes, printer.ReportedNozzleDiameterMm, printer.NozzleObservedAtUtc, printer.NozzleConfirmed, printer.ReportedState, printer.StateObservedAtUtc, printer.ActiveAlerts,
+            printer.Extruders, printer.SetupIssues);
     }
 }

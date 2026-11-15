@@ -5,7 +5,7 @@ description: Use bundled catalogs and imported presets without losing the exact 
 
 Profiles are saved slicer settings, also called presets. They are separate from physical printer and spool records. The **Profiles** page has separate catalogs for machine, process, and filament profiles.
 
-See [When profiles apply](profile-behavior.md) for the rules for STL, geometry-only 3MF, project 3MF, sliced 3MF, and G-code.
+See [When profiles apply](profile-behavior.md) for the rules for project 3MF, sliced 3MF, and G-code.
 
 ## Bundled system catalogs
 
@@ -26,7 +26,7 @@ OpenFarm saves nothing before confirmation. A preset embedded in a project is no
 
 ## Configure where profiles are used
 
-- The **printer** selects machine and process profiles and its build plate.
+- The **file** carries its machine, process, and plate. The **printer** sets the plate on its bed.
 - The **filament** assigns a profile for each printer model and nozzle size. A color can override that assignment.
 - The **part** keeps its saved slicer engine and exact version for file processing and production slicing.
 
@@ -36,6 +36,6 @@ Unsliced multi-color projects need compatible profiles for every required materi
 
 If a job needs slicing, OpenFarm finds the selected presets in the part's pinned slicer catalog. A matching system preset can come from another supported catalog. A user preset from another slicer engine is blocked.
 
-Missing profiles, multiple matches, unloaded catalogs, and incompatible presets stop the job. OpenFarm does not substitute another preset. Already-sliced files skip this catalog matching. They still require a compatible machine profile and filament-profile assignments for loaded spools.
+Missing profiles, multiple matches, unloaded catalogs, and incompatible presets stop the job. OpenFarm does not substitute another preset. Already-sliced files skip this catalog matching. They still require filament-profile assignments for loaded spools.
 
 Open [Job diagnosis](../production/matching.md) to see the requirement and a link to the relevant settings. If profiles are missing after a local setup, run the profile-import step in [Local development](../development/local-setup.md). Find the cause of a compatibility failure before changing the slicer pin.

@@ -22,7 +22,7 @@ The normal workflow is: define a part, load a compatible spool, request output, 
 
 Parts can be requested in whole plates or unit targets; assemblies in a run are requested in complete sets. Exact unit targets can require a partial final plate, which needs reliable object identities. [Runs](../production/runs.md) explains this planning flow.
 
-**Continuous backfill** repeatedly makes whole plates when compatible printers are idle, after jobs with fixed quantities. You can pause it and limit how many printers it uses at the same time.
+**Continuous backfill** repeatedly makes whole plates when compatible printers are ready, after jobs with fixed quantities. You can pause it and limit how many printers it uses at the same time.
 
 ## Readiness has several layers
 

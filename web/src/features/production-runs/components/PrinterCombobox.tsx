@@ -1,6 +1,9 @@
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { useState } from 'react';
-import type { PrinterStatus } from '@/components/printer-tile/status';
+import {
+  type PrinterStatus,
+  STATUS_META,
+} from '@/components/printer-tile/status';
 import {
   BADGE_KIND_META,
   type BadgeKind,
@@ -26,11 +29,13 @@ import { cn } from '@/lib/utils';
 
 export const AUTOMATIC = 'automatic';
 
-/** "Idle", "Printing · 42m left", "Offline": what the printer is doing now. */
+/** "Ready", "Printing · 42m left", "Offline": what the printer is doing now. */
 export function printerState(printer: FleetPrinterResponse) {
   const badge = printerStatusToBadge(
     printer.status as PrinterStatus,
     printer.isReachable ?? false,
+    undefined,
+    printer.setupIssues,
   );
   const left =
     printer.status === 'Printing' && printer.isReachable
@@ -38,7 +43,7 @@ export function printerState(printer: FleetPrinterResponse) {
       : null;
   return {
     kind: badge.kind,
-    idle: badge.label === 'Idle',
+    idle: badge.label === STATUS_META.Idle.label,
     label:
       left != null
         ? `${badge.label} · ${formatMinutes(left)} left`

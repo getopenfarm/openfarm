@@ -53,6 +53,62 @@ public class MarkPrinterReadyCommandHandlerTests
         await act.Should().ThrowAsync<PrinterNotFoundException>();
     }
 
+    // Mark not ready (an operator hold) shares this file with Mark ready: same fakes, opposite direction.
+    [Fact]
+    public async Task MarkNotReady_FromIdle_HoldsThePrinterAndPublishesStatusChanged()
+    {
+        var printer = CreatePrinter();
+        var repository = new InMemoryPrinterRepository(printer);
+        var publisher = new RecordingPrinterEventPublisher();
+        var handler = new MarkPrinterNotReadyCommandHandler(repository, publisher);
+
+        var result = await handler.HandleAsync(new MarkPrinterNotReadyCommand(printer.Id), CancellationToken.None);
+
+        result.Status.Should().Be(PrinterStatus.AwaitingClear);
+        result.ReadinessChangedAtUtc.Should().NotBeNull();
+        publisher.PublishedStatuses.Should().ContainSingle(s => s.PrinterId == printer.Id && s.Status == PrinterStatus.AwaitingClear);
+    }
+
+    [Theory]
+    [InlineData("RUNNING")]
+    [InlineData("FINISH")]
+    public async Task MarkNotReady_FromPrintingOrAlreadyNotReady_ThrowsInvalidTransitionAndPublishesNothing(string gcodeState)
+    {
+        var printer = CreatePrinter();
+        printer.ObserveStatus(gcodeState);
+        var repository = new InMemoryPrinterRepository(printer);
+        var publisher = new RecordingPrinterEventPublisher();
+        var handler = new MarkPrinterNotReadyCommandHandler(repository, publisher);
+
+        var act = () => handler.HandleAsync(new MarkPrinterNotReadyCommand(printer.Id), CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidPrinterStatusTransitionException>();
+        publisher.PublishedStatuses.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task MarkNotReady_WithUnknownPrinterId_ThrowsPrinterNotFound()
+    {
+        var handler = new MarkPrinterNotReadyCommandHandler(new InMemoryPrinterRepository(), new RecordingPrinterEventPublisher());
+
+        var act = () => handler.HandleAsync(new MarkPrinterNotReadyCommand(Guid.NewGuid()), CancellationToken.None);
+
+        await act.Should().ThrowAsync<PrinterNotFoundException>();
+    }
+
+    [Fact]
+    public async Task MarkReady_AfterAHold_ReturnsThePrinterToIdle()
+    {
+        var printer = CreatePrinter();
+        printer.TransitionTo(PrinterStatus.AwaitingClear);
+        var handler = new MarkPrinterReadyCommandHandler(
+            new InMemoryPrinterRepository(printer), new RecordingPrinterEventPublisher(), new RecordingProductionDispatcher());
+
+        var result = await handler.HandleAsync(new MarkPrinterReadyCommand(printer.Id), CancellationToken.None);
+
+        result.Status.Should().Be(PrinterStatus.Idle);
+    }
+
     private static Printer CreatePrinter() =>
         Printer.Create("Test Printer", "Bambu", "X1C", "10.0.0.5", $"SN-{Guid.NewGuid():N}");
 

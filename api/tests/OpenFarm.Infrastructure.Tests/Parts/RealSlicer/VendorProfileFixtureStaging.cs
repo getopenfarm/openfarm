@@ -61,9 +61,6 @@ internal static class VendorProfileFixtureStaging
         var process = await catalogs.ProcessAsync(pin, processProfileName);
         var filament = await catalogs.FilamentAsync(pin, filamentProfileName);
 
-        catalogs.Printer.LinkMachineProfile(machine.Id);
-        catalogs.Printer.LinkProcessProfile(process.Id);
-
         return new StagedProfileSelection(catalogs.Resolver, catalogs.Printer.Id, filament.Id, machine.Id, process.Id, pin);
     }
 
@@ -98,13 +95,8 @@ internal static class VendorProfileFixtureStaging
         await printerRepo.AddAsync(printer, cancellationToken);
         await printerRepo.SaveChangesAsync(cancellationToken);
 
-        var profileCompatibility = new ProfileCompatibility(machineRepo, filamentRepo);
         var profileResolver = new ProfileResolver(machineRepo, processRepo, filamentRepo);
-        var resolver = new ResolveSlicingProfileSelection(
-            printerRepo, machineRepo, processRepo, filamentRepo,
-            new RepresentativeFilamentResolver(
-                filamentRepo, new EmptySpoolRepository(), new EmptyFilamentRepository(), new EmptyFeedUnitRepository(), printerRepo, machineRepo, profileCompatibility),
-            profileCompatibility, profileResolver);
+        var resolver = new ResolveSlicingProfileSelection(machineRepo, processRepo, filamentRepo, profileResolver);
 
         return new StagedCatalogs(resolver, profileResolver, printer, machineRepo, processRepo, filamentRepo);
     }

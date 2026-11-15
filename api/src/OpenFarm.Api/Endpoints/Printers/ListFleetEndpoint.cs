@@ -46,6 +46,9 @@ public sealed class FleetPrinterResponse
     public Guid? CurrentPrintJobId { get; set; }
 
     public string? FilamentColorHex { get; set; }
+
+    /// <summary>What stops every job going to this printer until the operator sets it, e.g. "Select a build plate". Empty when ready.</summary>
+    public IReadOnlyList<string> SetupIssues { get; set; } = [];
 }
 
 public sealed class ListFleetResponse
@@ -78,6 +81,7 @@ public sealed class ListFleetResponse
                 CurrentJobName = p.CurrentJobName,
                 CurrentPrintJobId = p.CurrentPrintJobId,
                 FilamentColorHex = p.FilamentColorHex,
+                SetupIssues = p.SetupIssues ?? [],
             })
             .ToList(),
     };

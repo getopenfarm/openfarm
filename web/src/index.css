@@ -24,6 +24,8 @@
   --color-kind-red: var(--kind-red);
   --color-kind-violet: var(--kind-violet);
   --color-kind-blue: var(--kind-blue);
+  --color-solid-amber: var(--solid-amber);
+  --color-solid-red: var(--solid-red);
   --color-checkerboard-a: var(--checkerboard-a);
   --color-checkerboard-b: var(--checkerboard-b);
   --color-progress-track: var(--progress-track);
@@ -123,6 +125,11 @@
   --kind-violet: #6d28d9;
   --kind-blue: #0369a1;
   --kind-orange: #9a3412;
+
+  /* solid chips = "the operator must act" (Awaiting clear, Failed, Needs setup). One value for both themes:
+     white text on each passes AA (5.02, 4.83) and the fill clears 3:1 against the dark surfaces. */
+  --solid-amber: #b45309;
+  --solid-red: #dc2626;
 
   /* explicit abilities and "handle with care" marks (Akaun parity) */
   --amber: oklch(0.62 0.16 58);

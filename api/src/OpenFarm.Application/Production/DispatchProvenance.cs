@@ -6,13 +6,13 @@ using OpenFarm.Domain.Parts;
 
 namespace OpenFarm.Application.Production;
 
-/// <summary>What a file sent to a printer was sliced with: the slicer pin and, per kind, the preset selected and the preset it resolved to.</summary>
+/// <summary>What a file sent to a printer was sliced with: the slicer pin and, per kind, the preset selected and the preset it resolved to (a project's own machine and process are not presets of OpenFarm's).</summary>
 public sealed record DispatchProvenance(SlicerRef Pin, IReadOnlyList<ResolvedPreset> Presets, string ConfigurationStamp, DateTimeOffset AtUtc)
 {
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
     public static DispatchProvenance From(ResolvedSlicingProfiles profiles, string configurationStamp, DateTimeOffset atUtc) =>
-        new(profiles.Pin, [profiles.Machine, profiles.Process, .. FilamentPresets(profiles)], configurationStamp, atUtc);
+        new(profiles.Pin, [.. new[] { profiles.Machine, profiles.Process }.OfType<ResolvedPreset>(), .. FilamentPresets(profiles)], configurationStamp, atUtc);
 
     // Each distinct filament once: two lines sharing a preset sliced with one.
     private static IEnumerable<ResolvedPreset> FilamentPresets(ResolvedSlicingProfiles profiles) =>

@@ -25,7 +25,7 @@ Go to **Printers → Add printer**. Select a discovered printer or enter its con
 
 For model-specific preparation, follow [Bambu Lab](printers/bambu.md) or [Snapmaker U1](printers/snapmaker.md). Wait for the printer to become reachable and report its nozzle size.
 
-Open the printer's **Edit** page. Select a compatible machine profile, process profile, and build plate, then save. Profile options come from the installed slicer catalog.
+Open the printer's **Edit** page. Select the build plate on the bed, then save. A file goes only to a printer whose plate matches the file's plate.
 
 ## 3. Register and load filament
 
@@ -55,7 +55,7 @@ Open **Queue** to follow the job. If it cannot start, open its status link or **
 
 ## 6. Clear the bed and mark ready
 
-Check that the physical bed is empty, the correct plate is installed, and the printer is safe to start. If the printer is awaiting clearance, use **Mark ready**. A connected, idle printer with compatible loaded material can take queued work automatically.
+Check that the physical bed is empty, the correct plate is installed, and the printer is safe to start. If the printer is **Not ready**, use **Mark ready**. A connected, **Ready** printer with compatible loaded material can take queued work automatically.
 
 :::caution Automatic dispatch
 Sending work to the queue can start a compatible ready printer. Finish the physical checks before queueing work or marking a printer ready.

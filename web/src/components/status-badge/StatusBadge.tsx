@@ -1,23 +1,58 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { BADGE_KIND_META, type BadgeKind } from './kinds';
+import type { BadgeKind } from './kinds';
 
 interface StatusBadgeProps {
   kind: BadgeKind;
   label: string;
+  /** Filled chip for a state the operator must act on. Amber and red only. */
+  solid?: boolean;
+  /** Makes the chip a button. `label` is its accessible name. The chip is text only: no dot, no icon. */
+  action?: {
+    onClick: () => void;
+    label: string;
+    disabled?: boolean;
+  };
   className?: string;
 }
 
-export function StatusBadge({ kind, label, className }: StatusBadgeProps) {
-  const meta = BADGE_KIND_META[kind];
+export function StatusBadge({
+  kind,
+  label,
+  solid,
+  action,
+  className,
+}: StatusBadgeProps) {
+  if (!action)
+    return (
+      <Badge
+        kind={kind}
+        solid={solid}
+        data-slot="status-badge"
+        className={className}
+      >
+        {label}
+      </Badge>
+    );
   return (
     <Badge
+      asChild
       kind={kind}
-      data-slot="status-badge"
-      className={cn('gap-1.5', className)}
+      solid={solid}
+      className={cn(
+        'cursor-pointer hover:brightness-90 disabled:cursor-wait disabled:opacity-50',
+        className,
+      )}
     >
-      <span className={cn('size-1.5 shrink-0 rounded-full', meta.dotClass)} />
-      {label}
+      <button
+        type="button"
+        data-slot="status-badge"
+        aria-label={action.label}
+        disabled={action.disabled}
+        onClick={action.onClick}
+      >
+        {label}
+      </button>
     </Badge>
   );
 }

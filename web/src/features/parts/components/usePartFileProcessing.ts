@@ -24,10 +24,10 @@ import {
 import { useOpenFarmApiEndpointsSettingsGetSlicingDefaultsEndpoint } from '@/lib/api/generated/settings/settings';
 import type { FilamentChoice } from './FilamentChoiceDialog';
 
-export const ACCEPTED_EXTENSIONS = '.stl,.3mf,.gcode,.gco,.g';
+export const ACCEPTED_EXTENSIONS = '.3mf,.gcode,.gco,.g';
 
-// Whether a file requires slicing is only known server-side, after classification (an STL always
-// does, a 3MF only if it's not already sliced, a G-code export never does) — so the picker below
+// Whether a file requires slicing is only known server-side, after classification (a project 3MF
+// does, a sliced 3MF or a G-code export never does) — so the picker below
 // is shown before a file is even chosen (Create/Replace fires immediately on selection,
 // research.md §11) rather than gated on file type. The backend ignores both fields for a file that
 // turns out not to require slicing either way (contracts/slicer-management-api.md), so offering the

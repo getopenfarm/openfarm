@@ -87,7 +87,7 @@ const spools = Array.from({ length: 96 }, (_, index) => spoolColors[(index * 7 +
         <h3>You clear the bed</h3>
         <p>Mark the printer ready after your check. The next matching plate starts.</p>
         <div class="flow-artifact">
-          <div class="handoff"><span class="chip chip-attention">Awaiting clear</span><span class="arrow" aria-hidden="true">→</span><span class="chip chip-ok">Printing</span></div>
+          <div class="handoff"><span class="chip chip-attention">Not ready</span><span class="arrow" aria-hidden="true">→</span><span class="chip chip-ok">Printing</span></div>
           <p class="artifact-meta">Control knob, plate 1 of 2</p>
         </div>
       </li>
@@ -106,7 +106,7 @@ const spools = Array.from({ length: 96 }, (_, index) => spoolColors[(index * 7 +
           <h3>{feature.title}</h3>
           <p>{feature.body}</p>
           {feature.show === '/' && (
-            <div class="feature-detail" aria-hidden="true"><span class="chip chip-ok">5 printing</span><span class="chip chip-attention">1 awaiting</span><span class="chip chip-idle">2 idle</span></div>
+            <div class="feature-detail" aria-hidden="true"><span class="chip chip-ok">5 printing</span><span class="chip chip-attention">1 not ready</span><span class="chip chip-idle">2 ready</span></div>
           )}
           {'tour' in feature && feature.tour === 'why-waiting' && (
             <div class="feature-detail" aria-hidden="true"><span class="waiting">Waiting for printer</span><span class="reason">X1C-01: Nozzle diameter: requires 0.4 mm, actual 0.6 mm.</span></div>

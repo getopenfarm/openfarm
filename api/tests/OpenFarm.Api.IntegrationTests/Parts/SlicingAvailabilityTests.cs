@@ -32,9 +32,9 @@ public class SlicingAvailabilityTests(EmptySlicerBundleWebApplicationFactory fac
         return _client;
     }
 
-    private static async Task RegisterPrinterWithNozzleDiameterAsync(HttpClient client, string serialNumber)
+    private static async Task RegisterPrinterAsync(HttpClient client, string serialNumber)
     {
-        var registerResponse = await client.PostAsJsonAsync(
+        await client.PostAsJsonAsync(
             new Uri("/api/v1/printers", UriKind.Relative),
             new RegisterPrinterRequest
             {
@@ -45,20 +45,6 @@ public class SlicingAvailabilityTests(EmptySlicerBundleWebApplicationFactory fac
                 SerialNumber = serialNumber,
                 AccessCode = "12345678",
             });
-        var printer = await registerResponse.Content.ReadFromJsonAsync<PrinterSummaryResponse>();
-
-        var profileName = $"Slicing Availability Test Machine {serialNumber}";
-        var bundle = ProfileBundleTestHelper.BuildZip(
-            ($"machine/{profileName}.json", $$"""{"name":"{{profileName}}","nozzle_diameter":["0.4"]}"""));
-        var selections = JsonSerializer.Serialize(new object[] { new { type = "Machine", name = profileName, duplicateAction = (string?)null } });
-        using var content = ProfileBundleTestHelper.BuildUploadContent(bundle, "bundle.zip", selections);
-        var confirmResponse = await client.PostAsync(new Uri("/api/v1/profiles/imports/confirm", UriKind.Relative), content);
-        var created = await confirmResponse.Content.ReadFromJsonAsync<ConfirmProfileImportResponse>();
-        var machineProfileId = created!.CreatedMachineProfiles.Single().Id;
-
-        await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer!.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name, MachineProfileId = machineProfileId });
     }
 
     [Fact]
@@ -77,11 +63,11 @@ public class SlicingAvailabilityTests(EmptySlicerBundleWebApplicationFactory fac
     public async Task CreatePart_RequiresSlicingUploadWithNoSlicerAvailable_AcceptsUpload()
     {
         var client = await AuthenticatedClientAsync();
-        await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
+        await RegisterPrinterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
+        using var fileContent = new ByteArrayContent(ProjectThreeMf.Bytes());
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
+        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.3mf" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
 

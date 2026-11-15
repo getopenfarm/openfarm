@@ -42,10 +42,10 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         return _client;
     }
 
-    /// <summary>Registers a printer, imports a machine profile with a known nozzle diameter, and links them.</summary>
-    private static async Task RegisterPrinterWithNozzleDiameterAsync(HttpClient client, string serialNumber)
+    /// <summary>Registers a simulator printer.</summary>
+    private static async Task RegisterPrinterAsync(HttpClient client, string serialNumber)
     {
-        var registerResponse = await client.PostAsJsonAsync(
+        await client.PostAsJsonAsync(
             new Uri("/api/v1/printers", UriKind.Relative),
             new RegisterPrinterRequest
             {
@@ -56,20 +56,6 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
                 SerialNumber = serialNumber,
                 AccessCode = "12345678",
             });
-        var printer = await registerResponse.Content.ReadFromJsonAsync<PrinterSummaryResponse>();
-
-        var profileName = $"Part Upload Test Machine {serialNumber}";
-        var bundle = ProfileBundleTestHelper.BuildZip(
-            ($"machine/{profileName}.json", $$"""{"name":"{{profileName}}","nozzle_diameter":["0.4"]}"""));
-        var selections = JsonSerializer.Serialize(new object[] { new { type = "Machine", name = profileName, duplicateAction = (string?)null } });
-        using var content = ProfileBundleTestHelper.BuildUploadContent(bundle, "bundle.zip", selections);
-        var confirmResponse = await client.PostAsync(new Uri("/api/v1/profiles/imports/confirm", UriKind.Relative), content);
-        var created = await confirmResponse.Content.ReadFromJsonAsync<ConfirmProfileImportResponse>();
-        var machineProfileId = created!.CreatedMachineProfiles.Single().Id;
-
-        await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer!.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name, MachineProfileId = machineProfileId });
     }
 
     private static async Task<PartProcessingJobResponse> WaitForTerminalStatusAsync(HttpClient client, Guid jobId)
@@ -101,11 +87,11 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
     public async Task CreatePart_UploadedStl_NeverSitsProcessingForever()
     {
         var client = await AuthenticatedClientAsync();
-        await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
+        await RegisterPrinterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
+        using var fileContent = new ByteArrayContent(ProjectThreeMf.Bytes());
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
+        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.3mf" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
         uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());
@@ -127,11 +113,11 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
         // The test factory's dummy bundle's AppRun is a non-executable stub — the slice can never
         // succeed, so this reaches Failed deterministically (Constitution V: never a hang).
         var client = await AuthenticatedClientAsync();
-        await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
+        await RegisterPrinterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
+        using var fileContent = new ByteArrayContent(ProjectThreeMf.Bytes());
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
+        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.3mf" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
         uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());
@@ -148,11 +134,11 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
     public async Task CreatePart_OneDiscoveredEngineVersion_ResolvesTheResolvedSlicerOntoTheJob()
     {
         var client = await AuthenticatedClientAsync();
-        await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
+        await RegisterPrinterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
+        using var fileContent = new ByteArrayContent(ProjectThreeMf.Bytes());
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
+        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.3mf" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
         uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());
@@ -172,13 +158,13 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
     public async Task CreatePart_ExplicitEngineAndVersionOverride_UsesThatExactPairAndLeavesDefaultUnchanged()
     {
         var client = await AuthenticatedClientAsync();
-        await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
+        await RegisterPrinterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
+        using var fileContent = new ByteArrayContent(ProjectThreeMf.Bytes());
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent
         {
-            { fileContent, "File", "benchy.stl" },
+            { fileContent, "File", "benchy.3mf" },
             { new StringContent("SuperSlicer"), "SlicerEngine" },
             { new StringContent("2.5.59.13"), "SlicerVersion" },
         };
@@ -202,13 +188,13 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
     public async Task CreatePart_StalePairNotInBundle_AcceptsFileWithoutEstimation()
     {
         var client = await AuthenticatedClientAsync();
-        await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
+        await RegisterPrinterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
+        using var fileContent = new ByteArrayContent(ProjectThreeMf.Bytes());
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         using var uploadContent = new MultipartFormDataContent
         {
-            { fileContent, "File", "benchy.stl" },
+            { fileContent, "File", "benchy.3mf" },
             { new StringContent("OrcaSlicer"), "SlicerEngine" },
             { new StringContent("9.9.9"), "SlicerVersion" },
         };
@@ -226,11 +212,11 @@ public class CreatePartEndpointTests(CustomWebApplicationFactory factory) : ICla
     public async Task ChangingOrgDefault_DoesNotRetroactivelyRewriteAnAlreadyProcessedPart()
     {
         var client = await AuthenticatedClientAsync();
-        await RegisterPrinterWithNozzleDiameterAsync(client, $"SN-{Guid.NewGuid():N}");
+        await RegisterPrinterAsync(client, $"SN-{Guid.NewGuid():N}");
 
-        using var fileContent = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
+        using var fileContent = new ByteArrayContent(ProjectThreeMf.Bytes());
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.stl" } };
+        using var uploadContent = new MultipartFormDataContent { { fileContent, "File", "benchy.3mf" } };
 
         var uploadResponse = await client.PostAsync(new Uri("/api/v1/parts", UriKind.Relative), uploadContent);
         uploadResponse.IsSuccessStatusCode.Should().BeTrue(await uploadResponse.Content.ReadAsStringAsync());

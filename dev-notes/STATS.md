@@ -20,8 +20,8 @@ just before it. **Output comes from prints; time comes from printer activity.** 
 | Time lost | How long failed and cancelled prints ran |
 | Units made | Σ `PlateQuantity` of Completed jobs. Dispatched jobs only; every unit on a plate counts as good until outcome lines exist |
 | Utilization | Printing hours ÷ observed hours. Observed = every activity except Unknown, Offline included |
-| Printer time | Hours Printing, Awaiting clear, Paused, Idle, Offline. *No data* = Unknown + time no stretch covers (before tracking began) |
-| Plate clear | Median Awaiting-clear stretch ending in the range |
+| Printer time | Hours Printing, Not ready (`AwaitingClear`), Paused, Idle, Offline. *No data* = Unknown + time no stretch covers (before tracking began) |
+| Not ready, median | Median `AwaitingClear` stretch ending in the range: a finished plate waiting to be cleared, or an operator hold (Mark not ready). Long holds raise it; if that matters, give holds their own activity |
 | Queue wait | Job `CreatedAtUtc → StartedAtUtc`, median and 95th percentile, for jobs started in the range |
 | Print time ÷ estimate | Median of actual minutes ÷ the part snapshot's `EstimatedPrintTimeMinutes`, completed jobs. Pauses count |
 | Failure codes | Codes in `Prints.StopAlerts` of Failed prints, top 5 |
@@ -52,6 +52,9 @@ Add an index on `Prints.EndedAtUtc` past ~100k prints, and an hourly rollup only
   other at last contact.
 - **Mark ready sticks**: Awaiting clear is entered only when the reported state changes to FINISH or FAILED. Printers re-send
   their last state on every connect (Bambu `pushall`, Moonraker's first snapshot).
+- **Mark not ready** (operator hold) moves Idle to the same `AwaitingClear` status by hand. A reported IDLE does not release it, so
+  it holds across reconnects. Stats see it as Not ready time; `Printer.ReadinessChangedAtUtc` tells a hold from a finished plate, so
+  a held printer shows no current job.
 - **Removing a printer** fails its open print, deducting filament to the last progress.
 - **Printer-started prints** are recorded on first sight. A file that can't be read back leaves one line of unknown grams,
   which deduction skips as `NoEstimate`, so the print reaches *Action required*.

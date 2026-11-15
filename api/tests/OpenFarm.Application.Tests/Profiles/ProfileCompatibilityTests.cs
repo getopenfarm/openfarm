@@ -10,26 +10,6 @@ namespace OpenFarm.Application.Tests.Profiles;
 public sealed class ProfileCompatibilityTests
 {
     [Fact]
-    public async Task MachinePickerFiltersByInheritedModelAndReportedNozzleBeforePagination()
-    {
-        var printer = Printer.Create("P1S", "Bambu", "P1S", "127.0.0.1", "SN");
-        printer.ObserveNozzle(0.6m, DateTimeOffset.UtcNow);
-        var machines = new FakeMachineProfileRepository();
-        var baseProfile = MachineProfile.Create("Base", ProfileSourceFormat.OrcaSlicer, null,
-            """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""");
-        var child = MachineProfile.Create("P1S 0.6", ProfileSourceFormat.OrcaSlicer, "Base", """{"nozzle_diameter":["0.6"]}""");
-        child.ResolveBaseProfile(baseProfile.Id);
-        await machines.AddAsync(baseProfile, default); await machines.AddAsync(child, default);
-        var compatibility = new ProfileCompatibility(machines, new FakeFilamentProfileRepository());
-        var handler = new GetMachineProfilesQueryHandler(machines, new StubProfileBundleParser(), new FakePrinterRepository(printer), compatibility);
-        var page = await handler.HandleAsync(new(Origin: "All", PageSize: 1, PrinterId: printer.Id), default);
-        page.TotalCount.Should().Be(1);
-        page.Items.Should().ContainSingle().Which.Id.Should().Be(child.Id);
-        printer.BeginConnection();
-        (await handler.HandleAsync(new(PrinterId: printer.Id), default)).Items.Should().BeEmpty();
-    }
-
-    [Fact]
     public async Task FilamentPickerUsesEffectiveInheritedMaterialForUserProfiles()
     {
         var profiles = new FakeFilamentProfileRepository();
@@ -100,32 +80,6 @@ public sealed class ProfileCompatibilityTests
         await ((Func<Task>)(() => compatibility.ValidateFilamentAsync(filament, "PLA", "Bambu", "P1S", 0.6m, default, machine)))
             .Should().ThrowAsync<SlicingProfileUnconfiguredException>();
     }
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task MachineCompatibilityPickerSortsAllMatchesBeforeTakingThePage(bool descending)
-    {
-        var printer = Printer.Create("P1S", "Bambu", "P1S", "127.0.0.1", "SN");
-        printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
-        var machines = new FakeMachineProfileRepository();
-        var rows = new List<MachineProfile>();
-        foreach (var name in new[] { "Zulu", "alpha", "ALPHA", "Bravo" })
-        {
-            var profile = MachineProfile.Create(name, ProfileSourceFormat.OrcaSlicer, null,
-                """{"printer_model":"Bambu Lab P1S","nozzle_diameter":["0.4"]}""");
-            rows.Add(profile);
-            await machines.AddAsync(profile, default);
-        }
-        var compatibility = new ProfileCompatibility(machines, new FakeFilamentProfileRepository());
-        var handler = new GetMachineProfilesQueryHandler(machines, new StubProfileBundleParser(), new FakePrinterRepository(printer), compatibility);
-        var sorting = new OpenFarm.Application.Common.ListSort("name", descending);
-        var page = await handler.HandleAsync(new(Origin: "All", Page: 2, PageSize: 2, PrinterId: printer.Id, Sorting: sorting), default);
-        var expected = (descending ? rows.OrderByDescending(p => p.Name, StringComparer.OrdinalIgnoreCase)
-            : rows.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)).ThenBy(p => p.Id).Skip(2).Select(p => p.Id);
-        page.TotalCount.Should().Be(4);
-        page.Items.Select(p => p.Id).Should().Equal(expected);
-    }
-
     [Fact]
     public async Task ExplicitFilamentSortIsAppliedBeforePagination_AndTheOtherEnginesPresetsStayOut()
     {

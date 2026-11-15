@@ -27,6 +27,7 @@ import type {
   AddFeedUnitResponse,
   DiscoveredPrinterResponse,
   EditPrinterRequest,
+  EditPrinterSlicerSettingsRequest,
   EnrollPrinterInTasksRequest,
   ListFeedUnitsResponse,
   ListFleetResponse,
@@ -568,6 +569,159 @@ export const useOpenFarmApiEndpointsPrintersRemovePrinterEndpoint = <
     queryClient,
   );
 };
+export type openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponse200 =
+  {
+    data: PrinterSummaryResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponseSuccess =
+  openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponse401
+    | openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponse =
+  | openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponseSuccess
+  | openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointUrl =
+  (id: string) => {
+    return `/api/v1/printers/${id}/slicer-settings`;
+  };
+
+export const openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint =
+  async (
+    id: string,
+    editPrinterSlicerSettingsRequest: EditPrinterSlicerSettingsRequest,
+    options?: RequestInit,
+  ): Promise<openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponse> => {
+    return httpClient<openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointResponse>(
+      getOpenFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointUrl(id),
+      {
+        ...options,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(editPrinterSlicerSettingsRequest),
+      },
+    );
+  };
+
+export const getOpenFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint
+        >
+      >,
+      TError,
+      { id: string; data: EditPrinterSlicerSettingsRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: EditPrinterSlicerSettingsRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint
+        >
+      >,
+      { id: string; data: EditPrinterSlicerSettingsRequest }
+    > = (props) => {
+      const { id, data } = props ?? {};
+
+      return openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint(
+        id,
+        data,
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointMutationBody =
+  EditPrinterSlicerSettingsRequest;
+export type OpenFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint =
+  <TError = void, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint
+          >
+        >,
+        TError,
+        { id: string; data: EditPrinterSlicerSettingsRequest },
+        TContext
+      >;
+    },
+    queryClient?: QueryClient,
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpoint
+      >
+    >,
+    TError,
+    { id: string; data: EditPrinterSlicerSettingsRequest },
+    TContext
+  > => {
+    return useMutation(
+      getOpenFarmApiEndpointsPrintersEditPrinterSlicerSettingsEndpointMutationOptions(
+        options,
+      ),
+      queryClient,
+    );
+  };
 export type openFarmApiEndpointsPrintersGetDiscoveredPrintersEndpointResponse200 =
   {
     data: DiscoveredPrinterResponse[];
@@ -1684,6 +1838,148 @@ export const useOpenFarmApiEndpointsPrintersRegisterPrinterEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsPrintersRegisterPrinterEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponse200 =
+  {
+    data: PrinterSummaryResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponseSuccess =
+  openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponseError =
+  (
+    | openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponse401
+    | openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponse =
+  | openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponseSuccess
+  | openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponseError;
+
+export const getOpenFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointUrl = (
+  id: string,
+) => {
+  return `/api/v1/printers/${id}/mark-not-ready`;
+};
+
+export const openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint = async (
+  id: string,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointResponse>(
+    getOpenFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointUrl(id),
+    {
+      ...options,
+      method: 'POST',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint
+        >
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint>
+    >,
+    TError,
+    { id: string },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint
+        >
+      >,
+      { id: string }
+    > = (props) => {
+      const { id } = props ?? {};
+
+      return openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint(id);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint>
+    >
+  >;
+
+export type OpenFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint
+        >
+      >,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsPrintersMarkPrinterNotReadyEndpoint>
+  >,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsPrintersMarkPrinterNotReadyEndpointMutationOptions(
       options,
     ),
     queryClient,

@@ -69,6 +69,13 @@ function markReady(printer: Printer) {
   setTimeout(() => dispatchNext(printer), 900);
 }
 
+/** An operator hold: the printer takes no job until marked ready. It keeps its reported IDLE and has no finished plate. */
+function markNotReady(printer: Printer) {
+  printer.status = 'AwaitingClear';
+  statusChanged(printer);
+  refresh();
+}
+
 function dispatchNext(printer: Printer) {
   if (printer.status !== 'Idle') return;
   const next = jobs
@@ -188,6 +195,7 @@ export function startSimulator() {
         minutesFor(printer) * (1 - printer.progress / 100),
       );
   actions.markReady = markReady;
+  actions.markNotReady = markNotReady;
   actions.changed = refresh;
   actions.remote = (job, action) => {
     const printer = printers.find((p) => p.id === job.printerId);

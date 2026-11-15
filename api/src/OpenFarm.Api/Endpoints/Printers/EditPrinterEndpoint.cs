@@ -1,12 +1,9 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using FastEndpoints;
 using FluentValidation;
 using OpenFarm.Api.Processors;
 using OpenFarm.Api.Security;
 using OpenFarm.Application.Printers;
-using OpenFarm.Domain.ActivityLog;
-using OpenFarm.Domain.Printers;
 using EditPrinterHandler = OpenFarm.Application.Common.ICommandHandler<OpenFarm.Application.Printers.EditPrinterCommand, OpenFarm.Domain.Printers.Printer>;
 
 namespace OpenFarm.Api.Endpoints.Printers;
@@ -26,16 +23,6 @@ public sealed class EditPrinterRequest : IActivityLoggable
     public string? ModelCode { get; set; }
 
     public string? SerialNumber { get; set; }
-
-    // 009 US2 — applied exactly as sent (null = clear), unlike IpAddress/AccessCode above
-    // (contracts/profiles-api.md).
-    public Guid? MachineProfileId { get; set; }
-
-    public Guid? ProcessProfileId { get; set; }
-
-    // 012 US1 — string enum on the wire (contracts/printers-api.md), applied exactly as sent (null =
-    // clear); no machine-profile prerequisite, unlike ProcessProfileId above.
-    public string? BuildPlateType { get; set; }
 
     public string EntityType => "Printer";
 
@@ -65,11 +52,6 @@ public sealed class EditPrinterRequestValidator : AbstractValidator<EditPrinterR
             .Must(ip => IPAddress.TryParse(ip, out _))
             .WithMessage("IpAddress must be a valid IPv4 or IPv6 address.")
             .When(x => !string.IsNullOrWhiteSpace(x.IpAddress));
-
-        RuleFor(x => x.BuildPlateType)
-            .Must(v => Enum.TryParse<BuildPlateType>(v, ignoreCase: true, out _))
-            .WithMessage("BuildPlateType must be one of: Cool, Engineering, HighTemp, TexturedPei, TexturedCool, Supertack.")
-            .When(x => x.BuildPlateType is not null);
     }
 }
 
@@ -94,21 +76,8 @@ public sealed class EditPrinterEndpoint(EditPrinterHandler handler)
     {
         req.Id = Route<Guid>("id");
 
-        // Same JWT-claim resolution ActivityLogPostProcessor uses for the base PrinterEdited event —
-        // needed here too so the handler's own granular profile-link events (FR-016) attribute the
-        // same actor, not a second, possibly-inconsistent extraction.
-        var sub = HttpContext.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        var (actorId, actorType) = Guid.TryParse(sub, out var parsedActorId)
-            ? (parsedActorId, ActorType.Operator)
-            : ((Guid?)null, ActorType.System);
-
-        var buildPlateType = req.BuildPlateType is not null
-            ? Enum.Parse<BuildPlateType>(req.BuildPlateType, ignoreCase: true)
-            : (BuildPlateType?)null;
-
         var command = new EditPrinterCommand(
-            req.Id, req.Name, req.IpAddress, req.AccessCode, req.Brand, req.ModelCode, req.SerialNumber,
-            req.MachineProfileId, req.ProcessProfileId, buildPlateType, actorId, actorType);
+            req.Id, req.Name, req.IpAddress, req.AccessCode, req.Brand, req.ModelCode, req.SerialNumber);
         var printer = await handler.HandleAsync(command, ct);
 
         Response = PrinterSummaryResponse.FromDomain(printer);

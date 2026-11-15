@@ -10,17 +10,17 @@ public class PartFileClassifierTests
 {
     private static readonly PartFileClassifier Classifier = new();
 
+    // An STL carries no machine, process or plate: nothing to slice it with, so it is refused outright.
     [Theory]
     [InlineData("bracket.stl")]
     [InlineData("BRACKET.STL")]
-    public void Classify_Stl_AlwaysRequiresSlicing(string fileName)
+    public void Classify_Stl_IsRefused(string fileName)
     {
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("solid test\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid test"));
 
-        var result = Classifier.Classify(stream, fileName);
+        var act = () => Classifier.Classify(stream, fileName);
 
-        result.Format.Should().Be(PartFileFormat.Stl);
-        result.RequiresSlicing.Should().BeTrue();
+        act.Should().Throw<UnsupportedPartFileFormatException>().WithMessage("STL files carry no slicing settings*");
     }
 
     [Theory]
@@ -49,14 +49,25 @@ public class PartFileClassifierTests
     }
 
     [Fact]
-    public void Classify_ThreeMfWithoutSliceInfoConfig_RequiresSlicing()
+    public void Classify_ProjectThreeMf_RequiresSlicing_WithItsOwnSettings()
     {
-        using var stream = BuildZip(("3D/3dmodel.model", "<model><resources/><build/></model>"), ("Metadata/slice_info.config", "<config/>"));
+        using var stream = BuildZip(("3D/3dmodel.model", "<model><resources/><build/></model>"), ("Metadata/project_settings.config", "{}"));
 
         var result = Classifier.Classify(stream, "widget.3mf");
 
         result.Format.Should().Be(PartFileFormat.ThreeMf);
         result.RequiresSlicing.Should().BeTrue();
+    }
+
+    // Geometry only: no plate G-code and no project settings, so no machine, process or plate to follow.
+    [Fact]
+    public void Classify_GeometryOnlyThreeMf_IsRefused()
+    {
+        using var stream = BuildZip(("3D/3dmodel.model", "<model><resources/><build/></model>"), ("Metadata/slice_info.config", "<config/>"));
+
+        var act = () => Classifier.Classify(stream, "widget.3mf");
+
+        act.Should().Throw<UnsupportedPartFileFormatException>().WithMessage("This 3MF carries no slicing settings*");
     }
 
     [Fact]

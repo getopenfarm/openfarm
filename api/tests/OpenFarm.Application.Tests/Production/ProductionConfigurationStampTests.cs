@@ -26,23 +26,20 @@ public class ProductionConfigurationStampTests
         _printer.ObserveNozzle(0.4m, DateTimeOffset.UtcNow);
     }
 
-    private static readonly Guid MachineId = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
-    private static readonly Guid ProcessId = Guid.Parse("00000000-0000-0000-0000-0000000000a2");
     private static readonly Guid FilamentId = Guid.Parse("00000000-0000-0000-0000-0000000000a3");
 
     private static ResolvedPreset Preset(ProfileKind kind, string name, Guid resolvedId, string settingId) =>
         new(kind, Guid.Parse("00000000-0000-0000-0000-0000000000f0"), name, resolvedId, name, ProfileSourceFormat.BambuStudio, "2.7.1",
             settingId, BambuVendor, ProfileResolutionOutcome.MappedEngine);
 
-    private static ResolvedSlicingProfiles Baseline() => new(Bambu271, """{"machine":1}""", """{"process":1}""", """{"filament":1}""",
-        Preset(ProfileKind.Machine, MachineName, MachineId, "GM014"),
-        Preset(ProfileKind.Process, "0.20mm Standard @BBL X1C", ProcessId, "GP004"),
+    // Production resolves only the filament: the project keeps its own machine and process.
+    private static ResolvedSlicingProfiles Baseline() => new(Bambu271, null, null, """{"filament":1}""", null, null,
         Preset(ProfileKind.Filament, "Bambu PLA Basic @BBL X1C", FilamentId, "GFSA00"));
 
     private async Task<string> StampAsync(ResolvedSlicingProfiles? profiles)
     {
         var readiness = new ProductionProfileReadiness(null!, new FakePrinterRepository(_printer), null!,
-            new ProfileCompatibility(_catalog.Machines, _catalog.Filaments), null!, null!, null!, null!, null!, NullLogger<ProductionProfileReadiness>.Instance);
+            new ProfileCompatibility(_catalog.Machines, _catalog.Filaments), null!, null!, null!, null!, null!, null!, NullLogger<ProductionProfileReadiness>.Instance);
         var selections = new[] { new ProductionFilamentSelection(Guid.Parse("00000000-0000-0000-0000-0000000000c1"), Guid.Parse("00000000-0000-0000-0000-0000000000c2"),
             Guid.Parse("00000000-0000-0000-0000-0000000000c3"), "PLA", _filament, 0.4m) };
 
@@ -66,14 +63,10 @@ public class ProductionConfigurationStampTests
         {
             ["pinned slicer version"] = Baseline() with { Pin = new SlicerRef(Bambu271.Engine, "2.7.2") },
             ["pinned slicer engine"] = Baseline() with { Pin = Orca242 },
-            ["machine row it resolved to"] = Baseline() with { Machine = Baseline().Machine with { ResolvedId = Guid.NewGuid() } },
-            ["process row it resolved to"] = Baseline() with { Process = Baseline().Process with { ResolvedId = Guid.NewGuid() } },
             ["filament row it resolved to"] = Baseline() with { Filament = Baseline().Filament with { ResolvedId = Guid.NewGuid() } },
             ["filament setting_id"] = Baseline() with { Filament = Baseline().Filament with { SettingId = "GFSA00_34" } },
-            ["catalog version of a preset"] = Baseline() with { Process = Baseline().Process with { SourceVersion = "2.7.0" } },
-            ["how a preset was reached"] = Baseline() with { Process = Baseline().Process with { Outcome = ProfileResolutionOutcome.Exact } },
-            ["machine settings"] = Baseline() with { MachineSettingsJson = """{"machine":2}""" },
-            ["process settings"] = Baseline() with { ProcessSettingsJson = """{"process":2}""" },
+            ["catalog version of a preset"] = Baseline() with { Filament = Baseline().Filament with { SourceVersion = "2.7.0" } },
+            ["how a preset was reached"] = Baseline() with { Filament = Baseline().Filament with { Outcome = ProfileResolutionOutcome.Exact } },
             ["filament settings"] = Baseline() with { FilamentSettingsJson = """{"filament":2}""" },
             ["nothing to slice"] = null,
         };
@@ -89,7 +82,7 @@ public class ProductionConfigurationStampTests
     {
         var before = await StampAsync(Baseline());
 
-        _printer.LinkProcessProfile(Guid.NewGuid());
+        _printer.SelectBuildPlate(BuildPlateType.Supertack);
 
         (await StampAsync(Baseline())).Should().NotBe(before);
     }

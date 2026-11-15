@@ -5,9 +5,16 @@ import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
+import { AccessContext } from '@/lib/auth/AccessContext';
 import { PrinterDetailPage } from './PrinterDetailPage';
 
-function renderPage(printerId: string) {
+function renderPage(
+  printerId: string,
+  {
+    search = '',
+    access,
+  }: { search?: string; access?: ReadonlySet<string> } = {},
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -15,10 +22,12 @@ function renderPage(printerId: string) {
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[`/printers/${printerId}`]}>
-          {children}
-          <Toaster />
-        </MemoryRouter>
+        <AccessContext.Provider value={access}>
+          <MemoryRouter initialEntries={[`/printers/${printerId}${search}`]}>
+            {children}
+            <Toaster />
+          </MemoryRouter>
+        </AccessContext.Provider>
       </QueryClientProvider>
     );
   }
@@ -84,6 +93,225 @@ describe('PrinterDetailPage', () => {
     await screen.findByText('Printer marked ready.');
     expect(markReadyCalls).toBe(1);
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  function stubPrinterWithStatus(status: string, onMarkNotReady: () => void) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/hubs/farm'))
+          return Promise.reject(new Error('No SignalR in unit tests'));
+        if (url.endsWith('/mark-not-ready')) {
+          onMarkNotReady();
+          return Promise.resolve(
+            jsonResponse({ id: 'hold', status: 'AwaitingClear' }),
+          );
+        }
+        if (url.includes('/activity-log'))
+          return Promise.resolve(jsonResponse({ items: [] }));
+        if (url.includes('/feed-units'))
+          return Promise.resolve(jsonResponse({ feedUnits: [] }));
+        return Promise.resolve(
+          jsonResponse({
+            id: 'hold',
+            name: 'Hold printer',
+            brand: 'System',
+            modelCode: 'Simulation',
+            status,
+            isReachable: true,
+            telemetry: {},
+            feedReadings: [],
+          }),
+        );
+      }),
+    );
+  }
+
+  it('lets the operator mark a Ready printer not ready in one click', async () => {
+    const user = userEvent.setup();
+    let calls = 0;
+    stubPrinterWithStatus('Idle', () => calls++);
+    renderPage('hold');
+    await screen.findByText('Hold printer');
+    expect(screen.getByText('Ready')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Mark not ready' }));
+    await screen.findByText('Printer marked not ready.');
+    expect(calls).toBe(1);
+  });
+
+  it('offers Mark ready, not Mark not ready, once the printer is not ready', async () => {
+    stubPrinterWithStatus('AwaitingClear', () => {});
+    renderPage('hold');
+    await screen.findByText('Hold printer');
+    expect(screen.getByText('Not ready')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Mark ready' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Mark not ready' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows a solid Failed chip in the header that marks the printer ready', async () => {
+    const user = userEvent.setup();
+    let markReadyCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/hubs/farm'))
+          return Promise.reject(new Error('No SignalR in unit tests'));
+        if (url.endsWith('/mark-ready')) {
+          markReadyCalls++;
+          return Promise.resolve(jsonResponse({ id: 'p', status: 'Idle' }));
+        }
+        if (url.includes('/activity-log'))
+          return Promise.resolve(jsonResponse({ items: [] }));
+        if (url.includes('/feed-units'))
+          return Promise.resolve(jsonResponse({ feedUnits: [] }));
+        return Promise.resolve(
+          jsonResponse({
+            id: 'p',
+            name: 'Failed printer',
+            brand: 'System',
+            modelCode: 'Simulation',
+            status: 'AwaitingClear',
+            isReachable: true,
+            telemetry: { reportedState: 'FAILED' },
+            feedReadings: [],
+          }),
+        );
+      }),
+    );
+    renderPage('p');
+    await screen.findByText('Failed printer');
+    const chip = screen.getByRole('button', {
+      name: 'Mark Failed printer ready',
+    });
+    expect(chip).toHaveTextContent('Failed');
+    expect(chip).toHaveClass('bg-solid-red');
+    await user.click(chip);
+    await screen.findByText('Printer marked ready.');
+    expect(markReadyCalls).toBe(1);
+  });
+
+  // Slicer settings: the build plate lives in its own dialog, reachable in every status (it is swapped while printing).
+  function stubSlicerPrinter(overrides: Record<string, unknown> = {}) {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (url.includes('/hubs/farm'))
+        return Promise.reject(new Error('No SignalR in unit tests'));
+      if (url.endsWith('/slicer-settings') && init?.method === 'PUT')
+        return Promise.resolve(jsonResponse({ id: 'sp' }));
+      if (url.includes('/activity-log'))
+        return Promise.resolve(jsonResponse({ items: [] }));
+      if (url.includes('/feed-units'))
+        return Promise.resolve(jsonResponse({ feedUnits: [] }));
+      return Promise.resolve(
+        jsonResponse({
+          id: 'sp',
+          name: 'Slicer printer',
+          brand: 'Bambu',
+          modelCode: 'P1S',
+          status: 'Printing',
+          isReachable: true,
+          telemetry: {},
+          feedReadings: [],
+          buildPlateType: 'TexturedPei',
+          buildPlateTypeLabel: 'Textured PEI Plate',
+          compatibleBuildPlateTypes: [
+            { value: 'TexturedPei', label: 'Textured PEI Plate' },
+            { value: 'HighTemp', label: 'High Temp Plate' },
+          ],
+          setupIssues: [],
+          ...overrides,
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('changes the build plate from Slicer settings while the printer is printing', async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubSlicerPrinter();
+    renderPage('sp');
+
+    await screen.findByText('Slicer printer');
+    expect(screen.getByText('Textured PEI Plate')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Slicer settings' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Slicer settings',
+    });
+    expect(dialog).toHaveTextContent('Current print is not affected.');
+    const save = within(dialog).getByRole('button', { name: 'Save' });
+    expect(save).toBeDisabled();
+
+    await user.click(within(dialog).getByRole('combobox'));
+    await user.click(
+      await screen.findByRole('option', { name: 'High Temp Plate' }),
+    );
+    expect(dialog).toHaveTextContent(
+      'Queued files for Textured PEI Plate stop matching this printer.',
+    );
+    await user.click(save);
+
+    await screen.findByText('Slicer settings saved.');
+    const put = fetchMock.mock.calls.find(
+      ([, init]) => (init as RequestInit | undefined)?.method === 'PUT',
+    );
+    expect(String(put?.[0])).toContain('/api/v1/printers/sp/slicer-settings');
+    expect(
+      JSON.parse((put as [unknown, RequestInit])[1].body as string),
+    ).toEqual({
+      buildPlateType: 'HighTemp',
+    });
+  });
+
+  it('opens Slicer settings from the link ?settings=slicer', async () => {
+    stubSlicerPrinter();
+    renderPage('sp', { search: '?settings=slicer' });
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Slicer settings' }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the Needs setup chip a plain status; the Slicer settings button opens the dialog', async () => {
+    const user = userEvent.setup();
+    stubSlicerPrinter({
+      status: 'Idle',
+      buildPlateType: null,
+      buildPlateTypeLabel: null,
+      setupIssues: ['Select a build plate'],
+    });
+    renderPage('sp');
+
+    const chip = await screen.findByText('Needs setup');
+    expect(chip.closest('button')).toBeNull();
+    expect(screen.getByText('Not selected')).toBeInTheDocument();
+    expect(screen.getByText('Select a build plate')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Slicer settings' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Slicer settings' }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the plate read-only without the slicer settings permission', async () => {
+    stubSlicerPrinter();
+    renderPage('sp', {
+      search: '?settings=slicer',
+      access: new Set(['printers:get-detail']),
+    });
+
+    await screen.findByText('Slicer printer');
+    expect(screen.getByText('Textured PEI Plate')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Slicer settings' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('renders telemetry, current job, AMS and activity for the printer', async () => {
@@ -332,6 +560,7 @@ describe('PrinterDetailPage', () => {
           feedReadings: [],
           buildPlateType: null,
           buildPlateTypeLabel: null,
+          setupIssues: ['Select a build plate'],
           compatibleBuildPlateTypes: [
             { value: 'TexturedPei', label: 'Textured PEI Plate' },
             { value: 'HighTemp', label: 'High Temp Plate' },
@@ -345,6 +574,10 @@ describe('PrinterDetailPage', () => {
 
     expect(await screen.findByText('No Plate Printer')).toBeInTheDocument();
     expect(screen.getByText('Not selected')).toBeInTheDocument();
+    // The printer cannot take a job yet: the badge and the card say so, instead of a plain Ready.
+    expect(screen.getByText('Needs setup')).toBeInTheDocument();
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
+    expect(screen.getByText('Select a build plate')).toBeInTheDocument();
   });
 
   it('shows a not-found message for a missing printer', async () => {

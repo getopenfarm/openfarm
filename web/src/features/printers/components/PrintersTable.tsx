@@ -12,12 +12,13 @@ import { usePrinterSendProgress } from '../hooks/usePrinterSendProgress';
 import { printerStatusToBadge } from '../lib/printerStatusBadge';
 
 function PrinterStatusCell({ printer }: { printer: FleetPrinterResponse }) {
-  const { kind, label } = printerStatusToBadge(
+  const { kind, label, solid } = printerStatusToBadge(
     (printer.status ?? 'Idle') as PrinterStatus,
     printer.isReachable ?? false,
     usePrinterSendProgress(printer.id ?? ''),
+    printer.setupIssues,
   );
-  return <StatusBadge kind={kind} label={label} />;
+  return <StatusBadge kind={kind} label={label} solid={solid} />;
 }
 
 const PLACEHOLDER_FILAMENT_COLOR = '#8892a6';
@@ -79,23 +80,22 @@ export function PrintersTable({
       header: 'Current job',
       cell: ({ row }) => {
         const printer = row.original;
-        if (printer.status === 'Printing') {
-          const progress = printer.printProgressPercent ?? 0;
-          return (
-            <div className="flex min-w-40 flex-col gap-1.5">
-              <Progress
-                value={progress}
-                className="h-1.5"
-                indicatorClassName="bg-status-printing"
-              />
-              <span className="font-mono text-xs text-muted-foreground">
-                {progress}%
-              </span>
-            </div>
-          );
-        }
+        // Same cell for every row: idle shows an empty bar and a dash.
+        const progress =
+          printer.status === 'Printing'
+            ? (printer.printProgressPercent ?? 0)
+            : null;
         return (
-          <span className="text-sm text-muted-foreground">No active job</span>
+          <div className="flex min-w-40 flex-col gap-1.5">
+            <Progress
+              value={progress ?? 0}
+              className="h-1.5"
+              indicatorClassName="bg-status-printing"
+            />
+            <span className="font-mono text-xs text-muted-foreground">
+              {progress == null ? '—' : `${progress}%`}
+            </span>
+          </div>
         );
       },
     },

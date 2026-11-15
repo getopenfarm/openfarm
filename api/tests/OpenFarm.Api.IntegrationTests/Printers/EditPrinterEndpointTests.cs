@@ -64,36 +64,10 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         return printer;
     }
 
-    // Seeds a compatible Machine + Process System profile pair directly through the repositories
-    // (contracts/profiles-api.md's US2 scenarios need `Origin = System`, which only the ingestion
-    // pipeline's `CreateSystemProfile` factories can produce — cheaper here than staging a full
-    // vendor bundle and running ingestion just to get one compatible pair).
-    private async Task<(Guid MachineProfileId, Guid ProcessProfileId, string MachineProfileName)> SeedCompatibleSystemProfilePairAsync()
-    {
-        using var scope = factory.Services.CreateScope();
-        var machineRepo = scope.ServiceProvider.GetRequiredService<IMachineProfileRepository>();
-        var processRepo = scope.ServiceProvider.GetRequiredService<IProcessProfileRepository>();
-
-        var suffix = Guid.NewGuid().ToString("N");
-        var machineName = $"Edit Test Machine {suffix}";
-        var machine = MachineProfile.CreateSystemProfile(
-            machineName, ProfileSourceFormat.OrcaSlicer, null,
-            """{"name":"placeholder","nozzle_diameter":["0.4"]}""", "EditPrinterEndpointTests", suffix, true, null, null, sourceVersion: "2.2.0");
-        await machineRepo.AddAsync(machine, CancellationToken.None);
-
-        var process = ProcessProfile.CreateSystemProfile(
-            $"Edit Test Process {suffix}", ProfileSourceFormat.OrcaSlicer, null,
-            """{"name":"placeholder"}""", "EditPrinterEndpointTests", $"proc-{suffix}", true, [machineName], sourceVersion: "2.2.0");
-        await processRepo.AddAsync(process, CancellationToken.None);
-
-        return (machine.Id, process.Id, machineName);
-    }
-
     // 012 US1 — a real Bambu-brand registration goes through RegisterPrinterCommandHandler's live
     // connector verification (research.md — only "System"/"Simulation" routes to the no-network
     // simulator), which no CI runner can satisfy against a real printer. Seeding directly through the
-    // repository (the same "cheaper than staging a full pipeline" reasoning
-    // SeedCompatibleSystemProfilePairAsync already uses) is how this suite gets a printer whose
+    // repository is how this suite gets a printer whose
     // catalog model has a narrower CompatiblePlateTypes set than System/Simulation's "all six".
     private async Task<Guid> RegisterBambuA1PrinterDirectlyAsync()
     {
@@ -200,132 +174,31 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         afterCount.Should().Be(beforeCount);
     }
 
-    [Fact]
-    public async Task Edit_LinkMachineAndCompatibleProcessProfile_Returns200AndWritesLinkedActivityEvents()
-    {
-        var client = await AuthenticatedClientAsync();
-        var printer = await RegisterPrinterAsync(client);
-        var (machineProfileId, processProfileId, _) = await SeedCompatibleSystemProfilePairAsync();
-
-        var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name, MachineProfileId = machineProfileId, ProcessProfileId = processProfileId });
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
-        var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
-        page!.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterMachineProfileLinked");
-        page.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterProcessProfileLinked");
-    }
+    // --- 012 US1: build plate selection, now its own slicer-settings endpoint ---
 
     [Fact]
-    public async Task Edit_ProcessProfileWithoutMachineProfile_Returns422()
-    {
-        var client = await AuthenticatedClientAsync();
-        var printer = await RegisterPrinterAsync(client);
-        var (_, processProfileId, _) = await SeedCompatibleSystemProfilePairAsync();
-
-        var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name, ProcessProfileId = processProfileId });
-
-        response.StatusCode.Should().Be((HttpStatusCode)422);
-    }
-
-    [Fact]
-    public async Task Edit_ProcessProfileIncompatibleWithSelectedMachine_Returns422()
-    {
-        var client = await AuthenticatedClientAsync();
-        var printer = await RegisterPrinterAsync(client);
-        var (_, processProfileId, _) = await SeedCompatibleSystemProfilePairAsync();
-        var (otherMachineProfileId, _, _) = await SeedCompatibleSystemProfilePairAsync();
-
-        var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name, MachineProfileId = otherMachineProfileId, ProcessProfileId = processProfileId });
-
-        response.StatusCode.Should().Be((HttpStatusCode)422);
-    }
-
-    [Fact]
-    public async Task Edit_TwoPrintersLinkedIndependently_EachKeepsItsOwnSelection()
-    {
-        var client = await AuthenticatedClientAsync();
-        var printerA = await RegisterPrinterAsync(client, "10.0.0.94");
-        var printerB = await RegisterPrinterAsync(client, "10.0.0.95");
-        var (machineProfileIdA, processProfileIdA, _) = await SeedCompatibleSystemProfilePairAsync();
-        var (machineProfileIdB, processProfileIdB, _) = await SeedCompatibleSystemProfilePairAsync();
-
-        await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printerA.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printerA.Name, MachineProfileId = machineProfileIdA, ProcessProfileId = processProfileIdA });
-        await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printerB.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printerB.Name, MachineProfileId = machineProfileIdB, ProcessProfileId = processProfileIdB });
-
-        var detailA = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printerA.Id}", UriKind.Relative));
-        var detailB = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printerB.Id}", UriKind.Relative));
-
-        detailA!.MachineProfileId.Should().Be(machineProfileIdA);
-        detailA.ProcessProfileId.Should().Be(processProfileIdA);
-        detailB!.MachineProfileId.Should().Be(machineProfileIdB);
-        detailB.ProcessProfileId.Should().Be(processProfileIdB);
-    }
-
-    [Fact]
-    public async Task Edit_ClearMachineProfile_AlsoClearsProcessProfileLinkAndWritesUnlinkedEvents()
-    {
-        var client = await AuthenticatedClientAsync();
-        var printer = await RegisterPrinterAsync(client);
-        var (machineProfileId, processProfileId, _) = await SeedCompatibleSystemProfilePairAsync();
-
-        await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name, MachineProfileId = machineProfileId, ProcessProfileId = processProfileId });
-
-        var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name });
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative));
-        detail!.MachineProfileId.Should().BeNull();
-        detail.ProcessProfileId.Should().BeNull();
-
-        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=50", UriKind.Relative));
-        var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
-        page!.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterMachineProfileUnlinked");
-        page.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterProcessProfileUnlinked");
-    }
-
-    // --- 012 US1: build plate selection (test-after, per plan.md's TDD scoping) ---
-
-    [Fact]
-    public async Task Edit_GetPrinterDetail_CompatibleBuildPlateTypesAndLabelsPresentEvenWithNoMachineProfileLinked()
+    public async Task Edit_GetPrinterDetail_CompatibleBuildPlateTypesAndLabelsPresentBeforeAnyPlateIsSelected()
     {
         var client = await AuthenticatedClientAsync();
         var printer = await RegisterPrinterAsync(client);
 
         var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative));
 
-        detail!.MachineProfileId.Should().BeNull();
-        detail.BuildPlateType.Should().BeNull();
+        detail!.BuildPlateType.Should().BeNull();
         detail.BuildPlateTypeLabel.Should().BeNull();
         detail.CompatibleBuildPlateTypes.Should().HaveCount(6);
         detail.CompatibleBuildPlateTypes.Should().Contain(o => o.Value == "Cool" && o.Label == "Cool Plate");
     }
 
     [Fact]
-    public async Task Edit_SelectBuildPlate_Returns200PersistsAndWritesSelectedActivityEvent()
+    public async Task SlicerSettings_SelectBuildPlate_Returns200PersistsAndWritesSelectedActivityEvent()
     {
         var client = await AuthenticatedClientAsync();
         var printer = await RegisterPrinterAsync(client);
 
-        var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name, BuildPlateType = "TexturedPei" });
+        var response = await client.PutAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}/slicer-settings", UriKind.Relative),
+            new EditPrinterSlicerSettingsRequest { BuildPlateType = "TexturedPei" });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -339,17 +212,17 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
     }
 
     [Fact]
-    public async Task Edit_ClearBuildPlate_Returns200AndWritesClearedActivityEvent()
+    public async Task SlicerSettings_ClearBuildPlate_Returns200AndWritesClearedActivityEvent()
     {
         var client = await AuthenticatedClientAsync();
         var printer = await RegisterPrinterAsync(client);
-        await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name, BuildPlateType = "TexturedPei" });
+        await client.PutAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}/slicer-settings", UriKind.Relative),
+            new EditPrinterSlicerSettingsRequest { BuildPlateType = "TexturedPei" });
 
-        var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name });
+        var response = await client.PutAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}/slicer-settings", UriKind.Relative),
+            new EditPrinterSlicerSettingsRequest { BuildPlateType = null });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -362,15 +235,15 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
     }
 
     [Fact]
-    public async Task Edit_BuildPlateNotInModelsCompatibleSet_Returns422()
+    public async Task SlicerSettings_BuildPlateNotInModelsCompatibleSet_Returns422()
     {
         var client = await AuthenticatedClientAsync();
         var printerId = await RegisterBambuA1PrinterDirectlyAsync();
 
         // A1's compatible set is {TexturedPei, HighTemp} — Cool is not in it.
-        var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printerId}", UriKind.Relative),
-            new EditPrinterRequest { Name = "A1 Test Printer", BuildPlateType = "Cool" });
+        var response = await client.PutAsJsonAsync(
+            new Uri($"/api/v1/printers/{printerId}/slicer-settings", UriKind.Relative),
+            new EditPrinterSlicerSettingsRequest { BuildPlateType = "Cool" });
 
         response.StatusCode.Should().Be((HttpStatusCode)422);
         var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
@@ -378,40 +251,98 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
     }
 
     [Fact]
-    public async Task Edit_BuildPlateOnPrinterWithNoMachineProfile_Returns200_NoPrerequisite()
+    public async Task SlicerSettings_BuildPlate_Returns200OnItsOwn()
     {
         var client = await AuthenticatedClientAsync();
         var printer = await RegisterPrinterAsync(client);
 
-        var response = await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
-            new EditPrinterRequest { Name = printer.Name, BuildPlateType = "HighTemp" });
+        var response = await client.PutAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}/slicer-settings", UriKind.Relative),
+            new EditPrinterSlicerSettingsRequest { BuildPlateType = "HighTemp" });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative));
-        detail!.MachineProfileId.Should().BeNull();
-        detail.BuildPlateType.Should().Be("HighTemp");
+        detail!.BuildPlateType.Should().Be("HighTemp");
+    }
+
+    // A real printer cannot take any job without its plate: fleet and detail both say so until the operator selects one.
+    [Fact]
+    public async Task SetupIssues_NamePrinterWithoutAPlate_AndClearOnceOneIsSelected()
+    {
+        var client = await AuthenticatedClientAsync();
+        var realPrinterId = await RegisterBambuA1PrinterDirectlyAsync();
+        var simulator = await RegisterPrinterAsync(client, "10.0.0.97");
+
+        async Task<IReadOnlyList<string>> FleetIssuesAsync(Guid id) =>
+            (await client.GetFromJsonAsync<ListFleetResponse>(new Uri("/api/v1/printers", UriKind.Relative)))!.Printers.Single(p => p.Id == id).SetupIssues;
+
+        (await FleetIssuesAsync(realPrinterId)).Should().Equal("Select a build plate");
+        (await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{realPrinterId}", UriKind.Relative)))!
+            .SetupIssues.Should().Equal("Select a build plate");
+        (await FleetIssuesAsync(simulator.Id)).Should().BeEmpty("the simulator stands in for every plate");
+
+        await client.PutAsJsonAsync(
+            new Uri($"/api/v1/printers/{realPrinterId}/slicer-settings", UriKind.Relative),
+            new EditPrinterSlicerSettingsRequest { BuildPlateType = "TexturedPei" });
+
+        (await FleetIssuesAsync(realPrinterId)).Should().BeEmpty();
+        (await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{realPrinterId}", UriKind.Relative)))!
+            .SetupIssues.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Edit_TwoSameModelPrinters_KeepIndependentBuildPlateSelections()
+    public async Task SlicerSettings_TwoSameModelPrinters_KeepIndependentBuildPlateSelections()
     {
         var client = await AuthenticatedClientAsync();
         var printerAId = await RegisterBambuA1PrinterDirectlyAsync();
         var printerBId = await RegisterBambuA1PrinterDirectlyAsync();
 
-        await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printerAId}", UriKind.Relative),
-            new EditPrinterRequest { Name = "A1 Test Printer", BuildPlateType = "TexturedPei" });
-        await client.PatchAsJsonAsync(
-            new Uri($"/api/v1/printers/{printerBId}", UriKind.Relative),
-            new EditPrinterRequest { Name = "A1 Test Printer", BuildPlateType = "HighTemp" });
+        await client.PutAsJsonAsync(
+            new Uri($"/api/v1/printers/{printerAId}/slicer-settings", UriKind.Relative),
+            new EditPrinterSlicerSettingsRequest { BuildPlateType = "TexturedPei" });
+        await client.PutAsJsonAsync(
+            new Uri($"/api/v1/printers/{printerBId}/slicer-settings", UriKind.Relative),
+            new EditPrinterSlicerSettingsRequest { BuildPlateType = "HighTemp" });
 
         var detailA = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printerAId}", UriKind.Relative));
         var detailB = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printerBId}", UriKind.Relative));
 
         detailA!.BuildPlateType.Should().Be("TexturedPei");
         detailB!.BuildPlateType.Should().Be("HighTemp");
+    }
+
+    [Fact]
+    public async Task Edit_NameOnly_LeavesTheBuildPlateAlone()
+    {
+        var client = await AuthenticatedClientAsync();
+        var printer = await RegisterPrinterAsync(client);
+        await client.PutAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}/slicer-settings", UriKind.Relative),
+            new EditPrinterSlicerSettingsRequest { BuildPlateType = "HighTemp" });
+
+        var response = await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative),
+            new EditPrinterRequest { Name = "Renamed" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative));
+        detail!.BuildPlateType.Should().Be("HighTemp");
+    }
+
+    // The migration moved the plate off "change connection": Operators swap plates, and so can any group that could before.
+    [Fact]
+    public async Task Migration_GrantsSlicerSettingsToOperatorsAndToEveryGroupThatCouldChangeTheConnection()
+    {
+        await AuthenticatedClientAsync(); // boots the app and runs the migrations
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarm.Infrastructure.Persistence.OpenFarmDbContext>();
+        var operators = Guid.Parse("f246d189-b11c-4494-9999-000000000002");
+        var viewers = Guid.Parse("f246d189-b11c-4494-9999-000000000003");
+
+        var claims = db.RoleClaims.Where(c => c.ClaimValue == "printers:edit-slicer-settings").Select(c => c.RoleId).ToList();
+
+        claims.Should().Contain(operators);
+        claims.Should().NotContain(viewers);
     }
 }

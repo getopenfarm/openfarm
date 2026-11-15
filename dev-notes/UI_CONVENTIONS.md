@@ -191,8 +191,9 @@ and keep wide tables horizontally scrollable within their containers.
 
 Breadcrumbs must shrink without pushing utility actions outside the viewport.
 Form-footer margins must match shell padding. Preserve the dashboard's fixed
-responsive camera grid, neutral surfaces, in-card warnings, explicit finished
-status action, and filament-source distinctions.
+responsive camera grid, neutral surfaces, explicit finished status action, and
+filament-source distinctions. Printer alerts sit in the card header beside the
+status chip, never in a footer: card height must not depend on alerts.
 
 ## Verification
 

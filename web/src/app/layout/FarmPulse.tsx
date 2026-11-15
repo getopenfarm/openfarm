@@ -1,3 +1,4 @@
+import { getStatusLabel } from '@/components/printer-tile/status';
 import { StatusBadge } from '@/components/status-badge/StatusBadge';
 import { deriveFleetStatusCounts } from '@/features/printers/lib/fleetStatus';
 import type { ListFleetResponse } from '@/lib/api/generated/endpoints.schemas';
@@ -16,9 +17,19 @@ export function FarmPulse() {
 
   return (
     <div className="hidden items-center gap-1.5 sm:flex">
-      <StatusBadge kind="green" label={`${counts.printing} printing`} />
-      <StatusBadge kind="amber" label={`${counts.awaitingClear} awaiting`} />
-      <StatusBadge kind="zinc" label={`${counts.idle} idle`} />
+      <StatusBadge
+        kind="green"
+        label={`${getStatusLabel('Printing')} · ${counts.printing}`}
+      />
+      <StatusBadge
+        kind="amber"
+        solid={counts.awaitingClear > 0}
+        label={`${getStatusLabel('AwaitingClear')} · ${counts.awaitingClear}`}
+      />
+      <StatusBadge
+        kind="zinc"
+        label={`${getStatusLabel('Idle')} · ${counts.idle}`}
+      />
     </div>
   );
 }

@@ -43,9 +43,10 @@ public static class PermissionCatalog
         new("printers:list", "printers", "List", "See the fleet with live status and camera snapshots.", true, false, false, Verb: "list"),
         new("printers:get-detail", "printers", "View", "Open a printer to see its full status, feed units and settings.", true, false, false, Verb: "see"),
         new("printers:register", "printers", "Add", "Discover printers on the network and add them to the fleet.", false, false, false, Verb: "add"),
-        new("printers:mark-ready", "printers", "Mark ready", "Confirm a build plate is clear so the printer can take its next job.", false, false, false, Phrase: "mark printers ready"),
+        new("printers:mark-ready", "printers", "Mark ready", "Confirm a build plate is clear so the printer can take its next job, or mark a ready printer not ready to hold it back.", false, false, false, Phrase: "mark printers ready"),
         new("printers:verify-connection", "printers", "Verify connection", "Test a printer address and access code from the server before saving them.", false, true, false, Phrase: "verify printer connections"),
-        new("printers:edit-connection", "printers", "Change connection", "Rename a printer and change its address, access code and profiles. A wrong value takes it offline.", false, true, false, IsExplicit: true, Phrase: "change printer connections"),
+        new("printers:edit-connection", "printers", "Change connection", "Rename a printer and change its address and access code. A wrong value takes it offline.", false, true, false, IsExplicit: true, Phrase: "change printer connections"),
+        new("printers:edit-slicer-settings", "printers", "Change slicer settings", "Set the build plate a printer slices for, even while it prints.", false, false, false, Phrase: "change printer slicer settings"),
         new("printers:remove", "printers", "Remove", "Remove a printer from the fleet.", false, false, true, Verb: "remove"),
 
         new("maintenance:view", "maintenance", "View", "See maintenance tasks, what is due and the maintenance log.", true, false, false, Verb: "see"),

@@ -101,7 +101,7 @@ function uploadFile() {
   const fileInput = document.querySelector(
     'input[type="file"]',
   ) as HTMLInputElement;
-  const file = new File(['solid test'], 'benchy.stl', {
+  const file = new File(['solid test'], 'benchy.3mf', {
     type: 'application/octet-stream',
   });
   return { fileInput, file };
@@ -134,7 +134,7 @@ describe('PartFormPage', () => {
     const { fileInput, file } = uploadFile();
     await user.upload(fileInput, file);
 
-    expect(await screen.findByText('benchy.stl')).toBeInTheDocument();
+    expect(await screen.findByText('benchy.3mf')).toBeInTheDocument();
     expect(screen.getByText('Processing…')).toBeInTheDocument();
     expect(screen.getByLabelText('Name')).toHaveValue('benchy');
 
@@ -201,7 +201,7 @@ describe('PartFormPage', () => {
 
     const { fileInput, file } = uploadFile();
     await user.upload(fileInput, file);
-    await screen.findByText('benchy.stl');
+    await screen.findByText('benchy.3mf');
 
     await user.click(screen.getByRole('link', { name: 'Nav away' }));
 

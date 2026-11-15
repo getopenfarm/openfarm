@@ -166,6 +166,24 @@ public class ExternalPrintHistoryTests(ProductionTestFactory factory) : Producti
     }
 
     [Fact]
+    public async Task AHeldPrinter_ShowsNoCurrentJob_ButAFinishedPrintStillDoes()
+    {
+        var client = await ClientAsync();
+        var printer = await PrinterAsync();
+        var part = await PartAsync();
+        var job = (await JobsAsync((await RunAsync(client, part.Id)).Id)).Single();
+        await AssignAsync(job.Id, printer.Id);
+        await ReplayAsync(printer.Id, "FINISH");
+        await UpdatePrinterAsync(printer.Id, p => p.ObserveStatus("FINISH"));
+        (await PrintNamesAsync(client, printer.Id)).Should().Be((part.Name, part.Name));
+
+        // Mark ready, then Mark not ready: the plate was cleared, so nothing is waiting on it.
+        await UpdatePrinterAsync(printer.Id, p => p.TransitionTo(PrinterStatus.Idle));
+        await UpdatePrinterAsync(printer.Id, p => p.TransitionTo(PrinterStatus.AwaitingClear));
+        (await PrintNamesAsync(client, printer.Id)).Should().Be((null, null));
+    }
+
+    [Fact]
     public async Task DeletingThePrinter_KeepsTheHistoryRow_WithoutAPrinter()
     {
         var (printId, printerId, _) = await StartExternalAsync(20m);

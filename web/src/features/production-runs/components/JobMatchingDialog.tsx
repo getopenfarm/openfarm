@@ -7,6 +7,10 @@ import {
 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router';
+import {
+  type PrinterStatus,
+  STATUS_META,
+} from '@/components/printer-tile/status';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -28,6 +32,12 @@ import { useOpenFarmApiEndpointsPrintJobsGetJobMatchingDiagnosticsEndpoint } fro
 import { formatDateTime } from '@/lib/formatDateTime';
 import { cn } from '@/lib/utils';
 
+/** The availability check names raw statuses ("Idle", "AwaitingClear"); show the labels used everywhere else. */
+const statusText = (value?: string | null) =>
+  value && value in STATUS_META
+    ? STATUS_META[value as PrinterStatus].label
+    : value;
+
 const failed = (checks: MatchingCheck[] | null | undefined) =>
   (checks ?? []).filter((c) => c.status === 'Failed');
 
@@ -36,8 +46,8 @@ function shortReason(printer: PrinterMatchingDiagnostics) {
   if (printer.eligible) return 'Ready';
   const [first, ...rest] = failed(printer.checks);
   if (!first) return 'Not ready';
-  const text =
-    first.actual && first.actual.length <= 18 ? first.actual : first.label;
+  const actual = statusText(first.actual);
+  const text = actual && actual.length <= 18 ? actual : first.label;
   return rest.length ? `${text} +${rest.length}` : text;
 }
 
@@ -86,7 +96,7 @@ function CheckRow({
           </p>
           {!isFailed && (
             <span className="shrink-0 truncate text-xs text-muted-foreground">
-              {check.status === 'Passed' ? check.actual : 'Skipped'}
+              {check.status === 'Passed' ? statusText(check.actual) : 'Skipped'}
             </span>
           )}
         </div>
@@ -95,13 +105,13 @@ function CheckRow({
             {check.required && (
               <>
                 <dt className="text-muted-foreground">Needs</dt>
-                <dd className="break-words">{check.required}</dd>
+                <dd className="break-words">{statusText(check.required)}</dd>
               </>
             )}
             {check.actual && (
               <>
                 <dt className="text-muted-foreground">Has</dt>
-                <dd className="break-words">{check.actual}</dd>
+                <dd className="break-words">{statusText(check.actual)}</dd>
               </>
             )}
           </dl>

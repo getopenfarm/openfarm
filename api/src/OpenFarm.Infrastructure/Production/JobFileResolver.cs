@@ -9,10 +9,10 @@ namespace OpenFarm.Infrastructure.Production;
 
 /// <summary>
 /// The two FR-011 branches: an already-sliced <see cref="Part"/> (<c>RequiresSlicing == false</c>) is
-/// read back from <see cref="IPartFileStorage"/> as-is; a part requiring slicing is re-sliced on
-/// demand via <see cref="ISlicerEngine"/> with the presets resolved to the exact engine/version the part was
-/// pinned to (<see cref="ProductionProfileReadiness"/> — no fallback to another slicer, version or preset), so a
-/// job prints with the same slicer its part was confirmed with. The re-slice result is read into memory and
+/// read back from <see cref="IPartFileStorage"/> as-is; a project requiring slicing is re-sliced on
+/// demand via <see cref="ISlicerEngine"/> with its own machine and process and the filament presets resolved to the exact
+/// engine/version the part was pinned to (<see cref="ProductionProfileReadiness"/> — no fallback to another slicer,
+/// version or preset), so a job prints with the same slicer its part was confirmed with. The re-slice result is read into memory and
 /// never written back to <see cref="Part.StoragePath"/> — scoped to this one dispatch only, per FR-011.
 /// </summary>
 public sealed class JobFileResolver(
@@ -69,13 +69,8 @@ public sealed class JobFileResolver(
         var (projectSlots, unused) = classification.Format == PartFileFormat.ThreeMf ? await ProjectSlotsAsync(stored, plate, cancellationToken) : ([], []);
         stored.Position = 0;
         profiles = profiles with { Slots = FilamentSlots(projectSlots, effective.Requirements), Plate = plate };
-        if (job.ObjectExecution is not null && profiles.Pin.Engine == SlicerEngine.OrcaSlicer)
-        {
-            var process = System.Text.Json.Nodes.JsonNode.Parse(profiles.ProcessSettingsJson)!.AsObject();
-            process["gcode_label_objects"] = "1";
-            process["exclude_object"] = "1";
-            profiles = profiles with { ProcessSettingsJson = process.ToJsonString() };
-        }
+        // The project's own process decides whether objects are labelled. Exact partial plates need the labels: the sliced
+        // output is checked against the job's object manifest (ObjectExecutionArtifact.Prepare), which blocks without them.
         var result = await slicerEngine.SliceConfiguredAsync(profiles.Pin, stored, classification.Format, selections[0].MaterialType,
             nozzleDiameterMm, printerId, profiles, cancellationToken);
         var printed = PlateToPrint(result.OutputFileBytes, part.PlateNumber);
@@ -122,7 +117,7 @@ public sealed class JobFileResolver(
     /// <summary>
     /// Which line's filament each project slot loads. A slot's material and colour name its line — the key the part's
     /// requirements were grouped by. A blank slot is unused and takes the first filament; a slot no line claims blocks the
-    /// job rather than guess. A file without project slots (STL, a geometry-only 3MF) slices with its one line's filament.
+    /// job rather than guess. A file without project slots slices with its one line's filament.
     /// </summary>
     internal static IReadOnlyList<SlotFilament> FilamentSlots(IReadOnlyList<DetectedFilamentSlot?> projectSlots, IReadOnlyList<JobFilamentRequirementSpec> lines)
     {

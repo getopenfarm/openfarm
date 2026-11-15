@@ -217,5 +217,5 @@ public sealed partial class CliSlicerEngine(
     private static partial void LogSlicerFailed(ILogger logger, SlicerEngine engine, int exitCode, string stdErr);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Using slicing profiles for {Engine}: machine={MachineProfileName} process={ProcessProfileName} filament={FilamentProfileName}")]
-    private static partial void LogResolvedSlicingProfiles(ILogger logger, SlicerEngine engine, string machineProfileName, string processProfileName, string filamentProfileName);
+    private static partial void LogResolvedSlicingProfiles(ILogger logger, SlicerEngine engine, string? machineProfileName, string? processProfileName, string filamentProfileName);
 }
