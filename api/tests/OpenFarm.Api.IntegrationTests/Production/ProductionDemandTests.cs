@@ -57,6 +57,116 @@ public class ProductionDemandTests(ProductionTestFactory factory) : ProductionTe
         await PostAsync(client, $"/api/v1/print-jobs/{jobs[0].Id}/requeue", HttpStatusCode.Created);
     }
 
+    private async Task<List<PrintJob>> DemandJobsAsync(Guid demandId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        return await (from job in db.PrintJobs.Include(j => j.Filaments)
+                      join req in db.PartRequirements on job.PartRequirementId equals req.Id
+                      where req.RunLineId == demandId
+                      orderby job.QueuePosition
+                      select job).ToListAsync();
+    }
+
+    private async Task<Guid> FilamentAsync(string material, bool variant = false)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var vendor = OpenFarm.Domain.FilamentTracking.Vendor.Create($"Vendor {Guid.NewGuid():N}");
+        db.Vendors.Add(vendor);
+        var filament = OpenFarm.Domain.FilamentTracking.Filament.Create(vendor.Id, material, material);
+        var red = filament.AddVariant("Red", "FF0000");
+        db.Filaments.Add(filament);
+        await db.SaveChangesAsync();
+        return variant ? red.Id : filament.Id;
+    }
+
+    private static async Task<ProductionDemandResponse> SubmitAsync(HttpClient client, object body)
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/production-demands", body);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<ProductionDemandResponse>())!;
+    }
+
+    private async Task<PrintJob> QueueOnePlateAsync(HttpClient client)
+    {
+        var line = new { targetKind = "Part", targetId = (await PartAsync()).Id, quantity = 1, quantityBasis = "Plates" };
+        var demand = await SubmitAsync(client, new { submissionId = Guid.NewGuid(), line, planVersion = (await PreviewAsync(client, line)).Version });
+        return (await DemandJobsAsync(demand.Id)).Single();
+    }
+
+    [Fact]
+    public async Task DirectSubmission_PinsPrinter_PlacesAtTop_AndAppliesFilamentChoice()
+    {
+        var client = await ClientAsync();
+        var earlier = await QueueOnePlateAsync(client);
+
+        var printer = await PrinterAsync();
+        var red = await FilamentAsync("PLA", variant: true);
+        var part = await PartAsync();
+        var line = new { targetKind = "Part", targetId = part.Id, quantity = 2, quantityBasis = "Plates", assignmentMode = "Pinned", pinnedPrinterId = printer.Id };
+        var demand = await SubmitAsync(client, new
+        {
+            submissionId = Guid.NewGuid(),
+            line,
+            planVersion = (await PreviewAsync(client, line)).Version,
+            placeAtTop = true,
+            filamentChoices = new[] { new { requirementId = part.FilamentRequirements.Single().Id, narrowFilamentVariantId = red } },
+        });
+
+        var jobs = await DemandJobsAsync(demand.Id);
+        jobs.Should().HaveCount(2);
+        jobs.Should().OnlyContain(j => j.AssignmentMode == AssignmentMode.Pinned && j.PinnedPrinterId == printer.Id);
+        jobs.Should().OnlyContain(j => j.QueuePosition < earlier.QueuePosition);
+        jobs.Should().OnlyContain(j => j.HasFilamentRequirementOverride
+            && j.Filaments.Single().Requirement == new JobFilamentRequirementSpec("PLA", null, red, null, null, false));
+
+        // Without a choice the jobs keep the part's filament and go to the bottom.
+        var plain = await QueueOnePlateAsync(client);
+        plain.HasFilamentRequirementOverride.Should().BeFalse();
+        plain.QueuePosition.Should().BeGreaterThan(earlier.QueuePosition);
+    }
+
+    [Fact]
+    public async Task FilamentChoicesAndTopPlacement_AreRejectedOutsideAFinitePartsOwnRequirements()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var requirementId = part.FilamentRequirements.Single().Id;
+        var line = new { targetKind = "Part", targetId = part.Id, quantity = 1, quantityBasis = "Plates" };
+        var plan = await PreviewAsync(client, line);
+        var backfill = new { targetKind = "Part", targetId = part.Id, quantity = (int?)null };
+        var petg = await FilamentAsync("PETG");
+
+        async Task Rejects(object body, HttpStatusCode expected)
+        {
+            var response = await client.PostAsJsonAsync("/api/v1/production-demands", body);
+            response.StatusCode.Should().Be(expected, await response.Content.ReadAsStringAsync());
+        }
+
+        await Rejects(new
+        {
+            submissionId = Guid.NewGuid(),
+            line,
+            planVersion = plan.Version,
+            filamentChoices = new[] { new { requirementId = Guid.NewGuid(), anyColor = true } }
+        }, HttpStatusCode.UnprocessableEntity);
+        await Rejects(new
+        {
+            submissionId = Guid.NewGuid(),
+            line,
+            planVersion = plan.Version,
+            filamentChoices = new[] { new { requirementId, narrowFilamentId = petg } }
+        }, HttpStatusCode.BadRequest);
+        await Rejects(new
+        {
+            submissionId = Guid.NewGuid(),
+            line = backfill,
+            filamentChoices = new[] { new { requirementId, anyColor = true } }
+        }, HttpStatusCode.UnprocessableEntity);
+        await Rejects(new { submissionId = Guid.NewGuid(), line = backfill, placeAtTop = true }, HttpStatusCode.UnprocessableEntity);
+    }
+
     [Fact]
     public async Task ChangedPlateCapacity_RejectsStalePreview_WithoutPersistingDemand()
     {

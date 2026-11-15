@@ -1118,6 +1118,15 @@ export type SubmitProductionDemandRequestPlateOverrides = {
   [key: string]: number;
 } | null;
 
+export interface PrintFilamentChoice {
+  requirementId?: string;
+  /** @nullable */
+  narrowFilamentVariantId?: string | null;
+  /** @nullable */
+  narrowFilamentId?: string | null;
+  anyColor?: boolean;
+}
+
 export interface SubmitProductionDemandRequest {
   /** @minLength 1 */
   submissionId: string;
@@ -1131,6 +1140,9 @@ export interface SubmitProductionDemandRequest {
   newRunName?: string | null;
   /** @nullable */
   plateOverrides?: SubmitProductionDemandRequestPlateOverrides;
+  placeAtTop?: boolean;
+  /** @nullable */
+  filamentChoices?: PrintFilamentChoice[] | null;
 }
 
 export interface ChangeBackfillRequest {

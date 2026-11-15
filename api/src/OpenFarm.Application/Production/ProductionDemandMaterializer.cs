@@ -58,9 +58,11 @@ internal sealed class ProductionDemandMaterializer(
 
     public async Task StageAsync(
         IReadOnlyList<ProductionDemand> lines, IReadOnlyDictionary<Guid, IReadOnlyList<ExplodedPartQuantity>> explodedByLine,
-        CancellationToken cancellationToken, IReadOnlyDictionary<Guid, int>? plateCounts = null)
+        CancellationToken cancellationToken, IReadOnlyDictionary<Guid, int>? plateCounts = null,
+        IReadOnlyList<JobFilamentRequirementSpec>? filamentOverride = null, bool placeAtTop = false)
     {
         var nextQueuePosition = await jobRepository.GetMaxQueuePositionAsync(cancellationToken) ?? 0;
+        var staged = new List<PrintJob>();
 
         foreach (var line in lines)
         {
@@ -107,7 +109,8 @@ internal sealed class ProductionDemandMaterializer(
                     ?? throw new PartNotFoundException(requirement.PartId);
 
                 var platesNeeded = plateCounts?.GetValueOrDefault(part.Id) ?? checked((int)Math.Ceiling(requirement.Quantity!.Value / part.UnitsPerPrint));
-                var filamentSpecs = ProductionJobRequirements.FromPart(part);
+                // A Part target's filament choices for this print (ProductionDemandService validates them).
+                var filamentSpecs = filamentOverride ?? ProductionJobRequirements.FromPart(part);
 
                 var manifest = planner is null ? null : await planner.ReadObjectsAsync(part, cancellationToken);
                 var jobs = new List<PrintJob>(platesNeeded);
@@ -116,7 +119,8 @@ internal sealed class ProductionDemandMaterializer(
                     nextQueuePosition += 1024;
                     jobs.Add(PrintJob.Create(
                         part.Name, requirement.Id, nextQueuePosition, part.UnitsPerPrint,
-                        line.DefaultAssignmentMode, line.DefaultPinnedPrinterId, part.RevisionHash, part.RevisionNumber, filamentSpecs));
+                        line.DefaultAssignmentMode, line.DefaultPinnedPrinterId, part.RevisionHash, part.RevisionNumber, filamentSpecs,
+                        filamentOverride is not null));
                 }
 
                 for (var i = 0; i < jobs.Count; i++)
@@ -129,8 +133,11 @@ internal sealed class ProductionDemandMaterializer(
                     if (snapshotFactory is not null) await snapshotFactory.CaptureAsync(job, part, cancellationToken);
                     else job.CaptureProductionSnapshot(part);
                 await jobRepository.AddRangeAsync(jobs, cancellationToken);
+                staged.AddRange(jobs);
             }
         }
+
+        if (placeAtTop) QueueTop.Place(staged, await jobRepository.GetMinQueuedPositionAsync(cancellationToken));
     }
 
     private async Task<IReadOnlyList<ExplodedPartQuantity>> ResolveExplodedPartsAsync(ProductionDemand line, CancellationToken cancellationToken)

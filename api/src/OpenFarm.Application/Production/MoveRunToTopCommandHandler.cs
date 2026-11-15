@@ -13,8 +13,6 @@ public sealed class MoveRunToTopCommandHandler(
     IProductionRunRepository runRepository, IPrintJobRepository jobRepository, ProductionDispatchRequestService? dispatchRequests = null)
     : ICommandHandler<MoveRunToTopCommand, ProductionRun>
 {
-    private const double Spacing = 1024;
-
     public async Task<ProductionRun> HandleAsync(MoveRunToTopCommand command, CancellationToken cancellationToken)
     {
         var run = await runRepository.GetByIdAsync(command.ProductionRunId, cancellationToken)
@@ -29,11 +27,7 @@ public sealed class MoveRunToTopCommandHandler(
             return run;
         }
 
-        var top = await jobRepository.GetMinQueuedPositionAsync(cancellationToken) ?? Spacing;
-        for (var i = 0; i < waiting.Count; i++)
-        {
-            waiting[i].Reorder(top - (waiting.Count - i) * Spacing);
-        }
+        QueueTop.Place(waiting, await jobRepository.GetMinQueuedPositionAsync(cancellationToken));
 
         await jobRepository.SaveChangesAsync(cancellationToken);
         if (dispatchRequests is not null) await dispatchRequests.RequestIdlePrintersAsync(cancellationToken);

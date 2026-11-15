@@ -2,6 +2,7 @@ import type {
   ProductionDemandResponse as GeneratedDemand,
   ProductionPlan as GeneratedPlan,
   ProductionPlanPart as GeneratedPlanPart,
+  PrintFilamentChoice,
 } from '@/lib/api/generated/endpoints.schemas';
 import {
   openFarmApiEndpointsProductionRunsChangeBackfillEndpoint as change,
@@ -44,6 +45,8 @@ export async function submitDemand(data: {
   productionRunId?: string;
   createRun?: boolean;
   plateOverrides?: Record<string, number>;
+  placeAtTop?: boolean;
+  filamentChoices?: PrintFilamentChoice[];
 }) {
   return (await submit(data)).data as DemandResponse;
 }

@@ -35,6 +35,10 @@ public sealed class SubmitProductionDemandRequest : IActivityLoggable
     public string? NewRunName { get; set; }
     /// <summary>Component plate counts from the preview. Only finite standalone Assembly + Plates plans accept overrides; run targets and backfill do not.</summary>
     public Dictionary<Guid, int>? PlateOverrides { get; set; }
+    /// <summary>Finite work only: put the new jobs ahead of every waiting job instead of at the end.</summary>
+    public bool PlaceAtTop { get; set; }
+    /// <summary>Finite Part only: this print's filament per part filament requirement, within its material. Requirements left out keep the part's choice.</summary>
+    public List<PrintFilamentChoice>? FilamentChoices { get; set; }
     public string EntityType => "ProductionDemand";
     public string EventType => "ProductionDemandCreated";
 }
@@ -60,7 +64,7 @@ public sealed class SubmitProductionDemandEndpoint(ProductionDemandService servi
     public override async Task HandleAsync(SubmitProductionDemandRequest req, CancellationToken ct)
     {
         var result = await service.SubmitAsync(new(req.SubmissionId, req.Line.ToInput(), req.PlanVersion,
-            req.ProductionRunId, req.NewRunName, req.CreateRun, req.PlateOverrides), ct);
+            req.ProductionRunId, req.NewRunName, req.CreateRun, req.PlateOverrides, req.PlaceAtTop, req.FilamentChoices), ct);
         Response = ProductionDemandResponse.From(result);
     }
 }

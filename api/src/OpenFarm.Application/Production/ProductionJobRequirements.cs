@@ -24,6 +24,19 @@ public sealed class ProductionJobRequirements(IProductionRunRepository runs, IPa
         .Select(r => new JobFilamentRequirementSpec(r.MaterialType, r.DetectedColorHex,
             r.NarrowFilamentVariantId, r.NarrowFilamentProfileId, r.NarrowFilamentId, r.AnyColor)).ToList();
 
+    /// <summary>The part's lines with this print's choices in place of the part's own. Material and file colour stay the part's.</summary>
+    public static IReadOnlyList<JobFilamentRequirementSpec> FromPart(Part part, IReadOnlyList<PrintFilamentChoice> choices) =>
+        part.FilamentRequirements.Zip(FromPart(part), (requirement, spec) =>
+            choices.FirstOrDefault(c => c.RequirementId == requirement.Id) is { } choice
+                ? spec with
+                {
+                    NarrowFilamentVariantId = choice.NarrowFilamentVariantId,
+                    NarrowFilamentId = choice.NarrowFilamentId,
+                    AnyColor = choice.AnyColor,
+                    NarrowFilamentProfileId = null
+                }
+                : spec).ToList();
+
     public static IReadOnlyList<JobFilamentRequirementSpec> Resolve(PrintJob job, Part part, RevisionMode mode) =>
         !job.HasFilamentRequirementOverride && job.DispatchedAtUtc is null && mode == RevisionMode.FollowLatest
             ? FromPart(part) : job.Filaments.Select(c => c.Requirement).ToList();

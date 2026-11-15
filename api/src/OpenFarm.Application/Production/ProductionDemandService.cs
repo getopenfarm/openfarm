@@ -1,19 +1,24 @@
 using OpenFarm.Application.Assemblies;
 using OpenFarm.Application.Parts;
 using OpenFarm.Application.Printers;
+using OpenFarm.Domain.Parts;
 using OpenFarm.Domain.Production;
 
 namespace OpenFarm.Application.Production;
 
 public sealed record SubmitProductionDemand(Guid SubmissionId, RunLineInput Line, string? PlanVersion,
     Guid? ProductionRunId = null, string? NewRunName = null, bool CreateRun = false,
-    IReadOnlyDictionary<Guid, int>? PlateOverrides = null);
+    IReadOnlyDictionary<Guid, int>? PlateOverrides = null, bool PlaceAtTop = false,
+    IReadOnlyList<PrintFilamentChoice>? FilamentChoices = null);
+
+/// <summary>The filament for one print of a Part, per part filament requirement: one colour, any colour of one filament, or any colour of the material.</summary>
+public sealed record PrintFilamentChoice(Guid RequirementId, Guid? NarrowFilamentVariantId = null, Guid? NarrowFilamentId = null, bool AnyColor = false);
 
 public sealed class ProductionDemandService(IProductionDemandRepository demands, IProductionRunRepository runs,
     IPartRequirementRepository requirements, IPrintJobRepository jobs, IPartRepository parts,
     IAssemblyGraphQueryService graph, IAssemblyRepository assemblies, IPartFileStorage files,
     ProductionSnapshotFactory snapshots, IPrinterRepository printers, ProductionPlanner planner,
-    ProductionDispatchRequestService dispatch, IProductionEventPublisher publisher)
+    ProductionDispatchRequestService dispatch, IProductionEventPublisher publisher, PartFilamentSelectionValidator filamentValidator)
 {
     private ProductionDemandMaterializer Materializer() => new(requirements, jobs, parts, graph, printers, assemblies, files, snapshots, planner);
 
@@ -42,6 +47,9 @@ public sealed class ProductionDemandService(IProductionDemandRepository demands,
             throw new InvalidProductionDemandException("Create continuous backfill in Queue instead of a new Run.");
         if (command.ProductionRunId is not null && command.CreateRun)
             throw new InvalidProductionDemandException("Choose an existing Run or a new Run.");
+        if (command.PlaceAtTop && input.Quantity is null)
+            throw new InvalidProductionDemandException("Backfill has no queue position.");
+        var filamentOverride = await FilamentOverrideAsync(input, command.FilamentChoices, ct);
         ProductionPlan? plan = null;
         if (input.Quantity is { } quantity)
         {
@@ -75,7 +83,8 @@ public sealed class ProductionDemandService(IProductionDemandRepository demands,
         demand.SetSubmissionId(command.SubmissionId, requestJson);
         var materializer = Materializer();
         var exploded = await materializer.ExplodeAsync([demand], ct, plan);
-        await materializer.StageAsync([demand], exploded, ct, plan?.Parts.ToDictionary(p => p.PartId, p => p.Plates));
+        await materializer.StageAsync([demand], exploded, ct, plan?.Parts.ToDictionary(p => p.PartId, p => p.Plates),
+            filamentOverride, command.PlaceAtTop);
         if (plan is not null) await demands.ValidateSourcesAsync(plan, ct);
         // Re-plan immediately before the atomic save; the repository also locks source Parts before saving.
         if (plan is not null)
@@ -137,6 +146,26 @@ public sealed class ProductionDemandService(IProductionDemandRepository demands,
         await publisher.DemandChangedAsync(id, ct);
         await dispatch.RequestIdlePrintersAsync(ct);
         return demand;
+    }
+
+    /// <summary>Checks this print's filament choices against the part's own requirements; null when there are none.</summary>
+    private async Task<IReadOnlyList<JobFilamentRequirementSpec>?> FilamentOverrideAsync(
+        RunLineInput input, IReadOnlyList<PrintFilamentChoice>? choices, CancellationToken ct)
+    {
+        if (choices is null or { Count: 0 }) return null;
+        if (input.TargetKind != RunLineTargetKind.Part || input.Quantity is null)
+            throw new InvalidProductionDemandException("Filament choices are only available for a finite Part.");
+        var part = await parts.GetByIdAsync(input.TargetId, ct) ?? throw new PartNotFoundException(input.TargetId);
+        if (choices.DistinctBy(c => c.RequirementId).Count() != choices.Count)
+            throw new InvalidProductionDemandException("Choose filament once per requirement.");
+        foreach (var choice in choices)
+        {
+            var requirement = part.FilamentRequirements.FirstOrDefault(r => r.Id == choice.RequirementId)
+                ?? throw new InvalidProductionDemandException("Filament choice does not match this part.");
+            await filamentValidator.ValidateAsync(requirement.MaterialType, choice.NarrowFilamentVariantId, ct,
+                choice.NarrowFilamentId, anyColor: choice.AnyColor);
+        }
+        return ProductionJobRequirements.FromPart(part, choices);
     }
 
     private async Task CancelUnsentAsync(Guid id, CancellationToken ct)

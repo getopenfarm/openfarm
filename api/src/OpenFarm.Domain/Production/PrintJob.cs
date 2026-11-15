@@ -240,7 +240,7 @@ public sealed class PrintJob : Print
     public static PrintJob Create(
         string name, Guid partRequirementId, double queuePosition, int plateQuantity,
         AssignmentMode assignmentMode, Guid? pinnedPrinterId, string fileRevisionHash, int fileRevisionNumber,
-        IReadOnlyList<JobFilamentRequirementSpec> filamentRequirements)
+        IReadOnlyList<JobFilamentRequirementSpec> filamentRequirements, bool filamentOverride = false)
     {
         if (assignmentMode == AssignmentMode.Pinned && pinnedPrinterId is null)
         {
@@ -251,7 +251,8 @@ public sealed class PrintJob : Print
 
         var job = new PrintJob(
             Guid.NewGuid(), name, partRequirementId, queuePosition, plateQuantity, assignmentMode,
-            effectivePinnedPrinterId, fileRevisionHash, fileRevisionNumber, DateTimeOffset.UtcNow);
+            effectivePinnedPrinterId, fileRevisionHash, fileRevisionNumber, DateTimeOffset.UtcNow)
+        { HasFilamentRequirementOverride = filamentOverride };
 
         for (var i = 0; i < filamentRequirements.Count; i++)
         {

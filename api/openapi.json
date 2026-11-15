@@ -11967,6 +11967,39 @@
               "type": "integer",
               "format": "int32"
             }
+          },
+          "placeAtTop": {
+            "type": "boolean"
+          },
+          "filamentChoices": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/PrintFilamentChoice"
+            }
+          }
+        }
+      },
+      "PrintFilamentChoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "requirementId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "narrowFilamentVariantId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "narrowFilamentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "anyColor": {
+            "type": "boolean"
           }
         }
       },
