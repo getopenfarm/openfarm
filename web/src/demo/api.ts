@@ -1801,14 +1801,15 @@ route('GET', '/production-demands/backfill', (): ProductionDemandResponse[] =>
       })),
   ),
 );
-route('POST', '/production-demands/preview', ({ body }) =>
-  plan(
-    String(body.targetKind ?? 'Part'),
-    String(body.targetId ?? ''),
-    Number(body.quantity ?? 1),
-    String(body.quantityBasis ?? 'Plates'),
-  ),
-);
+route('POST', '/production-demands/preview', ({ body }) => {
+  const line = (body.line ?? {}) as Record<string, unknown>;
+  return plan(
+    String(line.targetKind ?? 'Part'),
+    String(line.targetId ?? ''),
+    Number(line.quantity ?? 1),
+    String(line.quantityBasis ?? 'Plates'),
+  );
+});
 
 // Filament.
 route('GET', '/vendors', () => ({ vendors }));
