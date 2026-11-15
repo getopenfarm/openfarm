@@ -5,7 +5,7 @@ namespace OpenFarm.Tools.ProvisionSlicers;
 /// <summary><paramref name="AssetUrl"/> comes straight from the manifest (contracts/slicer-manifest.schema.json)
 /// — the tool never derives or guesses an asset URL/filename itself, since each engine's release asset
 /// naming convention can and does change between versions.</summary>
-public sealed record ProvisionEntryRequest(Engine Engine, string Version, Platform Platform, string AssetUrl);
+public sealed record ProvisionEntryRequest(Engine Engine, string Version, Platform Platform, string AssetUrl, string? ProfilesUrl = null);
 
 public enum ProvisionOutcome
 {
@@ -43,48 +43,71 @@ public sealed class Provisioner(IAssetDownloader downloader, IAssetExtractor ext
             return Result(request, ProvisionOutcome.AlreadyPresent, "Already present.");
         }
 
-        Log($"Downloading {request.AssetUrl} …");
-
-        byte[] assetBytes;
-        try
+        var (digest, failure) = await FetchAndExtractAsync(request.AssetUrl, existingLockEntry?.Sha256, leafDirectory, Log, cancellationToken);
+        if (failure is not null)
         {
-            assetBytes = await downloader.DownloadAsync(request.AssetUrl, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            Log($"Download failed: {ex.Message}");
-            return Result(request, ProvisionOutcome.Failed, $"Download failed: {ex.Message}");
+            return Result(request, ProvisionOutcome.Failed, failure);
         }
 
-        Log($"Downloaded {assetBytes.Length:N0} bytes. Verifying SHA-256…");
-        var digest = Convert.ToHexStringLower(SHA256.HashData(assetBytes));
-
-        if (existingLockEntry is not null && !string.Equals(existingLockEntry.Sha256, digest, StringComparison.OrdinalIgnoreCase))
+        string? profilesDigest = null;
+        if (request.ProfilesUrl is { } profilesUrl)
         {
-            Log($"SHA-256 mismatch (expected {existingLockEntry.Sha256}, computed {digest}).");
-            return Result(request, ProvisionOutcome.Failed,
-                $"SHA-256 mismatch against slicers.lock.json (expected {existingLockEntry.Sha256}, computed {digest}).");
+            (profilesDigest, failure) = await FetchAndExtractAsync(
+                profilesUrl, existingLockEntry?.ProfilesSha256, Path.Combine(leafDirectory, "profiles"), Log, cancellationToken);
+            if (failure is not null)
+            {
+                return Result(request, ProvisionOutcome.Failed, $"Profiles: {failure}");
+            }
         }
 
-        var assetFileName = GetAssetFileName(request.AssetUrl);
-        Log($"Extracting {assetFileName}…");
-
-        try
-        {
-            await extractor.ExtractAsync(assetBytes, assetFileName, leafDirectory, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            Log($"Extraction failed: {ex.Message}");
-            return Result(request, ProvisionOutcome.Failed, $"Extraction failed: {ex.Message}");
-        }
-
-        // First fetch of a new entry records the computed digest (research.md §8) — subsequent runs
-        // verify against it.
-        lockfile.Set(new LockfileEntry(request.Engine, request.Version, request.Platform, request.AssetUrl, digest));
+        // First fetch of a new entry records the computed digests (research.md §8) — subsequent runs
+        // verify against them. Recorded only once everything is in place, so a half-provisioned leaf is retried.
+        lockfile.Set(new LockfileEntry(request.Engine, request.Version, request.Platform, request.AssetUrl, digest!, request.ProfilesUrl, profilesDigest));
 
         Log("Provisioned.");
         return Result(request, ProvisionOutcome.Provisioned, "Provisioned.");
+    }
+
+    /// <summary>Download → SHA-256 verify against <paramref name="expectedSha256"/> (when locked) → extract. Returns the digest, or why it failed.</summary>
+    private async Task<(string? Digest, string? Failure)> FetchAndExtractAsync(
+        string url, string? expectedSha256, string destination, Action<string> log, CancellationToken cancellationToken)
+    {
+        log($"Downloading {url} …");
+
+        byte[] bytes;
+        try
+        {
+            bytes = await downloader.DownloadAsync(url, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log($"Download failed: {ex.Message}");
+            return (null, $"Download failed: {ex.Message}");
+        }
+
+        log($"Downloaded {bytes.Length:N0} bytes. Verifying SHA-256…");
+        var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
+
+        if (expectedSha256 is not null && !string.Equals(expectedSha256, digest, StringComparison.OrdinalIgnoreCase))
+        {
+            log($"SHA-256 mismatch (expected {expectedSha256}, computed {digest}).");
+            return (null, $"SHA-256 mismatch against slicers.lock.json (expected {expectedSha256}, computed {digest}).");
+        }
+
+        var fileName = GetAssetFileName(url);
+        log($"Extracting {fileName}…");
+
+        try
+        {
+            await extractor.ExtractAsync(bytes, fileName, destination, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log($"Extraction failed: {ex.Message}");
+            return (null, $"Extraction failed: {ex.Message}");
+        }
+
+        return (digest, null);
     }
 
     public static string EngineSlug(Engine engine) => engine.ToString().ToLowerInvariant();

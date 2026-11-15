@@ -168,20 +168,30 @@ public static class ManifestParser
             }
 
             var url = buildObj["assetUrl"]?.GetValue<string>();
+            var profilesUrl = buildObj["profilesUrl"]?.GetValue<string>();
+            var profilesUrlValid = profilesUrl is null || IsHttpUrl(profilesUrl);
+            if (!profilesUrlValid)
+            {
+                errors.Add($"{buildPath}.profilesUrl must be an absolute http(s) URL, got '{profilesUrl}'.");
+            }
+
             if (string.IsNullOrWhiteSpace(url))
             {
                 errors.Add($"{buildPath}.assetUrl must be a non-empty URL.");
             }
-            else if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUrl) || parsedUrl.Scheme is not ("http" or "https"))
+            else if (!IsHttpUrl(url))
             {
                 errors.Add($"{buildPath}.assetUrl must be an absolute http(s) URL, got '{url}'.");
             }
-            else if (!string.IsNullOrWhiteSpace(version))
+            else if (!string.IsNullOrWhiteSpace(version) && profilesUrlValid)
             {
-                builds.Add(new PlatformBuild(version!, url, buildObj["notes"]?.GetValue<string>()));
+                builds.Add(new PlatformBuild(version!, url, buildObj["notes"]?.GetValue<string>(), profilesUrl));
             }
         }
 
         return builds;
     }
+
+    private static bool IsHttpUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var parsed) && parsed.Scheme is "http" or "https";
 }

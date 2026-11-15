@@ -19,8 +19,11 @@ public enum Platform
 /// <summary>
 /// One pinned <c>(version, download URL)</c> build of an engine for a platform
 /// (contracts/slicer-manifest.schema.json), with an optional note explaining that particular pin.
+/// <paramref name="ProfilesUrl"/> is the engine's source tarball for a release whose binary ships its system
+/// presets as caches only (OrcaSlicer 2.5+): its <c>resources/profiles</c> JSONs go to the leaf's <c>profiles</c>
+/// directory, which System Profile ingestion reads.
 /// </summary>
-public sealed record PlatformBuild(string Version, string AssetUrl, string? Notes = null);
+public sealed record PlatformBuild(string Version, string AssetUrl, string? Notes = null, string? ProfilesUrl = null);
 
 /// <summary>
 /// One maintainer-declared engine, grouped engine → platform → versions (schemaVersion 4): each

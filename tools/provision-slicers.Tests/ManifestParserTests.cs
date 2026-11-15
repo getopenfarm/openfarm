@@ -237,6 +237,29 @@ public class ManifestParserTests
         result.Errors.Should().Contain(e => e.Contains("version"));
     }
 
+    [Theory]
+    [InlineData("https://example.test/v2.5.1.tar.gz", true)]
+    [InlineData("v2.5.1.tar.gz", false)]
+    public void Parse_BuildProfilesUrl_IsReadAndMustBeAbsolute(string profilesUrl, bool valid)
+    {
+        var json = $$"""
+            {
+              "slicers": [
+                { "engine": "OrcaSlicer", "builds": { "Linux": [
+                  { "version": "2.5.1", "assetUrl": "https://example.test/x.AppImage", "profilesUrl": "{{profilesUrl}}" } ] } }
+              ]
+            }
+            """;
+
+        var result = ManifestParser.Parse(json);
+
+        result.Success.Should().Be(valid);
+        if (valid)
+            result.Manifest!.Slicers[0].Builds[Platform.Linux].Single().ProfilesUrl.Should().Be(profilesUrl);
+        else
+            result.Errors.Should().Contain(e => e.Contains("profilesUrl"));
+    }
+
     [Fact]
     public void Parse_EmptySlicersArray_ReportsError()
     {

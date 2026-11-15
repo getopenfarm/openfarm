@@ -47,6 +47,12 @@
           "format": "uri",
           "pattern": "^https?://"
         },
+        "profilesUrl": {
+          "type": "string",
+          "description": "Optional source tarball (.tar.gz) of the same release, for a build whose binary ships its system presets as caches only (OrcaSlicer 2.5+ ships <vendor>.opc files without the preset JSONs). The tool pins its SHA-256 in slicers.lock.json like the asset and extracts only <root>/resources/profiles/**/*.json into the leaf's profiles/ directory, which System Profile ingestion reads.",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
         "notes": {
           "type": "string",
           "description": "Optional free-text maintainer note about this specific build (e.g. why it is pinned, or that it is unverified on this platform)."

@@ -29,6 +29,24 @@
       "sha256": "d12fb8c8eac1aecd2dfb6377acd48f994f8fa439ed5292fa532dd82880f029fd"
     },
     {
+      "engine": "OrcaSlicer",
+      "version": "2.5.0",
+      "platform": "Linux",
+      "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.5.0/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0.AppImage",
+      "sha256": "d13eb0a9cd618ed080ab6b82c64c0a60c4501aac91e88d5ac2c3b526fb141a7c",
+      "profilesUrl": "https://github.com/OrcaSlicer/OrcaSlicer/archive/refs/tags/v2.5.0.tar.gz",
+      "profilesSha256": "f2130592babc4f48194ebe0031065572dc0556bbed46245d660dd259645f0713"
+    },
+    {
+      "engine": "OrcaSlicer",
+      "version": "2.5.1",
+      "platform": "Linux",
+      "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.5.1/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.1.AppImage",
+      "sha256": "073b8105c928356141db0ddbce88b81d52c7a9e2442f9baae0a9089c89ff04eb",
+      "profilesUrl": "https://github.com/OrcaSlicer/OrcaSlicer/archive/refs/tags/v2.5.1.tar.gz",
+      "profilesSha256": "7f04a53c7680816d2b54063dc4b88950607e5486240f2d0292919f8b6652cdb3"
+    },
+    {
       "engine": "BambuStudio",
       "version": "2.7.1",
       "platform": "Linux",

@@ -29,7 +29,7 @@ var provisioner = new Provisioner(downloader, new DefaultAssetExtractor());
 
 var entriesForPlatform = parseResult.Manifest!.Slicers
     .SelectMany(entry => entry.Builds.GetValueOrDefault(options.Platform, [])
-        .Select(build => new ProvisionEntryRequest(entry.Engine, build.Version, options.Platform, build.AssetUrl)))
+        .Select(build => new ProvisionEntryRequest(entry.Engine, build.Version, options.Platform, build.AssetUrl, build.ProfilesUrl)))
     .ToList();
 
 Console.WriteLine($"Provisioning {entriesForPlatform.Count} entr{(entriesForPlatform.Count == 1 ? "y" : "ies")} for platform {options.Platform} into '{options.OutputDirectory}'…");

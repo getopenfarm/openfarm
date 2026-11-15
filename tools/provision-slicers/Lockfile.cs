@@ -3,7 +3,8 @@ using System.Text.Json.Serialization;
 
 namespace OpenFarm.Tools.ProvisionSlicers;
 
-public sealed record LockfileEntry(Engine Engine, string Version, Platform Platform, string AssetUrl, string Sha256);
+public sealed record LockfileEntry(
+    Engine Engine, string Version, Platform Platform, string AssetUrl, string Sha256, string? ProfilesUrl = null, string? ProfilesSha256 = null);
 
 /// <summary>
 /// Reader/writer for <c>slicers.lock.json</c> — the resolved asset URL + SHA-256 per
@@ -36,7 +37,8 @@ public sealed class Lockfile
         {
             var engine = Enum.Parse<Engine>(entryDto.Engine);
             var platform = Enum.Parse<Platform>(entryDto.Platform);
-            entries[(engine, entryDto.Version, platform)] = new LockfileEntry(engine, entryDto.Version, platform, entryDto.AssetUrl, entryDto.Sha256);
+            entries[(engine, entryDto.Version, platform)] = new LockfileEntry(
+                engine, entryDto.Version, platform, entryDto.AssetUrl, entryDto.Sha256, entryDto.ProfilesUrl, entryDto.ProfilesSha256);
         }
 
         return new Lockfile(entries);
@@ -62,6 +64,8 @@ public sealed class Lockfile
                     Platform = e.Platform.ToString(),
                     AssetUrl = e.AssetUrl,
                     Sha256 = e.Sha256,
+                    ProfilesUrl = e.ProfilesUrl,
+                    ProfilesSha256 = e.ProfilesSha256,
                 })
                 .ToList(),
         };
@@ -97,5 +101,13 @@ public sealed class Lockfile
 
         [JsonPropertyName("sha256")]
         public string Sha256 { get; set; } = string.Empty;
+
+        [JsonPropertyName("profilesUrl")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? ProfilesUrl { get; set; }
+
+        [JsonPropertyName("profilesSha256")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? ProfilesSha256 { get; set; }
     }
 }

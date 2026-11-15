@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Formats.Tar;
 using System.IO.Compression;
 
 namespace OpenFarm.Tools.ProvisionSlicers;
@@ -57,9 +58,50 @@ public sealed class DefaultAssetExtractor : IAssetExtractor
             return;
         }
 
+        if (assetFileName.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+        {
+            await ExtractProfileJsonsAsync(assetBytes, destinationLeafDirectory, cancellationToken);
+            return;
+        }
+
         // Anything else unrecognized: no known extraction — place the raw asset in the leaf so at
         // least the download/integrity-verified bytes aren't lost, and let a maintainer complete it.
         await File.WriteAllBytesAsync(Path.Combine(destinationLeafDirectory, assetFileName), assetBytes, cancellationToken);
+    }
+
+    /// <summary>
+    /// A <c>.tar.gz</c> is an engine's source tarball (a manifest build's <c>profilesUrl</c>): only its
+    /// <c>&lt;root&gt;/resources/profiles/**/*.json</c> is written, without that prefix — the system presets a
+    /// cache-only release binary no longer ships as JSON. An entry that would land outside the destination is refused.
+    /// </summary>
+    private static async Task ExtractProfileJsonsAsync(byte[] tarGzBytes, string destinationDirectory, CancellationToken cancellationToken)
+    {
+        const string ProfilesPrefix = "resources/profiles/";
+        var root = Path.GetFullPath(destinationDirectory) + Path.DirectorySeparatorChar;
+        var written = 0;
+
+        await using var gzip = new GZipStream(new MemoryStream(tarGzBytes), CompressionMode.Decompress);
+        await using var reader = new TarReader(gzip);
+        while (await reader.GetNextEntryAsync(cancellationToken: cancellationToken) is { } entry)
+        {
+            if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile)) continue;
+
+            // Skip the archive's single top-level folder (e.g. "OrcaSlicer-2.5.1/").
+            var slash = entry.Name.IndexOf('/');
+            var path = slash < 0 ? entry.Name : entry.Name[(slash + 1)..];
+            if (!path.StartsWith(ProfilesPrefix, StringComparison.Ordinal) || !path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var target = Path.GetFullPath(Path.Combine(root, path[ProfilesPrefix.Length..]));
+            if (!target.StartsWith(root, StringComparison.Ordinal))
+                throw new InvalidOperationException($"Archive entry '{entry.Name}' points outside the destination.");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            await entry.ExtractToFileAsync(target, overwrite: true, cancellationToken);
+            written++;
+        }
+
+        if (written == 0)
+            throw new InvalidOperationException($"The archive has no {ProfilesPrefix}*.json files.");
     }
 
     private static async Task ExtractDmgAsync(byte[] assetBytes, string destinationLeafDirectory, CancellationToken cancellationToken)

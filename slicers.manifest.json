@@ -6,6 +6,18 @@
       "builds": {
         "Linux": [
           {
+            "version": "2.5.1",
+            "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.5.1/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.1.AppImage",
+            "profilesUrl": "https://github.com/OrcaSlicer/OrcaSlicer/archive/refs/tags/v2.5.1.tar.gz",
+            "notes": "Ubuntu 24.04 x86-64 AppImage. 2.5+ ships its presets as .opc caches only; profilesUrl restores the JSONs for ingestion."
+          },
+          {
+            "version": "2.5.0",
+            "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.5.0/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.5.0.AppImage",
+            "profilesUrl": "https://github.com/OrcaSlicer/OrcaSlicer/archive/refs/tags/v2.5.0.tar.gz",
+            "notes": "Ubuntu 24.04 x86-64 AppImage. 2.5+ ships its presets as .opc caches only; profilesUrl restores the JSONs for ingestion."
+          },
+          {
             "version": "2.4.2",
             "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage",
             "notes": "Ubuntu 24.04 x86-64 AppImage. Linux slicing compatibility not yet verified."
