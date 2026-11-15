@@ -22,6 +22,8 @@ namespace OpenFarm.Infrastructure.Parts.SlicerInvocation;
 /// saved by Bambu Studio 1.x or a newer Orca. Nozzle diameter and material are deliberately NOT passed
 /// as overrides: the resolved machine profile is already validated against the nozzle and the filament
 /// profile against the material, and a single-value vector override collapses a multi-filament project.
+/// OrcaSlicer 2.5+ resolves a loaded preset's <c>inherits</c> against its own preset files and exits -5 for any other
+/// file, so for it <c>inherits</c> is dropped: the presets are already flattened, and OpenFarm has checked them.
 /// </summary>
 public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
 {
@@ -34,13 +36,14 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
         var profiles = resolvedProfiles
             ?? throw new SlicingFailedException("OrcaSlicer/Bambu Studio require a resolved machine/process/filament profile to slice.");
 
+        var dropInherits = ResolvesInherits(slicer);
         var machineSettingsPath = Path.Combine(workDirectoryPath, "machine_settings.json");
-        File.WriteAllText(machineSettingsPath, WithType(profiles.MachineSettingsJson, "machine"));
+        File.WriteAllText(machineSettingsPath, ForCli(JsonNode.Parse(profiles.MachineSettingsJson)!.AsObject(), "machine", dropInherits));
 
         var processSettingsPath = Path.Combine(workDirectoryPath, "process_settings.json");
-        File.WriteAllText(processSettingsPath, WithType(profiles.ProcessSettingsJson, "process"));
+        File.WriteAllText(processSettingsPath, ForCli(JsonNode.Parse(profiles.ProcessSettingsJson)!.AsObject(), "process", dropInherits));
 
-        var filamentSettingsPaths = WriteFilamentSettings(profiles, workDirectoryPath);
+        var filamentSettingsPaths = WriteFilamentSettings(profiles, workDirectoryPath, dropInherits);
 
         var outputPath = Path.Combine(workDirectoryPath, "output.gcode.3mf");
 
@@ -55,12 +58,12 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
     /// preset. The slot's colour is written into its file: the CLI ranks a loaded filament above the project, and dispatch
     /// matches the output's filaments to job lines by material and colour. Without slots, the one filament alone.
     /// </summary>
-    private static List<string> WriteFilamentSettings(ResolvedSlicingProfiles profiles, string workDirectoryPath)
+    private static List<string> WriteFilamentSettings(ResolvedSlicingProfiles profiles, string workDirectoryPath, bool dropInherits)
     {
         if (profiles.Slots.Count == 0)
         {
             var path = Path.Combine(workDirectoryPath, "filament_settings.json");
-            File.WriteAllText(path, WithType(profiles.FilamentSettingsJson, "filament"));
+            File.WriteAllText(path, ForCli(JsonNode.Parse(profiles.FilamentSettingsJson)!.AsObject(), "filament", dropInherits));
             return [path];
         }
 
@@ -68,24 +71,29 @@ public sealed class PrusaSliceFamilyInvocation : ISlicerInvocation
         {
             var settings = JsonNode.Parse(profiles.Filaments[slot.Filament].SettingsJson)!.AsObject();
             if (slot.ColorHex is { } color) settings["filament_colour"] = new JsonArray(color);
-            if (!settings.ContainsKey("type")) settings["type"] = "filament";
             var path = Path.Combine(workDirectoryPath, $"filament_settings_{index}.json");
-            File.WriteAllText(path, settings.ToJsonString());
+            File.WriteAllText(path, ForCli(settings, "filament", dropInherits));
             return path;
         }).ToList();
     }
 
     /// <summary>
     /// The CLI rejects a settings file with no <c>type</c> (exit 251, "unknown config type"). The slicers' own export of a user
-    /// preset leaves it out — the folder it sits in implies it — so a user-imported preset needs it added. A file that has it is untouched.
+    /// preset leaves it out — the folder it sits in implies it — so a user-imported preset needs it added.
     /// </summary>
-    private static string WithType(string settingsJson, string type)
+    private static string ForCli(JsonObject settings, string type, bool dropInherits)
     {
-        var settings = JsonNode.Parse(settingsJson)!.AsObject();
-        if (settings.ContainsKey("type")) return settingsJson;
-        settings["type"] = type;
+        if (!settings.ContainsKey("type")) settings["type"] = type;
+        if (dropInherits) settings.Remove("inherits");
         return settings.ToJsonString();
     }
+
+    /// <summary>
+    /// OrcaSlicer 2.5.0 (#15438) resolves <c>inherits</c> by file identity within its own presets, so a flattened copy
+    /// fails with -5. Older Orca and Bambu Studio match a user machine to process presets by its <c>inherits</c>, so they keep it.
+    /// </summary>
+    private static bool ResolvesInherits(AvailableSlicer slicer) =>
+        slicer.Engine == SlicerEngine.OrcaSlicer && new SlicerVersionComparer().Compare(slicer.Version, "2.5.0") >= 0;
 
     public static SlicerProcessInvocation BuildEmbeddedProjectInvocation(AvailableSlicer slicer, string modelPath, string workDirectory)
     {

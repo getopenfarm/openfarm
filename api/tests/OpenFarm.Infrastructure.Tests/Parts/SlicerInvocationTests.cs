@@ -40,6 +40,38 @@ public class SlicerInvocationTests
         }
     }
 
+    // Orca 2.5+ resolves inherits against its own preset files and exits -5 for a flattened copy; older Orca and Bambu
+    // Studio match a user machine to the process by it.
+    [Theory]
+    [InlineData(SlicerEngine.OrcaSlicer, "2.5.1", false)]
+    [InlineData(SlicerEngine.OrcaSlicer, "2.5.0", false)]
+    [InlineData(SlicerEngine.OrcaSlicer, "2.4.2", true)]
+    [InlineData(SlicerEngine.BambuStudio, "2.7.1", true)]
+    public void PrusaSliceFamilyInvocation_BuildInvocation_DropsInheritsOnlyForASlicerThatResolvesIt(SlicerEngine engine, string version, bool kept)
+    {
+        var workDirectory = Directory.CreateTempSubdirectory("slicer-invocation-test-");
+        try
+        {
+            var slicer = new AvailableSlicer(engine, version, SlicerPlatform.Linux, "/bundle/AppRun");
+            var white = new ResolvedFilament("""{"type":"filament","name":"PLA","inherits":"PLA @base"}""", ResolvedProfiles.Filament);
+            var profiles = TestResolvedProfiles.Create(new SlicerRef(engine, version),
+                machineJson: """{"from":"User","name":"My X1C","inherits":"Bambu Lab X1 Carbon 0.4 nozzle"}""",
+                processJson: """{"type":"process","name":"0.20mm Standard","inherits":"fdm_process_common"}""",
+                filamentJson: """{"type":"filament","name":"PLA","inherits":"PLA @base"}""");
+
+            new PrusaSliceFamilyInvocation().BuildInvocation(slicer, "/tmp/model.3mf", "PLA", 0.4m, workDirectory.FullName, profiles);
+            new PrusaSliceFamilyInvocation().BuildInvocation(slicer, "/tmp/model.3mf", "PLA", 0.4m, workDirectory.FullName,
+                profiles with { Filaments = [white], Slots = [new SlotFilament(0, "#FFFFFF")] });
+
+            foreach (var file in new[] { "machine_settings.json", "process_settings.json", "filament_settings.json", "filament_settings_0.json" })
+                File.ReadAllText(Path.Combine(workDirectory.FullName, file)).Contains("\"inherits\"").Should().Be(kept, file);
+        }
+        finally
+        {
+            workDirectory.Delete(recursive: true);
+        }
+    }
+
     [Fact]
     public void PrusaSliceFamilyInvocation_SupportsOrcaSlicerAndBambuStudioOnly()
     {

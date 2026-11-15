@@ -12,6 +12,7 @@ public class SlicerCliExitCodesTests
     [InlineData(239, "not compatible with the machine preset")] // CLI_PROCESS_NOT_COMPATIBLE (-17)
     [InlineData(251, "preset file is invalid")] // CLI_CONFIG_FILE_ERROR (-5)
     [InlineData(195, "not compatible with the plate type")] // CLI_FILAMENT_NOT_MATCH_BED_TYPE (-61)
+    [InlineData(187, "mixed filament is invalid")] // CLI_MIXED_FILAMENT_INVALID (-69), OrcaSlicer 2.5+
     [InlineData(156, "slicing failed")] // CLI_SLICING_ERROR (-100)
     [InlineData(139, "SIGSEGV")]
     public void Describe_KnownCodes_ExplainThem(int exitCode, string expectedFragment) =>

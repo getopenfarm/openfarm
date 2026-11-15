@@ -44,6 +44,7 @@ internal static class SlicerCliExitCodes
             -62 => "the filaments' temperatures differ too much",
             -63 or -64 => "objects collide",
             -65 => "settings are invalid for spiral vase mode",
+            -69 => "a mixed filament is invalid",
             -100 => "slicing failed",
             -101 => "G-code path conflicts were detected",
             _ => null,
