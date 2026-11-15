@@ -1,4 +1,8 @@
-import { ArrowRightIcon, ChevronsUpDownIcon } from 'lucide-react';
+import {
+  ArrowRightIcon,
+  ChevronsUpDownIcon,
+  RotateCcwIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state/EmptyState';
 import { Swatch } from '@/components/swatch/Swatch';
@@ -41,6 +45,8 @@ export interface DisplayFilamentRequirement {
   narrowFilamentProfileUnresolved?: boolean;
   /** Per plate set, purge included. */
   estimatedGrams?: number | null;
+  /** This print's choice differs from the part's own (`row` layout shows a reset). */
+  overridden?: boolean;
 }
 
 interface PartFilamentRequirementsListProps {
@@ -52,8 +58,10 @@ interface PartFilamentRequirementsListProps {
     requirementId: string,
     filamentProfileId: string | null,
   ) => void;
-  /** `grid` lays requirements out two-up on wide screens. */
-  layout?: 'list' | 'grid';
+  /** `grid` lays requirements out two-up on wide screens. `row` is one compact line each: file colour → choice. */
+  layout?: 'list' | 'grid' | 'row';
+  /** `row` layout: puts an overridden requirement back to the part's own choice. */
+  onReset?: (key: string | number) => void;
 }
 
 function requirementLabel(requirement: DisplayFilamentRequirement): string {
@@ -73,6 +81,7 @@ export function PartFilamentRequirementsList({
   onNarrow,
   onNarrowToProfile,
   layout = 'list',
+  onReset,
 }: PartFilamentRequirementsListProps) {
   const filamentsQuery = useOpenFarmApiEndpointsFilamentsListFilamentsEndpoint({
     query: { enabled: true },
@@ -124,6 +133,60 @@ export function PartFilamentRequirementsList({
       auto: anyColor,
     };
   }
+
+  if (layout === 'row')
+    return (
+      <ul className="flex flex-col">
+        {requirements.map((requirement) => (
+          <li key={requirement.key} className="flex min-w-0 items-center gap-2">
+            <Swatch
+              colorHex={hex(requirement.detectedColorHex)}
+              auto={!requirement.detectedColorHex}
+            />
+            <span className="shrink-0 text-sm">
+              {requirement.materialType ?? 'Any material'}
+            </span>
+            <ArrowRightIcon
+              className="size-3.5 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            {onNarrow ? (
+              <FilamentChoiceButton
+                requirement={requirement}
+                requirementLabel={requirementLabel(requirement)}
+                current={chosen(requirement)}
+                filaments={filaments}
+                disabled={filamentsQuery.isLoading || filamentsQuery.isError}
+                onChange={(choice) => onNarrow(requirement.key, choice)}
+                variant="ghost"
+                className="min-w-0 flex-1 justify-start px-2 font-normal"
+              />
+            ) : (
+              <span className="truncate text-sm">
+                {chosen(requirement).label}
+              </span>
+            )}
+            {requirement.overridden && onReset && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Use part filament"
+                title="Use part filament"
+                onClick={() => onReset(requirement.key)}
+              >
+                <RotateCcwIcon />
+              </Button>
+            )}
+          </li>
+        ))}
+        {onNarrow && filamentsQuery.isError && (
+          <li role="alert" className="text-sm text-destructive">
+            Could not load filament catalog.
+          </li>
+        )}
+      </ul>
+    );
 
   return (
     <ul
@@ -238,6 +301,8 @@ function FilamentChoiceButton({
   filaments,
   disabled,
   onChange,
+  variant = 'outline',
+  className = 'w-full justify-start sm:w-auto sm:min-w-64 sm:flex-1',
 }: {
   requirement: DisplayFilamentRequirement;
   requirementLabel: string;
@@ -245,6 +310,8 @@ function FilamentChoiceButton({
   filaments: FilamentResponse[];
   disabled: boolean;
   onChange: (choice: FilamentChoice) => void;
+  variant?: 'outline' | 'ghost';
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -252,9 +319,9 @@ function FilamentChoiceButton({
       <DialogTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant={variant}
           disabled={disabled}
-          className="w-full justify-start sm:w-auto sm:min-w-64 sm:flex-1"
+          className={className}
           aria-label={`Production filament for ${requirementLabel}: ${current.label}`}
         >
           <Swatch colorHex={current.colorHex} auto={current.auto} />

@@ -7,7 +7,14 @@ The queue holds physical plate attempts. You can print directly from a part or a
 
 ## Send work
 
-Open a part and choose **Print**. Select the number of whole plates, review the plan, and choose **Send to queue**. For an assembly's direct Print flow, set whole-plate counts per component; zero skips a component.
+Open a part and choose **Print**. Set the number of whole plates with **−** and **+**, check the units, time, and filament in the footer, and choose **Queue *n* plates**. For an assembly's direct Print flow, set whole-plate counts per component; zero skips a component.
+
+The Print dialog also sets:
+
+- **Plates** or **Continuous**: **Continuous** turns the print into [continuous backfill](backfill.md).
+- **Printer**: **Automatic** uses any matching printer. A chosen printer pins the jobs to it, and the jobs wait for that printer. The list shows the live state of each printer.
+- **Position**: **Bottom** adds the jobs after all waiting jobs. **Top** adds them before all waiting jobs.
+- **Filament** (parts only): select a color, any color of one filament, or any color of the material for each requirement. The material stays the part's material. The jobs show the choice as a job override. Choose the reset button to use the part's filament again.
 
 For an exact unit target or complete assembly sets, use [Runs](runs.md). For repeat production during idle capacity, use [Continuous backfill](backfill.md).
 

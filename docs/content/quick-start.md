@@ -49,7 +49,7 @@ Save the part. **Ready to print** means its requirements are complete. OpenFarm 
 
 ## 5. Send a plate to the queue
 
-Open the part and choose **Print**. Request one plate, review the plan, and choose **Send to queue**. A production run is optional for this first print.
+Open the part and choose **Print**. Keep one plate, check the footer, and choose **Queue 1 plate**. A production run is optional for this first print.
 
 Open **Queue** to follow the job. If it cannot start, open its status link or **Job diagnosis** on the job page. [Printer matching](production/matching.md) explains each requirement and where to fix it.
 

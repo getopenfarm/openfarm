@@ -348,8 +348,20 @@ picker or conversion action. Parts ask for full plates (default one); Assemblies
 show one plate count per distinct printed component, including nested components.
 Counts default to one, allow zero to omit a component, and require at least one
 plate overall. Complete sets are an estimate from these printed components only.
-A single Continuous backfill switch defaults off and requires explicit submission;
-assembly backfill uses the whole BOM recipe, independently of finite plate counts.
+Continuous backfill is a quantity mode, not a separate switch: the quantity
+toggle reads Plates | Continuous (Units | Plates inside a Run), defaults to
+Plates and still requires explicit submission. Assembly backfill uses the whole
+BOM recipe, independently of finite plate counts.
+
+The Print dialog (`SendToQueueDialog`) is the pattern for sending work:
+- A plate card first: the real thumbnail, stacked once per extra plate with a
+  `×n` badge, per-plate facts, the quantity toggle and a −/+ `PlateStepper`.
+- Then flat summary rows (label column, one hairline between rows, no cards):
+  Printer (`PrinterCombobox`: Automatic, then each printer with its live state),
+  Position (Bottom | Top), Filament (file colour → chosen colour, with a reset
+  when changed). Each row shows its current value; pickers open in place.
+- A footer with the live plan readout on the left and a primary action that
+  names the count ("Queue 3 plates"); the toast repeats the verb ("Queued …").
 
 Runs add planning and progress tracking above the same Queue used by standalone
 jobs. New part lines default to exact units and assembly lines to exact sets;

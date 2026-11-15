@@ -7,7 +7,7 @@ Backfill repeatedly prints whole plates until you pause or remove the entry. It 
 
 ## Start backfill
 
-Open a part or assembly's **Print** flow and enable **Continuous backfill**. Submit the entry, then manage it from **Queue**. By default, the entry uses one printer at a time.
+Open a part or assembly's **Print** flow and choose **Continuous**. Submit the entry, then manage it from **Queue**. By default, the entry uses one printer at a time.
 
 The entry remains visible even when it has no current jobs. You can limit how many printers it uses at once or pin it to one printer. You can also pause, resume, refresh, or remove it.
 

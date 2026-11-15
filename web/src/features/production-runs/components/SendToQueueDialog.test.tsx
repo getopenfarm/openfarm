@@ -66,10 +66,36 @@ function setup(
           });
         return Response.json({ id: 'demand-7' });
       }
+      if (url.includes('/printers'))
+        return Response.json({
+          printers: [
+            {
+              id: 'printer-1',
+              name: 'Bambu A',
+              status: 'Idle',
+              isReachable: true,
+            },
+          ],
+        });
+      if (url.includes('/filaments'))
+        return Response.json({
+          filaments: [
+            {
+              id: 'filament-1',
+              materialType: 'PLA',
+              material: 'PLA Basic',
+              vendorName: 'Acme',
+              variants: [{ id: 'red', colorName: 'Red', colorHex: '#ff0000' }],
+            },
+          ],
+        });
       return Response.json({
         id: part.id,
         unitsPerPrint: 8,
         printRequirementsStatus: options.incomplete ? 'Incomplete' : 'Complete',
+        filamentRequirements: [
+          { id: 'req-1', materialType: 'PLA', detectedColorHex: '00ff00' },
+        ],
       });
     },
   );
@@ -86,7 +112,7 @@ function setup(
 }
 afterEach(() => vi.unstubAllGlobals());
 async function send() {
-  const button = screen.getByRole('button', { name: 'Print' });
+  const button = screen.getByRole('button', { name: /^Queue \d/ });
   await waitFor(() => expect(button).toBeEnabled());
   await userEvent.click(button);
 }
@@ -94,19 +120,23 @@ it('queues full plates without unit or run controls', async () => {
   const { posts, fetcher } = setup(
     <SendToQueueDialog target={part} onClose={() => {}} />,
   );
-  const count = await screen.findByLabelText('Number of plates');
+  const count = await screen.findByLabelText('Plates');
   expect(count).toHaveValue(1);
-  expect(screen.queryByText('Unit target')).not.toBeInTheDocument();
+  expect(screen.queryByText('Units')).not.toBeInTheDocument();
   expect(screen.queryByText('Track in a Run')).not.toBeInTheDocument();
-  expect(
-    screen.getByRole('switch', { name: 'Continuous backfill' }),
-  ).not.toBeChecked();
+  expect(screen.getByRole('radio', { name: 'Continuous' })).toHaveAttribute(
+    'aria-checked',
+    'false',
+  );
   await userEvent.clear(count);
   await userEvent.type(count, '3');
+  expect(await screen.findByText(/24 units/)).toBeInTheDocument();
   expect(
-    await screen.findByText(/3 plates · 24 planned units/),
+    screen.getByRole('button', { name: 'Queue 3 plates' }),
   ).toBeInTheDocument();
-  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('list', { name: 'Components' }),
+  ).not.toBeInTheDocument();
   await send();
   expect(posts[0]).toMatchObject({
     line: { quantity: 3, quantityBasis: 'Plates' },
@@ -146,21 +176,21 @@ it('keeps inputs available after all-zero plans fail and validates component cou
   for (const value of ['', '-1', '1.5']) {
     fireEvent.change(bracket, { target: { value } });
     expect(bracket).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByRole('button', { name: 'Print' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Queue \d/ })).toBeDisabled();
   }
   fireEvent.change(bracket, { target: { value: '0' } });
   fireEvent.change(screen.getByLabelText('Plates for Cover'), {
     target: { value: '0' },
   });
   expect(
-    await screen.findByText('Choose at least one plate.'),
+    await screen.findByText('Choose at least 1 plate.'),
   ).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Print' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Queue \d/ })).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Plates for Cover'), {
     target: { value: '2' },
   });
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Print' })).toBeEnabled(),
+    expect(screen.getByRole('button', { name: /^Queue \d/ })).toBeEnabled(),
   );
 });
 it('switches backfill with Space, restores finite counts and submits the whole recipe', async () => {
@@ -170,18 +200,19 @@ it('switches backfill with Space, restores finite counts and submits the whole r
   fireEvent.change(await screen.findByLabelText('Plates for Bracket'), {
     target: { value: '3' },
   });
-  const toggle = screen.getByRole('switch', { name: 'Continuous backfill' });
-  toggle.focus();
+  const continuous = screen.getByRole('radio', { name: 'Continuous' });
+  continuous.focus();
   await userEvent.keyboard(' ');
-  expect(toggle).toBeChecked();
+  expect(continuous).toHaveAttribute('aria-checked', 'true');
   expect(posts).toHaveLength(0);
-  expect(screen.queryByRole('table')).not.toBeInTheDocument();
   expect(
-    screen.getByText(/Uses the whole assembly recipe/),
-  ).toBeInTheDocument();
+    screen.queryByRole('list', { name: 'Components' }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText(/Uses the assembly recipe/)).toBeInTheDocument();
+  screen.getByRole('radio', { name: 'Plates' }).focus();
   await userEvent.keyboard(' ');
   expect(await screen.findByLabelText('Plates for Bracket')).toHaveValue(3);
-  await userEvent.click(toggle);
+  await userEvent.click(continuous);
   const button = screen.getByRole('button', { name: 'Enable backfill' });
   await waitFor(() => expect(button).toBeEnabled());
   await userEvent.click(button);
@@ -194,9 +225,11 @@ it('defaults run parts to units with fixed ownership and retains explicit plates
   const { posts } = setup(
     <AddToRunDialog runId="run-7" target={part} onClose={() => {}} />,
   );
-  const input = await screen.findByLabelText('Quantity (units)');
+  const input = await screen.findByLabelText('Units');
   expect(input).toHaveValue(1);
-  expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('radio', { name: 'Continuous' }),
+  ).not.toBeInTheDocument();
   fireEvent.change(input, { target: { value: '10' } });
   const button = screen.getByRole('button', { name: 'Add to run' });
   await waitFor(() => expect(button).toBeEnabled());
@@ -211,7 +244,7 @@ it('keeps assembly run targets in sets', async () => {
   const { posts } = setup(
     <AddToRunDialog runId="run-7" target={assembly} onClose={() => {}} />,
   );
-  expect(await screen.findByLabelText('Quantity (sets)')).toHaveValue(1);
+  expect(await screen.findByLabelText('Sets')).toHaveValue(1);
   const button = screen.getByRole('button', { name: 'Add to run' });
   await waitFor(() => expect(button).toBeEnabled());
   await userEvent.click(button);
@@ -227,7 +260,7 @@ it('blocks incomplete parts', async () => {
   expect(
     await screen.findByText(/Print requirements incomplete/),
   ).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Print' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /^Queue \d/ })).toBeDisabled();
 });
 it('reuses submission IDs on retry and disables conflicting controls while pending', async () => {
   const onClose = vi.fn();
@@ -239,10 +272,10 @@ it('reuses submission IDs on retry and disables conflicting controls while pendi
   expect(await screen.findByText('Please retry.')).toBeInTheDocument();
   await send();
   expect(
-    await screen.findByRole('button', { name: /Sending…/ }),
+    await screen.findByRole('button', { name: /Queuing…/ }),
   ).toBeDisabled();
-  expect(screen.getByRole('switch')).toBeDisabled();
-  expect(screen.getByLabelText('Number of plates')).toBeDisabled();
+  expect(screen.getByRole('radio', { name: 'Continuous' })).toBeDisabled();
+  expect(screen.getByLabelText('Plates')).toBeDisabled();
   await userEvent.keyboard('{Escape}');
   expect(onClose).not.toHaveBeenCalled();
   expect(posts[1].submissionId).toBe(posts[0].submissionId);
@@ -269,9 +302,106 @@ it('restores trigger focus on keyboard dismissal', async () => {
     );
   }
   setup(<Example />);
-  await screen.findByLabelText('Number of plates');
+  await screen.findByLabelText('Plates');
   await userEvent.keyboard('{Escape}');
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Queue Bracket' })).toHaveFocus(),
   );
+});
+
+it('pins a printer and queues at the top without re-planning', async () => {
+  const { posts, fetcher } = setup(
+    <SendToQueueDialog target={part} onClose={() => {}} />,
+  );
+  const user = userEvent.setup();
+  await screen.findByText(/8 units/);
+  const previews = () =>
+    fetcher.mock.calls.filter(([url]) => String(url).includes('/preview'))
+      .length;
+  const before = previews();
+  await user.click(screen.getByRole('combobox', { name: 'Printer' }));
+  await user.click(await screen.findByRole('option', { name: /Bambu A/ }));
+  expect(
+    screen.getByText('Jobs print only on this printer.'),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole('radio', { name: 'Top' }));
+  await send();
+  expect(previews()).toBe(before);
+  expect(posts[0]).toMatchObject({
+    line: { assignmentMode: 'Pinned', pinnedPrinterId: 'printer-1' },
+    placeAtTop: true,
+  });
+});
+
+it('sends a filament choice for the part', async () => {
+  const { posts } = setup(
+    <SendToQueueDialog target={part} onClose={() => {}} />,
+  );
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole('button', { name: /Production filament for PLA/ }),
+  );
+  await user.click(screen.getByRole('radio', { name: 'Any PLA · Any color' }));
+  await user.click(screen.getByRole('button', { name: 'Done' }));
+  await send();
+  expect(posts[0]).toMatchObject({
+    filamentChoices: [
+      {
+        requirementId: 'req-1',
+        narrowFilamentVariantId: null,
+        narrowFilamentId: null,
+        anyColor: true,
+      },
+    ],
+  });
+  expect(posts[0]).not.toHaveProperty('placeAtTop');
+});
+
+it('hides queue position and filament for backfill', async () => {
+  setup(<SendToQueueDialog target={part} onClose={() => {}} />);
+  expect(await screen.findByText('Position')).toBeInTheDocument();
+  expect(
+    await screen.findByRole('button', { name: /Production filament for PLA/ }),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('radio', { name: 'Continuous' }));
+  expect(screen.queryByText('Position')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: /Production filament for PLA/ }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Printer' })).toBeInTheDocument();
+});
+
+it('steps plates with the buttons and counts them in the action', async () => {
+  const { posts } = setup(
+    <SendToQueueDialog target={part} onClose={() => {}} />,
+  );
+  const user = userEvent.setup();
+  const fewer = await screen.findByRole('button', { name: 'Fewer plates' });
+  expect(fewer).toHaveAttribute('aria-disabled', 'true');
+  await user.click(fewer);
+  expect(screen.getByLabelText('Plates')).toHaveValue(1);
+  await user.click(screen.getByRole('button', { name: 'More plates' }));
+  await user.click(screen.getByRole('button', { name: 'More plates' }));
+  expect(screen.getByLabelText('Plates')).toHaveValue(3);
+  expect(await screen.findByText(/24 units/)).toBeInTheDocument();
+  await send();
+  expect(posts[0]).toMatchObject({ line: { quantity: 3 } });
+});
+
+it('resets a filament choice to the part', async () => {
+  const { posts } = setup(
+    <SendToQueueDialog target={part} onClose={() => {}} />,
+  );
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole('button', { name: /Production filament for PLA/ }),
+  );
+  await user.click(screen.getByRole('radio', { name: 'Any PLA · Any color' }));
+  await user.click(screen.getByRole('button', { name: 'Done' }));
+  await user.click(screen.getByRole('button', { name: 'Use part filament' }));
+  expect(
+    screen.queryByRole('button', { name: 'Use part filament' }),
+  ).not.toBeInTheDocument();
+  await send();
+  expect(posts[0]).not.toHaveProperty('filamentChoices');
 });

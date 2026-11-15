@@ -161,18 +161,14 @@ describe('PartsTable queue action', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     await openQueue();
     expect(onRowClick).not.toHaveBeenCalled();
-    const input = await screen.findByLabelText('Number of plates');
+    const input = await screen.findByLabelText('Plates');
     expect(input).toHaveValue(1);
-    expect(
-      await screen.findByText(/1 plate · 4 planned units/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/4 units/)).toBeInTheDocument();
     fireEvent.change(input, { target: { value: '2' } });
-    expect(
-      await screen.findByText(/2 plates · 8 planned units/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/8 units/)).toBeInTheDocument();
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
-        name: 'Print',
+        name: /^Queue \d/,
       }),
     );
     await waitFor(() =>
@@ -206,7 +202,7 @@ describe('PartsTable queue action', () => {
       refreshed?.predicate({ queryKey: ['/api/v1/production-runs'] }),
     ).toBe(true);
     expect(success).toHaveBeenCalledWith(
-      'Bracket sent to the queue.',
+      'Queued 2 plates of Bracket.',
       expect.objectContaining({
         action: expect.objectContaining({ label: 'View queue' }),
       }),
@@ -264,9 +260,9 @@ describe('PartsTable queue action', () => {
     setup({ detailStatus: 'Incomplete' });
     await openQueue();
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Print requirements incomplete. Complete them before printing.',
+      'Print requirements incomplete. Open part',
     );
-    expect(screen.queryByLabelText('Number of plates')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Plates')).not.toBeInTheDocument();
   });
 
   it('shows server errors and preserves the quantity for retry', async () => {
@@ -274,14 +270,14 @@ describe('PartsTable queue action', () => {
     const { queryClient } = setup({ failure: true });
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     await openQueue();
-    const input = await screen.findByLabelText('Number of plates');
+    const input = await screen.findByLabelText('Plates');
     fireEvent.change(input, { target: { value: '9' } });
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Print' })).toBeEnabled(),
+      expect(screen.getByRole('button', { name: /^Queue \d/ })).toBeEnabled(),
     );
     await user.click(
       within(screen.getByRole('dialog')).getByRole('button', {
-        name: 'Print',
+        name: /^Queue \d/,
       }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -294,10 +290,10 @@ describe('PartsTable queue action', () => {
   it('rejects a fractional number of plates without creating jobs', async () => {
     const { requests } = setup();
     await openQueue();
-    fireEvent.change(await screen.findByLabelText('Number of plates'), {
+    fireEvent.change(await screen.findByLabelText('Plates'), {
       target: { value: '1.5' },
     });
-    const form = screen.getByLabelText('Number of plates').closest('form');
+    const form = screen.getByLabelText('Plates').closest('form');
     if (!form) throw new Error('Queue form was not rendered.');
     fireEvent.submit(form);
     expect(

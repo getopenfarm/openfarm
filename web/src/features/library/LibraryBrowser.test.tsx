@@ -597,13 +597,13 @@ describe('Library browser', () => {
       await user.click(actions);
       await user.click(screen.getByRole('menuitem', { name: 'Print' }));
       expect(
-        await screen.findByRole('dialog', { name: 'Print' }),
+        await screen.findByRole('dialog', { name: `Print ${name}` }),
       ).toBeInTheDocument();
       await user.keyboard('{Escape}');
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
       await user.click(screen.getByRole('button', { name: `Print ${name}` }));
       expect(
-        await screen.findByRole('dialog', { name: 'Print' }),
+        await screen.findByRole('dialog', { name: `Print ${name}` }),
       ).toBeInTheDocument();
     },
   );
