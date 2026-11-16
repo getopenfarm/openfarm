@@ -19,7 +19,7 @@ docker compose logs openfarm | grep "generated password"   # the first login: us
   `POSTGRES_DB`, the database is named after the user, as in the Postgres image. Postgres reads them only when it
   creates a new volume, and no port is published. Another
   server: set the `Database__*` keys; a full `ConnectionStrings__Default` also works and wins.
-- **Upgrade:** `docker compose pull && docker compose up -d` (migrations run at startup). Replace the existing application instance; do not run an overlapping instance against the same database. Expect brief downtime.
+- **Upgrade:** `docker compose pull && docker compose up -d` (migrations run at startup). Replace the existing application instance; do not run an overlapping instance against the same database. Expect brief downtime. OrcaSlicer 2.3.x is no longer bundled: a part pinned to it is blocked at dispatch until you reprocess it onto a bundled slicer version.
 - **From the 0.0.1 `.env` layout:** the old compose file and `.env` keep working. To switch, keep the folder name
   (Compose then reuses the `pg_data` volume) and your `.env`, and add `POSTGRES_USER=openfarm` and `POSTGRES_DB=openfarm` to it. Rename
   `JWT_SIGNING_KEY` to `Jwt__SigningKey` to keep everyone logged in. `POSTGRES_PASSWORD`, `TZ`, `PUID` and `PGID` keep
