@@ -131,11 +131,38 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Action")
+                        .HasColumnType("text");
+
                     b.Property<Guid?>("ActorId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ActorName")
+                        .HasColumnType("text");
+
                     b.Property<string>("ActorType")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("Audit");
+
+                    b.Property<string>("ChangesJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Channel")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CorrelationId")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CredentialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CredentialLabel")
                         .HasColumnType("text");
 
                     b.Property<string>("Details")
@@ -143,6 +170,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("EntityId")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EntityLabel")
                         .HasColumnType("text");
 
                     b.Property<string>("EntityType")
@@ -153,14 +183,44 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Operation")
+                        .HasColumnType("text");
+
+                    b.PrimitiveCollection<Guid[]>("RelatedPrinterIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid[]")
+                        .HasDefaultValueSql("'{}'::uuid[]");
+
                     b.Property<DateTimeOffset>("TimestampUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CorrelationId");
+
+                    b.HasIndex("RelatedPrinterIds");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("RelatedPrinterIds"), "gin");
+
                     b.HasIndex("TimestampUtc");
 
                     b.HasIndex("EntityType", "EntityId");
+
+                    b.HasIndex("ActorId", "TimestampUtc", "Id")
+                        .IsDescending(false, true, false);
+
+                    b.HasIndex("Category", "TimestampUtc", "Id")
+                        .IsDescending(false, true, false);
+
+                    b.HasIndex("Channel", "TimestampUtc", "Id")
+                        .IsDescending(false, true, false);
+
+                    b.HasIndex("CredentialId", "TimestampUtc", "Id")
+                        .IsDescending(false, true, false);
+
+                    b.HasIndex("EntityType", "EntityId", "TimestampUtc", "Id")
+                        .IsDescending(false, false, true, false);
 
                     b.ToTable("ActivityLogEntries", (string)null);
                 });

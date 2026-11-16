@@ -35,9 +35,9 @@ public sealed class ProductionRunCompletionService(
         }
 
         run.MarkComplete();
-        await runRepository.SaveChangesAsync(cancellationToken);
         if (activityLogWriter is not null)
-            await activityLogWriter.WriteAsync(ActivityLogEntry.Create("ProductionRun", run.Id.ToString(), "ProductionRunCompleted", null, ActorType.System), cancellationToken);
+            await activityLogWriter.StageAsync(ActivityLogEntry.Create("ProductionRun", run.Id.ToString(), "ProductionRunCompleted", null, ActorType.System), cancellationToken);
+        await runRepository.SaveChangesAsync(cancellationToken);
         await publisher.ProductionRunStatusChangedAsync(run.Id, run.Status, cancellationToken);
     }
 

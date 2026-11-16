@@ -21,6 +21,7 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
 {
     public async Task<Part> HandleAsync(ConfirmPartProcessingJobCommand command, CancellationToken cancellationToken)
     {
+        _ = activityLogWriter;
         var job = await jobRepository.GetByIdAsync(command.JobId, cancellationToken)
             ?? throw new PartProcessingJobNotFoundException(command.JobId);
 
@@ -119,10 +120,6 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             foreach (var created in parts) created.MoveToFolder(command.FolderId);
             job.Confirm(parts[0].Id);
             await partRepository.AddRangeAsync(parts, cancellationToken);
-            // The endpoint logs the first part; the others are logged here.
-            if (activityLogWriter is not null && parts.Count > 1)
-                await activityLogWriter.WriteRangeAsync(parts.Skip(1).Select(p => Entry("Part", p.Id, "PartConfirmed", command.ActingUserId)).ToList(),
-                    cancellationToken);
         }
         else
         {
@@ -136,9 +133,6 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
             await partRepository.SaveChangesAsync(cancellationToken);
             parts.Add(part);
             parts.AddRange(related.Select(r => r.Part));
-            if (activityLogWriter is not null && related.Count > 0)
-                await activityLogWriter.WriteRangeAsync(related.Select(r => Entry("Part", r.Part.Id, "PartConfirmed", command.ActingUserId)).ToList(),
-                    cancellationToken);
         }
 
         foreach (var part in parts)
@@ -225,9 +219,6 @@ public sealed class ConfirmPartProcessingJobCommandHandler(
 
         return related;
     }
-
-    private static ActivityLogEntry Entry(string entityType, Guid id, string eventType, Guid? actor) =>
-        ActivityLogEntry.Create(entityType, id.ToString(), eventType, actor, actor is null ? ActorType.System : ActorType.Operator);
 
     /// <summary>What a part printing <paramref name="plate"/> takes from the job (the whole file for a job without plates).</summary>
     private sealed record PlateValues(IReadOnlyList<FilamentRequirementSpec> Requirements, IReadOnlyList<ThumbnailSpec> Thumbnails,

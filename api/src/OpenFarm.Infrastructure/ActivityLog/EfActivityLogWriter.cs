@@ -6,6 +6,12 @@ namespace OpenFarm.Infrastructure.ActivityLog;
 
 public sealed class EfActivityLogWriter(OpenFarmDbContext dbContext) : IActivityLogWriter
 {
+    public Task StageAsync(ActivityLogEntry entry, CancellationToken cancellationToken)
+    {
+        dbContext.ActivityLogEntries.Add(entry);
+        return Task.CompletedTask;
+    }
+
     public async Task WriteAsync(ActivityLogEntry entry, CancellationToken cancellationToken)
     {
         dbContext.ActivityLogEntries.Add(entry);

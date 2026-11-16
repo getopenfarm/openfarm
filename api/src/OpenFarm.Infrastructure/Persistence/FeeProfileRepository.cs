@@ -14,7 +14,8 @@ public sealed class FeeProfileRepository(OpenFarmDbContext db) : IFeeProfileRepo
         // Delete first in its own statement so a kept name never collides with the unique index.
         await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
         await LockAsync(ct);
-        await db.FeeProfiles.ExecuteDeleteAsync(ct);
+        db.FeeProfiles.RemoveRange(await db.FeeProfiles.ToListAsync(ct));
+        await db.SaveChangesAsync(ct);
         db.FeeProfiles.AddRange(profiles);
         await db.SaveChangesAsync(ct);
         if (transaction is not null) await transaction.CommitAsync(ct);
@@ -44,9 +45,12 @@ public sealed class FeeProfileRepository(OpenFarmDbContext db) : IFeeProfileRepo
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await LockAsync(ct);
-        var removed = await db.FeeProfiles.Where(p => p.Id == id).ExecuteDeleteAsync(ct);
+        var profile = await db.FeeProfiles.FindAsync([id], ct);
+        if (profile is null) return false;
+        db.FeeProfiles.Remove(profile);
+        await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
-        return removed > 0;
+        return true;
     }
 
     // Serialize profile mutations, including legacy collection replacement, so case-insensitive

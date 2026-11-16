@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace OpenFarm.Domain.ActivityLog;
 
 public sealed class ActivityLogEntry
@@ -18,6 +20,45 @@ public sealed class ActivityLogEntry
         ActorId = actorId;
         ActorType = actorType;
         TimestampUtc = timestampUtc;
+    }
+
+    public Guid[] RelatedPrinterIds { get; private set; } = [];
+    public void RelatePrinters(IEnumerable<Guid> ids) => RelatedPrinterIds = RelatedPrinterIds.Concat(ids).Distinct().ToArray();
+
+    public void AttributeInitiator(Guid? userId, string? name = null)
+    {
+        if (userId is not null) Details = (Details ?? new ActivityLogDetails()) with { InitiatedByUserId = userId, InitiatedByName = name ?? Details?.InitiatedByName };
+    }
+
+    public string Category { get; private set; } = "Audit";
+    public string? Action { get; private set; }
+    public string? EntityLabel { get; private set; }
+    public string? ActorName { get; private set; }
+    public string? Operation { get; private set; }
+    public string? CorrelationId { get; private set; }
+    public string? Channel { get; private set; }
+    public Guid? CredentialId { get; private set; }
+    public string? CredentialLabel { get; private set; }
+    public string? ChangesJson { get; private set; }
+
+    public void Describe(string action, string? label, string? actorName, string? operation,
+        string? correlationId, string channel, IReadOnlyList<AuditFieldChange>? changes = null)
+    {
+        Action ??= action;
+        EntityLabel ??= label;
+        ActorName ??= actorName;
+        Operation ??= operation;
+        CorrelationId ??= correlationId;
+        Channel ??= channel;
+        if (changes is { Count: > 0 }) RecordChanges(action, label, changes);
+    }
+
+    public void RecordChanges(string action, string? label, IReadOnlyList<AuditFieldChange> changes)
+    {
+        Action ??= action;
+        EntityLabel ??= label;
+        if (changes.Count > 0) ChangesJson = JsonSerializer.Serialize(changes.Select(c =>
+            new AuditFieldChange(c.Field, AuditFieldValue.Sanitize(c.Field, c.Before), AuditFieldValue.Sanitize(c.Field, c.After))));
     }
 
     public ActivityLogDetails? Details { get; private set; }
@@ -41,6 +82,8 @@ public sealed class ActivityLogEntry
     {
         ArgumentNullException.ThrowIfNull(via);
         if (ActorType != ActorType.Operator || Details?.Via is not null) return;
+        CredentialId = via.CredentialId;
+        CredentialLabel = via.Label;
         Details = (Details ?? new ActivityLogDetails()) with { Via = via };
     }
 
@@ -80,6 +123,15 @@ public sealed class ActivityLogEntry
             actorId,
             actorType,
             DateTimeOffset.UtcNow)
-        { Details = details };
+        {
+            Details = details is null ? null : details with
+            {
+                PreviousState = AuditFieldValue.SanitizeSnapshot(details.PreviousState),
+                ReportedState = AuditFieldValue.SanitizeSnapshot(details.ReportedState),
+            },
+            Category = eventType is "PrinterStatusObserved" or "PrinterAlertsChanged" ? "MachineObservation" : "Audit",
+        };
     }
 }
+
+public sealed record AuditFieldChange(string Field, object? Before, object? After);

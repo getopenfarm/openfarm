@@ -121,7 +121,7 @@ public class CostCatalogEndpointTests(CustomWebApplicationFactory factory) : ICl
         var clear = await client.PutAsJsonAsync(new Uri($"/api/v1/assemblies/{assembly.Id}", UriKind.Relative), new { name = "Cleared", additionalCosts = Array.Empty<AssemblyCostInput>() });
         clear.StatusCode.Should().Be(HttpStatusCode.OK);
         (await client.DeleteAsync(new Uri($"/api/v1/cost-items/{item.Id}", UriKind.Relative))).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        var activity = await client.GetFromJsonAsync<ActivityLogPageResponse>("/api/v1/activity-log?pageSize=200");
+        var activity = await client.GetFromJsonAsync<AuditLogPageResponse>("/api/v1/audit-log?pageSize=200");
         activity!.Items.Should().Contain(e => e.EntityId == item.Id.ToString() && e.EventType == "NonPrintedComponentCreated");
         activity.Items.Should().Contain(e => e.EntityId == item.Id.ToString() && e.EventType == "NonPrintedComponentDeleted");
     }

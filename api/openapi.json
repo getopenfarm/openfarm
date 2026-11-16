@@ -9071,13 +9071,57 @@
         ]
       }
     },
-    "/api/v1/activity-log": {
+    "/api/v1/audit-log": {
       "get": {
         "tags": [
-          "Activity-Log"
+          "Audit-Log"
         ],
-        "operationId": "OpenFarmApiEndpointsActivityLogGetActivityLogEndpoint",
+        "operationId": "OpenFarmApiEndpointsActivityLogGetAuditLogEndpoint",
         "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "actorId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "credentialId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            }
+          },
           {
             "name": "entityType",
             "in": "query",
@@ -9092,6 +9136,197 @@
             "schema": {
               "type": "string",
               "nullable": true
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "correlationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogPageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audit-log/{id}": {
+      "get": {
+        "tags": [
+          "Audit-Log"
+        ],
+        "operationId": "OpenFarmApiEndpointsActivityLogGetAuditEntryEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEntryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audit-log/{id}/related": {
+      "get": {
+        "tags": [
+          "Audit-Log"
+        ],
+        "operationId": "OpenFarmApiEndpointsActivityLogGetRelatedAuditEntriesEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogPageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audit-log/filter-options": {
+      "get": {
+        "tags": [
+          "Audit-Log"
+        ],
+        "operationId": "OpenFarmApiEndpointsActivityLogGetAuditFilterOptionsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditFilterOptionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/printers/{id}/activity": {
+      "get": {
+        "tags": [
+          "Printers"
+        ],
+        "operationId": "OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
             }
           },
           {
@@ -9119,7 +9354,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ActivityLogPageResponse"
+                  "$ref": "#/components/schemas/PrinterActivityPageResponse"
                 }
               }
             }
@@ -17993,14 +18228,14 @@
           }
         }
       },
-      "ActivityLogPageResponse": {
+      "AuditLogPageResponse": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ActivityLogEntryResponse"
+              "$ref": "#/components/schemas/AuditEntryResponse"
             }
           },
           "page": {
@@ -18017,7 +18252,261 @@
           }
         }
       },
-      "ActivityLogEntryResponse": {
+      "AuditEntryResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string"
+          },
+          "entityLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "nullable": true
+          },
+          "actorId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "actorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "channel": {
+            "type": "string",
+            "nullable": true
+          },
+          "credentialId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "credentialLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "operation": {
+            "type": "string",
+            "nullable": true
+          },
+          "correlationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "timestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditFieldChange"
+            }
+          },
+          "historical": {
+            "type": "boolean"
+          },
+          "details": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActivityLogDetails"
+              }
+            ]
+          },
+          "href": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AuditFieldChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "before": {
+            "nullable": true
+          },
+          "after": {
+            "nullable": true
+          }
+        }
+      },
+      "ActivityLogDetails": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "previousState": {
+            "type": "string",
+            "nullable": true
+          },
+          "reportedState": {
+            "type": "string",
+            "nullable": true
+          },
+          "observedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "previousAlerts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/PrinterAlert"
+            }
+          },
+          "activeAlerts": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/PrinterAlert"
+            }
+          },
+          "via": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActivityChannel"
+              }
+            ]
+          },
+          "initiatedByUserId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "initiatedByName": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ActivityChannel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "AuditLogRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "AuditEntryRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "AuditFilterOptionsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditActorOption"
+            }
+          },
+          "credentials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditCredentialOption"
+            }
+          },
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AuditActorOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "AuditCredentialOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          }
+        }
+      },
+      "PrinterActivityPageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrinterActivityEntryResponse"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PrinterActivityEntryResponse": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -18060,64 +18549,7 @@
           }
         }
       },
-      "ActivityLogDetails": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "previousState": {
-            "type": "string",
-            "nullable": true
-          },
-          "reportedState": {
-            "type": "string",
-            "nullable": true
-          },
-          "observedAtUtc": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "previousAlerts": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/PrinterAlert"
-            }
-          },
-          "activeAlerts": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/PrinterAlert"
-            }
-          },
-          "via": {
-            "nullable": true,
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ActivityChannel"
-              }
-            ]
-          }
-        }
-      },
-      "ActivityChannel": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "kind": {
-            "type": "string"
-          },
-          "credentialId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "label": {
-            "type": "string"
-          }
-        }
-      },
-      "GetActivityLogRequest": {
+      "GetPrinterActivityRequest": {
         "type": "object",
         "additionalProperties": false
       }

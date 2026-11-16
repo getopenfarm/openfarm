@@ -28,6 +28,7 @@ public class PrinterActivityDetailsTests(CustomWebApplicationFactory factory) : 
             printer.ObserveReportedState("PAUSE", DateTimeOffset.UtcNow);
             printer.ObserveAlerts([warning], null);
             db.Printers.Add(printer);
+            await db.SaveChangesAsync();
             db.ActivityLogEntries.Add(ActivityLogEntry.Create("Printer", printer.Id.ToString(), "PrinterStatusObserved", null, ActorType.System,
                 new ActivityLogDetails("RUNNING", "PAUSE", DateTimeOffset.UtcNow)));
             db.ActivityLogEntries.Add(ActivityLogEntry.Create("Printer", printer.Id.ToString(), "PrinterAlertsChanged", null, ActorType.System,
@@ -36,10 +37,10 @@ public class PrinterActivityDetailsTests(CustomWebApplicationFactory factory) : 
                 db.ActivityLogEntries.Add(ActivityLogEntry.Create("Printer", Guid.NewGuid().ToString(), "PrinterStatusObserved", null, ActorType.System));
             await db.SaveChangesAsync();
         }
-        var page = await client.GetFromJsonAsync<ActivityLogPageResponse>($"/api/v1/activity-log?entityType=Printer&entityId={printerId}&page=1&pageSize=1");
-        page!.TotalCount.Should().Be(2);
+        var page = await client.GetFromJsonAsync<PrinterActivityPageResponse>($"/api/v1/printers/{printerId}/activity?page=1&pageSize=1");
+        page!.TotalCount.Should().Be(3);
         page.Items.Should().ContainSingle().Which.Details!.ActiveAlerts.Should().Equal(warning);
-        var second = await client.GetFromJsonAsync<ActivityLogPageResponse>($"/api/v1/activity-log?entityType=Printer&entityId={printerId}&page=2&pageSize=1");
+        var second = await client.GetFromJsonAsync<PrinterActivityPageResponse>($"/api/v1/printers/{printerId}/activity?page=2&pageSize=1");
         second!.Items.Should().ContainSingle().Which.Details!.ReportedState.Should().Be("PAUSE");
         var detail = await client.GetFromJsonAsync<PrinterDetailResponse>($"/api/v1/printers/{printerId}");
         detail!.Status.Should().Be("Printing");

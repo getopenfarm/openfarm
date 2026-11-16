@@ -96,8 +96,8 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         body!.Name.Should().Be("Renamed Printer");
         body.IpAddress.Should().Be(printer.IpAddress);
 
-        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
-        var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=25", UriKind.Relative));
+        var page = await activityLogResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
         page!.Items.Should().ContainSingle(e =>
             e.EntityId == printer.Id.ToString() && e.EventType == "PrinterEdited");
     }
@@ -155,8 +155,8 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         var client = await AuthenticatedClientAsync();
         var printer = await RegisterPrinterAsync(client);
 
-        var beforeLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
-        var beforeCount = (await beforeLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>())!
+        var beforeLogResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=25", UriKind.Relative));
+        var beforeCount = (await beforeLogResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>())!
             .Items.Count(e => e.EntityId == printer.Id.ToString());
 
         var response = await client.PatchAsJsonAsync(
@@ -167,8 +167,8 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
         problem!.Detail.Should().Contain("serialNumber");
 
-        var afterLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
-        var afterCount = (await afterLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>())!
+        var afterLogResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=25", UriKind.Relative));
+        var afterCount = (await afterLogResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>())!
             .Items.Count(e => e.EntityId == printer.Id.ToString());
 
         afterCount.Should().Be(beforeCount);
@@ -206,8 +206,8 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         detail!.BuildPlateType.Should().Be("TexturedPei");
         detail.BuildPlateTypeLabel.Should().Be("Textured PEI Plate");
 
-        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
-        var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=25", UriKind.Relative));
+        var page = await activityLogResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
         page!.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterBuildPlateSelected");
     }
 
@@ -229,8 +229,8 @@ public class EditPrinterEndpointTests(CustomWebApplicationFactory factory) : ICl
         var detail = await client.GetFromJsonAsync<PrinterDetailResponse>(new Uri($"/api/v1/printers/{printer.Id}", UriKind.Relative));
         detail!.BuildPlateType.Should().BeNull();
 
-        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
-        var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=25", UriKind.Relative));
+        var page = await activityLogResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
         page!.Items.Should().Contain(e => e.EntityId == printer.Id.ToString() && e.EventType == "PrinterBuildPlateCleared");
     }
 

@@ -6,16 +6,15 @@ using OpenFarm.Application.Common;
 
 namespace OpenFarm.Api.Endpoints.ActivityLog;
 
-public sealed class GetActivityLogRequest
+public sealed class GetPrinterActivityRequest
 {
-    public string? EntityType { get; set; }
-    public string? EntityId { get; set; }
+    public Guid Id { get; set; }
     public int Page { get; set; } = 1;
 
     public int PageSize { get; set; } = 25;
 }
 
-public sealed class ActivityLogEntryResponse
+public sealed class PrinterActivityEntryResponse
 {
     public ActivityLogDetails? Details { get; set; }
 
@@ -36,9 +35,9 @@ public sealed class ActivityLogEntryResponse
     public DateTimeOffset TimestampUtc { get; set; }
 }
 
-public sealed class ActivityLogPageResponse
+public sealed class PrinterActivityPageResponse
 {
-    public List<ActivityLogEntryResponse> Items { get; set; } = [];
+    public List<PrinterActivityEntryResponse> Items { get; set; } = [];
 
     public int Page { get; set; }
 
@@ -47,27 +46,27 @@ public sealed class ActivityLogPageResponse
     public int TotalCount { get; set; }
 }
 
-[Permission("activity-log:list")]
-public sealed class GetActivityLogEndpoint(IQueryHandler<GetActivityLogQuery, ActivityLogPageResult> handler)
-    : Endpoint<GetActivityLogRequest, ActivityLogPageResponse>
+[Permission("printers:get-detail")]
+public sealed class GetPrinterActivityEndpoint(IQueryHandler<GetActivityLogQuery, ActivityLogPageResult> handler)
+    : Endpoint<GetPrinterActivityRequest, PrinterActivityPageResponse>
 {
     public override void Configure()
     {
-        Get("/api/v1/activity-log");
+        Get("/api/v1/printers/{id}/activity");
         Policies("Permission");
     }
 
-    public override async Task HandleAsync(GetActivityLogRequest req, CancellationToken ct)
+    public override async Task HandleAsync(GetPrinterActivityRequest req, CancellationToken ct)
     {
         var page = req.Page < 1 ? 1 : req.Page;
         var pageSize = req.PageSize is < 1 or > 100 ? 25 : req.PageSize;
 
-        var result = await handler.HandleAsync(new GetActivityLogQuery(page, pageSize, req.EntityType, req.EntityId), ct);
+        var result = await handler.HandleAsync(new GetActivityLogQuery(page, pageSize, "Printer", req.Id.ToString()), ct);
 
-        Response = new ActivityLogPageResponse
+        Response = new PrinterActivityPageResponse
         {
             Items = result.Items
-                .Select(e => new ActivityLogEntryResponse
+                .Select(e => new PrinterActivityEntryResponse
                 {
                     Details = e.Details,
                     Id = e.Id,

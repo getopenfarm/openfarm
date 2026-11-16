@@ -63,7 +63,13 @@ public sealed class SpoolUsageRecordedHandler(
             .OrderBy(s => SlotPositionOf(feedUnit, s))
             .FirstOrDefault();
 
+        var previousSlot = feedUnit.FeedingSlotId;
         if (isReloader) feedUnit.SelectFeedingSlot(continuedSpool?.FeedSlotId, estimated: true);
+        var continuationEntry = ActivityLogEntry.Create("FeedUnit", feedUnit.Id.ToString(),
+            continuedSpool is null ? "FeedUnitNoQualifyingReload" : "FeedUnitAutoContinued", null, ActorType.System);
+        if (isReloader && previousSlot != feedUnit.FeedingSlotId)
+            continuationEntry.RecordChanges("update", feedUnit.Name, [new("FeedingSlotId", previousSlot, feedUnit.FeedingSlotId)]);
+        await activityLogWriter.StageAsync(continuationEntry, cancellationToken);
         await spoolRepository.SaveChangesAsync(cancellationToken);
         if (isReloader)
             await eventPublisher.FeedUnitsChangedAsync(feedUnit.PrinterId, cancellationToken);
@@ -73,17 +79,10 @@ public sealed class SpoolUsageRecordedHandler(
             // Ordinary, expected outcome for MatchRequired's no-match case; a real gap for
             // Unconditional's whole-purpose-is-unattended-continuation case — both log the same
             // event type, since no separate severity field exists yet (Phase 10's dashboard scope).
-            await activityLogWriter.WriteAsync(
-                ActivityLogEntry.Create("FeedUnit", feedUnit.Id.ToString(), "FeedUnitNoQualifyingReload", null, ActorType.System),
-                cancellationToken);
             return AutoContinuationResult.None;
         }
 
         var materialMismatch = policy == ReloadPolicy.Unconditional && continuedSpool.FilamentVariantId != depletedSpool.FilamentVariantId;
-
-        await activityLogWriter.WriteAsync(
-            ActivityLogEntry.Create("FeedUnit", feedUnit.Id.ToString(), "FeedUnitAutoContinued", null, ActorType.System),
-            cancellationToken);
 
         if (materialMismatch)
         {

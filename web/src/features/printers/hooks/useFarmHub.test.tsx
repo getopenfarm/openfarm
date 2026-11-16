@@ -32,15 +32,9 @@ describe('Printer activity live updates', () => {
   beforeEach(() => hub.handlers.clear());
   it('refreshes this printer and farm history while retaining other printer caches', () => {
     const client = new QueryClient();
-    const own = [
-      '/api/v1/activity-log',
-      { page: 1, pageSize: 20, entityType: 'Printer', entityId: 'p1' },
-    ];
-    const other = [
-      '/api/v1/activity-log',
-      { page: 1, pageSize: 20, entityType: 'Printer', entityId: 'p2' },
-    ];
-    const global = ['/api/v1/activity-log', { page: 1, pageSize: 25 }];
+    const own = ['/api/v1/printers/p1/activity', { page: 1, pageSize: 20 }];
+    const other = ['/api/v1/printers/p2/activity', { page: 1, pageSize: 20 }];
+    const global = ['/api/v1/audit-log', { page: 1, pageSize: 25 }];
     for (const key of [own, other, global])
       client.setQueryData(key, { items: [] });
     const { unmount } = renderHook(useFarmHub, {

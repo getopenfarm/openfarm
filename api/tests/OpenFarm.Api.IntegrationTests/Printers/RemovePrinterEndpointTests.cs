@@ -49,8 +49,8 @@ public class RemovePrinterEndpointTests(CustomWebApplicationFactory factory) : I
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
-        var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=25", UriKind.Relative));
+        var page = await activityLogResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
         page!.Items.Should().ContainSingle(e =>
             e.EntityId == printer.Id.ToString() && e.EventType == "PrinterRemoved");
     }

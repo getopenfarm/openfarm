@@ -1,4 +1,5 @@
 import { Upload } from 'lucide-react';
+import type { RefObject } from 'react';
 import { PermissionButton as Button } from '@/components/PermissionButton';
 import {
   Dialog,
@@ -35,6 +36,7 @@ interface AddOrReplacePartDialogProps {
   partId?: string;
   partName?: string;
   mode?: 'replace' | 'reprocess';
+  returnFocusRef?: RefObject<HTMLElement | null>;
   /** The slicer the part is pinned to: replacing or reprocessing keeps it unless another is chosen. */
   currentSlicer?: { engine?: string; version?: string } | null;
   /** The plate the part prints: kept when the file still has it. */
@@ -58,6 +60,7 @@ export function AddOrReplacePartDialog({
   partId,
   partName,
   mode = 'replace',
+  returnFocusRef,
   currentSlicer,
   currentPlateNumber,
   currentPlateName,
@@ -249,6 +252,12 @@ export function AddOrReplacePartDialog({
       }}
     >
       <DialogScrollableContent
+        onCloseAutoFocus={(event) => {
+          if (returnFocusRef?.current) {
+            event.preventDefault();
+            returnFocusRef.current.focus();
+          }
+        }}
         className="max-w-2xl"
         header={
           <>

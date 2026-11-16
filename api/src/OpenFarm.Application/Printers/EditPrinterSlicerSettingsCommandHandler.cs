@@ -37,17 +37,18 @@ public sealed class EditPrinterSlicerSettingsCommandHandler(
             printer.ClearBuildPlate();
         }
 
-        await printerRepository.SaveChangesAsync(cancellationToken);
 
-        // A granular event alongside the base PrinterSlicerSettingsEdited the endpoint's post-processor writes.
+        // Capture the semantic action with the plate change.
         // Only when the plate changed: the caller resends the full settings on every save.
         if (printer.BuildPlateType != previous)
         {
             var eventType = printer.BuildPlateType is not null ? "PrinterBuildPlateSelected" : "PrinterBuildPlateCleared";
-            await activityLogWriter.WriteAsync(
+            await activityLogWriter.StageAsync(
                 ActivityLogEntry.Create("Printer", printer.Id.ToString(), eventType, command.ActorId, command.ActorType),
                 cancellationToken);
         }
+
+        await printerRepository.SaveChangesAsync(cancellationToken);
 
         // Fixing "Needs setup" frees an Idle printer for the queue.
         if (printer.Status == PrinterStatus.Idle) dispatcher?.RequestDispatchAttempt(printer.Id);

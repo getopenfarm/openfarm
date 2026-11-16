@@ -1,12 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
+import { AccessContext } from '@/lib/auth/AccessContext';
 import { PartDetailPage } from './PartDetailPage';
 
-function renderPage(partId: string) {
+function renderPage(partId: string, permissions?: string[]) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -20,7 +21,11 @@ function renderPage(partId: string) {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AccessContext.Provider
+        value={permissions ? new Set(permissions) : undefined}
+      >
+        <RouterProvider router={router} />
+      </AccessContext.Provider>
       <Toaster />
     </QueryClientProvider>,
   );
@@ -51,6 +56,159 @@ function partBody(id: string, name: string) {
 }
 
 describe('PartDetailPage', () => {
+  it('downloads the source without saving or discarding draft edits', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.includes('/hubs/farm'))
+        return Promise.reject(new Error('No hub'));
+      if (url.endsWith('/parts/part-1/file'))
+        return Promise.resolve(
+          new Response('source bytes', {
+            headers: {
+              'Content-Disposition': 'attachment; filename="plates.3mf"',
+            },
+          }),
+        );
+      if (url.endsWith('/parts/part-1'))
+        return Promise.resolve(
+          jsonResponse({
+            ...partBody('part-1', 'Bracket'),
+            originalFileName: 'plates.3mf',
+          }),
+        );
+      return Promise.resolve(jsonResponse({ items: [] }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static createObjectURL = vi.fn(() => 'blob:source');
+        static revokeObjectURL = vi.fn();
+      },
+    );
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+    renderPage('part-1');
+    const name = await screen.findByLabelText('Name');
+    await user.clear(name);
+    await user.type(name, 'Draft name');
+    await user.click(screen.getByRole('button', { name: 'File actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Download file' }));
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    expect(name).toHaveValue('Draft name');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        input.toString().endsWith('/parts/part-1/file'),
+      ),
+    ).toBe(true);
+    expect(
+      await screen.findByRole('button', { name: 'File actions' }),
+    ).toBeEnabled();
+  });
+
+  it('hides Remove when the user cannot remove parts', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse(partBody('part-1', 'Bracket')))),
+    );
+    renderPage('part-1', ['parts:read']);
+    await screen.findByRole('heading', { name: /Bracket/ });
+    expect(
+      screen.queryByRole('button', { name: 'Remove' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('allows retrying a rejected download without losing the part page', async () => {
+    let attempts = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/hubs/farm'))
+          return Promise.reject(new Error('No hub'));
+        if (url.endsWith('/parts/part-1/file')) {
+          attempts++;
+          return Promise.resolve(
+            attempts === 1
+              ? jsonResponse({ detail: 'Source file unavailable.' }, 404)
+              : new Response('source'),
+          );
+        }
+        if (url.endsWith('/parts/part-1'))
+          return Promise.resolve(jsonResponse(partBody('part-1', 'Bracket')));
+        return Promise.resolve(jsonResponse({ items: [] }));
+      }),
+    );
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static createObjectURL = vi.fn(() => 'blob:source');
+        static revokeObjectURL = vi.fn();
+      },
+    );
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+    const user = userEvent.setup();
+    renderPage('part-1');
+    await user.click(
+      await screen.findByRole('button', { name: 'File actions' }),
+    );
+    await user.click(screen.getByRole('menuitem', { name: 'Download file' }));
+    expect(await screen.findByText('Source file unavailable.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'File actions' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'File actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Download file' }));
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    expect(attempts).toBe(2);
+  });
+
+  it('keeps dependency-blocked removal safe through the direct Remove button', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.includes('/hubs/farm'))
+        return Promise.reject(new Error('No hub'));
+      if (url.endsWith('/deletion-check'))
+        return Promise.resolve(
+          jsonResponse({
+            parts: [
+              {
+                partId: 'part-1',
+                status: 'Blocked',
+                blockers: [
+                  {
+                    code: 'AssemblyReference',
+                    entityId: 'assembly-1',
+                    entityType: 'Assembly',
+                    name: 'Enclosure',
+                  },
+                ],
+                legacyJobsLosingRecovery: 0,
+              },
+            ],
+          }),
+        );
+      return Promise.resolve(jsonResponse(partBody('part-1', 'Bracket')));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderPage('part-1');
+    const trigger = await screen.findByRole('button', { name: 'Remove' });
+    await user.click(trigger);
+    expect(await screen.findByText('Cannot remove Bracket')).toBeVisible();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(
+      fetchMock.mock.calls.filter(([input]) =>
+        input.toString().endsWith('/deletion-check'),
+      ),
+    ).toHaveLength(1);
+  });
+
   it('shows saved folder ancestry when opening a part directly', async () => {
     vi.stubGlobal(
       'fetch',
@@ -96,6 +254,7 @@ describe('PartDetailPage', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it.each([
@@ -166,7 +325,8 @@ describe('PartDetailPage', () => {
       await screen.findByRole('heading', { name: /Removable Part/ }),
     ).toBeInTheDocument();
     const deleteButton = screen.getByRole('button', { name: 'Remove' });
-    await user.click(deleteButton);
+    deleteButton.focus();
+    await user.keyboard('{Enter}');
 
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText('Remove part?')).toBeInTheDocument();
@@ -225,7 +385,8 @@ describe('PartDetailPage', () => {
       await screen.findByRole('heading', { name: /Kept Part/ }),
     ).toBeInTheDocument();
     const deleteButton = screen.getByRole('button', { name: 'Remove' });
-    await user.click(deleteButton);
+    deleteButton.focus();
+    await user.keyboard('{Enter}');
 
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText('Remove part?')).toBeInTheDocument();
@@ -235,6 +396,7 @@ describe('PartDetailPage', () => {
     await user.click(cancelButton);
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(deleteButton).toHaveFocus());
     expect(
       screen.getByRole('heading', { name: /Kept Part/ }),
     ).toBeInTheDocument();

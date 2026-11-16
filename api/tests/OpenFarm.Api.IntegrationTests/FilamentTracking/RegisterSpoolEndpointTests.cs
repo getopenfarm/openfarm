@@ -107,7 +107,7 @@ public class RegisterSpoolEndpointTests(CustomWebApplicationFactory factory) : I
         (await SpoolsOfAsync(client, variantId)).Should().HaveCount(4);
         foreach (var spool in spools)
         {
-            var log = (await client.GetFromJsonAsync<ActivityLogPageResponse>($"/api/v1/activity-log?entityId={spool.Id}&pageSize=100"))!;
+            var log = (await client.GetFromJsonAsync<AuditLogPageResponse>($"/api/v1/audit-log?entityId={spool.Id}&pageSize=100"))!;
             log.Items.Should().ContainSingle(i => i.EventType == "SpoolRegistered");
         }
     }

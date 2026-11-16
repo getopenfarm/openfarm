@@ -1,3 +1,6 @@
+using OpenFarm.Application.ActivityLog;
+using OpenFarm.Application.AuditLog;
+using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Application.Common;
 using OpenFarm.Application.Printers;
 using OpenFarm.Domain.Production;
@@ -11,7 +14,7 @@ namespace OpenFarm.Application.Production;
 /// </summary>
 public sealed class PausePrintJobCommandHandler(
     ProductionRemoteControlResolver resolver, IPrinterConnectorFactory connectorFactory,
-    IPrintJobRepository jobRepository, IProductionEventPublisher publisher) : ICommandHandler<PausePrintJobCommand, PrintJob>
+    IPrintJobRepository jobRepository, IProductionEventPublisher publisher, IActivityLogWriter? auditWriter = null, IAuditContextAccessor? auditContext = null) : ICommandHandler<PausePrintJobCommand, PrintJob>
 {
     private static readonly PrintJobStatus[] EligibleStatuses = [PrintJobStatus.Printing];
 
@@ -29,6 +32,12 @@ public sealed class PausePrintJobCommandHandler(
 
         var connector = connectorFactory.CreateConnector(details!);
         await connector.PauseJobAsync(details!, cancellationToken);
+        if (auditWriter is not null)
+        {
+            var actor = auditContext?.Current?.ActorId;
+            await auditWriter.WriteAsync(ActivityLogEntry.Create("PrintJob", job.Id.ToString(), "PrintJobPauseRequested",
+                actor, actor is null ? ActorType.System : ActorType.Operator), cancellationToken);
+        }
         return job;
     }
 }

@@ -8,20 +8,24 @@ export async function downloadFile(
   fallbackName: string,
   failure: string,
 ) {
-  const response = await authenticatedFetch(path).catch(() => undefined);
-  if (!response?.ok) {
-    toast.error(
-      response ? await extractErrorDetail(response, failure) : failure,
-    );
-    return;
+  let url: string | undefined;
+  try {
+    const response = await authenticatedFetch(path);
+    if (!response.ok) {
+      toast.error(await extractErrorDetail(response, failure));
+      return;
+    }
+    url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download =
+      response.headers
+        .get('content-disposition')
+        ?.match(/filename="?([^";]+)/)?.[1] ?? fallbackName;
+    link.click();
+  } catch {
+    toast.error(failure);
+  } finally {
+    if (url) URL.revokeObjectURL(url);
   }
-  const url = URL.createObjectURL(await response.blob());
-  const link = document.createElement('a');
-  link.href = url;
-  link.download =
-    response.headers
-      .get('content-disposition')
-      ?.match(/filename="?([^";]+)/)?.[1] ?? fallbackName;
-  link.click();
-  URL.revokeObjectURL(url);
 }

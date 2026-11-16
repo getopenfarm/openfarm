@@ -124,8 +124,11 @@ var connectionString = DatabaseConnectionString.Resolve(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<OpenFarm.Api.Security.ActivityChannelInterceptor>();
+builder.Services.AddSingleton<OpenFarm.Application.AuditLog.IAuditChangeNotifier, OpenFarm.Api.Security.AuditChangeNotifier>();
+builder.Services.AddSingleton<OpenFarm.Api.Security.AuditCommitNotifications>();
+builder.Services.AddSingleton<OpenFarm.Application.AuditLog.IAuditContextAccessor, OpenFarm.Api.Security.HttpAuditContextAccessor>();
 builder.Services.AddDbContext<OpenFarmDbContext>((services, options) => options.UseNpgsql(connectionString)
-    .AddInterceptors(services.GetRequiredService<OpenFarm.Api.Security.ActivityChannelInterceptor>()));
+    .AddInterceptors(services.GetRequiredService<OpenFarm.Api.Security.ActivityChannelInterceptor>(), services.GetRequiredService<OpenFarm.Api.Security.AuditCommitNotifications>()));
 
 builder.Services
     .AddHealthChecks()

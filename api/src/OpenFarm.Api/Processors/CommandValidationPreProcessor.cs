@@ -8,6 +8,11 @@ public sealed class CommandValidationPreProcessor : IGlobalPreProcessor
     public async Task PreProcessAsync(IPreProcessorContext context, CancellationToken ct)
     {
         var request = context.Request;
+        if (request is IActivityLoggable audit)
+        {
+            context.HttpContext.Items["AuditEntityType"] = audit.EntityType;
+            context.HttpContext.Items["AuditEventType"] = audit.EventType;
+        }
         if (request is null)
         {
             return;

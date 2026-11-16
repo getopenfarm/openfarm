@@ -70,8 +70,8 @@ const maintenance: NavItem = {
   icon: WrenchIcon,
 };
 const activityLog: NavItem = {
-  title: 'Activity log',
-  url: '/activity-log',
+  title: 'Audit log',
+  url: '/audit-log',
   icon: HistoryIcon,
 };
 

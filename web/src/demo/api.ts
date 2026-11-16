@@ -2,7 +2,6 @@
 // types, built from the in-memory farm (farm.ts); the simulator changes that state.
 import type {
   AccountResponse,
-  ActivityLogPageResponse,
   AssemblyResponse,
   AssemblySummaryResponse,
   ConnectedAppResponse,
@@ -26,6 +25,8 @@ import type {
   PartSummaryResponse,
   PlateCountsResponse,
   PrintEstimate,
+  PrinterActivityEntryResponse,
+  PrinterActivityPageResponse,
   PrinterDetailResponse,
   PrinterMatchingDiagnostics,
   PrinterModelCostResponse,
@@ -1262,7 +1263,7 @@ function tasks(): MaintenanceTaskResponse[] {
 // --- accounts ------------------------------------------------------------------------------------------------
 // Every permission (PermissionCatalog.cs): the demo operator sees and can try everything.
 const PERMISSIONS =
-  'activity-log:list assemblies:create assemblies:delete assemblies:edit assemblies:view feed-units:add feed-units:configure feed-units:list feed-units:remove filaments:assign-profiles filaments:create filaments:list library:delete library:manage library:view maintenance:complete maintenance:delete maintenance:manage maintenance:view non-printed-components:create non-printed-components:delete non-printed-components:edit non-printed-components:view parts:create parts:delete parts:edit parts:list parts:read parts:replace-file parts:view print-jobs:cancel print-jobs:pin print-jobs:remote-control print-jobs:reorder print-jobs:requeue print-jobs:update-status print-jobs:view print-jobs:write-off printers:edit-connection printers:edit-slicer-settings printers:get-detail printers:list printers:mark-ready printers:register printers:remove printers:verify-connection production-runs:cancel production-runs:close production-runs:create production-runs:edit production-runs:view profiles:confirm-import profiles:edit-filament-raw-data profiles:edit-machine-raw-data profiles:get-filament profiles:get-machine profiles:get-process profiles:list-filament profiles:list-machine profiles:list-process profiles:preview-import settings:fees:read settings:fees:update settings:general:read settings:general:update settings:printer-costs:read settings:printer-costs:update settings:slicing-defaults:read settings:slicing-defaults:update spools:list spools:load spools:override-weight spools:record-usage spools:register spools:unload tags:list users:manage vendors:create vendors:list auth:self'.split(
+  'audit-log:list assemblies:create assemblies:delete assemblies:edit assemblies:view feed-units:add feed-units:configure feed-units:list feed-units:remove filaments:assign-profiles filaments:create filaments:list library:delete library:manage library:view maintenance:complete maintenance:delete maintenance:manage maintenance:view non-printed-components:create non-printed-components:delete non-printed-components:edit non-printed-components:view parts:create parts:delete parts:edit parts:list parts:read parts:replace-file parts:view print-jobs:cancel print-jobs:pin print-jobs:remote-control print-jobs:reorder print-jobs:requeue print-jobs:update-status print-jobs:view print-jobs:write-off printers:edit-connection printers:edit-slicer-settings printers:get-detail printers:list printers:mark-ready printers:register printers:remove printers:verify-connection production-runs:cancel production-runs:close production-runs:create production-runs:edit production-runs:view profiles:confirm-import profiles:edit-filament-raw-data profiles:edit-machine-raw-data profiles:get-filament profiles:get-machine profiles:get-process profiles:list-filament profiles:list-machine profiles:list-process profiles:preview-import settings:fees:read settings:fees:update settings:general:read settings:general:update settings:printer-costs:read settings:printer-costs:update settings:slicing-defaults:read settings:slicing-defaults:update spools:list spools:load spools:override-weight spools:record-usage spools:register spools:unload tags:list users:manage vendors:create vendors:list auth:self'.split(
     ' ',
   );
 const whoami: WhoAmIResult = {
@@ -2104,8 +2105,8 @@ route('GET', '/profiles/filament', () =>
     'Generic PLA @BBL A1',
   ]),
 );
-route('GET', '/activity-log', ({ query }): ActivityLogPageResponse => {
-  const events = [
+const activityEvents = (): PrinterActivityEntryResponse[] =>
+  [
     ...printers.flatMap((printer, index) => [
       {
         id: id('ac71', index * 2 + 1),
@@ -2177,7 +2178,69 @@ route('GET', '/activity-log', ({ query }): ActivityLogPageResponse => {
       },
     },
   ].sort((a, b) => Date.parse(b.timestampUtc) - Date.parse(a.timestampUtc));
-  const size = Number(query.get('pageSize') ?? 50) || 50;
+route(
+  'GET',
+  '/printers/:id/activity',
+  ({ query, params }): PrinterActivityPageResponse => {
+    const events = activityEvents().filter(
+      (e) => e.entityType === 'Printer' && e.entityId === params.id,
+    );
+    const size = Number(query.get('pageSize') ?? 25) || 25;
+    return {
+      items: page(events, query, size),
+      page: Number(query.get('page') ?? 1),
+      pageSize: size,
+      totalCount: events.length,
+    };
+  },
+);
+
+const demoAuditEntries = () =>
+  activityEvents()
+    .filter((e) => e.actorId)
+    .map((e) => ({
+      id: e.id,
+      entityType: e.entityType,
+      entityId: e.entityId,
+      entityLabel:
+        printers.find((p) => p.id === e.entityId)?.name ?? e.entityType,
+      eventType: e.eventType,
+      action: 'update',
+      actorId: e.actorId,
+      actorName: e.actorDisplayName,
+      channel: e.details?.via?.kind ?? 'Browser',
+      credentialId: e.details?.via?.credentialId,
+      credentialLabel: e.details?.via?.label,
+      operation: 'Demo farm action',
+      correlationId: e.id,
+      timestampUtc: e.timestampUtc,
+      historical: false,
+      changes: [{ field: 'Status', before: 'Awaiting clear', after: 'Idle' }],
+    }));
+route('GET', '/audit-log', ({ query }) => {
+  const events = demoAuditEntries().filter(
+    (e) =>
+      [
+        'actorId',
+        'credentialId',
+        'entityType',
+        'entityId',
+        'action',
+        'correlationId',
+      ].every(
+        (key) =>
+          !query.get(key) ||
+          String(e[key as keyof typeof e]) === query.get(key),
+      ) &&
+      (!query.get('channel') ||
+        (query.get('channel') === 'Agents'
+          ? ['Token', 'App'].includes(e.channel ?? '')
+          : query.get('channel') === e.channel)) &&
+      (!query.get('from') ||
+        (e.timestampUtc ?? '') >= (query.get('from') ?? '')) &&
+      (!query.get('to') || (e.timestampUtc ?? '') <= (query.get('to') ?? '')),
+  );
+  const size = Number(query.get('pageSize') ?? 25) || 25;
   return {
     items: page(events, query, size),
     page: Number(query.get('page') ?? 1),
@@ -2185,6 +2248,31 @@ route('GET', '/activity-log', ({ query }): ActivityLogPageResponse => {
     totalCount: events.length,
   };
 });
+route('GET', '/audit-log/filter-options', () => ({
+  actors: [{ id: currentUser.userId, name: 'Demo operator' }],
+  credentials: demoAuditEntries()
+    .filter((e) => e.credentialId)
+    .map((e) => ({
+      id: e.credentialId,
+      label: e.credentialLabel,
+      channel: e.channel,
+    })),
+  entityTypes: ['Printer', 'PrintJob'],
+  actions: ['update'],
+}));
+route('GET', '/audit-log/:id/related', () => ({
+  items: [],
+  page: 1,
+  pageSize: 25,
+  totalCount: 0,
+}));
+route(
+  'GET',
+  '/audit-log/:id',
+  ({ params }) =>
+    demoAuditEntries().find((e) => e.id === params.id) ??
+    new Response(null, { status: 404 }),
+);
 
 /** Serves one /api/v1 request from the demo farm. */
 export async function handle(request: Request): Promise<Response> {

@@ -74,7 +74,11 @@ export function SlicerSettingsDialog({
                 printerId ?? '',
               ),
           });
-          queryClient.invalidateQueries({ queryKey: ['/api/v1/activity-log'] });
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              String(query.queryKey[0]).endsWith('/activity') ||
+              String(query.queryKey[0]).startsWith('/api/v1/audit-log'),
+          });
           onOpenChange(false);
         },
         onError: async (error) =>

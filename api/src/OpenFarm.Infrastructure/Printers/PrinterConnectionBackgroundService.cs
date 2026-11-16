@@ -460,17 +460,6 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
             return lastFlushUtc;
         }
 
-        var printerRepository = services.GetRequiredService<IPrinterRepository>();
-        await printerRepository.SaveChangesAsync(cancellationToken);
-
-        var feedSlotTelemetrySync = services.GetRequiredService<IFeedSlotTelemetrySync>();
-        await feedSlotTelemetrySync.SyncAsync(printer.Id, printer.FeedReadings, cancellationToken);
-        // After topology sync (a slot may be new) and before the idle dispatch request below (it may load a spool a job needs).
-        if (services.GetService<RfidSpoolLinker>() is { } rfidSpoolLinker)
-            await rfidSpoolLinker.LinkAsync(printer, cancellationToken);
-
-        var publisher = services.GetRequiredService<IPrinterEventPublisher>();
-
         if (reportedStateChanged || statusChanged)
         {
             var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
@@ -481,16 +470,27 @@ public sealed partial class PrinterConnectionBackgroundService : BackgroundServi
                 actorId: null,
                 actorType: ActorType.System,
                 details: new ActivityLogDetails(PreviousState: previousState, ReportedState: printer.ReportedState, ObservedAtUtc: connectorEvent.ReceivedAtUtc));
-            await activityLogWriter.WriteAsync(entry, cancellationToken);
+            await activityLogWriter.StageAsync(entry, cancellationToken);
         }
 
         if (alertsChanged)
         {
             var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
-            await activityLogWriter.WriteAsync(ActivityLogEntry.Create(
+            await activityLogWriter.StageAsync(ActivityLogEntry.Create(
                 "Printer", printer.Id.ToString(), "PrinterAlertsChanged", null, ActorType.System,
                 new ActivityLogDetails(ObservedAtUtc: connectorEvent.ReceivedAtUtc, PreviousAlerts: previousAlerts, ActiveAlerts: printer.ActiveAlerts)), cancellationToken);
         }
+
+        var printerRepository = services.GetRequiredService<IPrinterRepository>();
+        await printerRepository.SaveChangesAsync(cancellationToken);
+
+        var feedSlotTelemetrySync = services.GetRequiredService<IFeedSlotTelemetrySync>();
+        await feedSlotTelemetrySync.SyncAsync(printer.Id, printer.FeedReadings, cancellationToken);
+        // After topology sync (a slot may be new) and before the idle dispatch request below (it may load a spool a job needs).
+        if (services.GetService<RfidSpoolLinker>() is { } rfidSpoolLinker)
+            await rfidSpoolLinker.LinkAsync(printer, cancellationToken);
+
+        var publisher = services.GetRequiredService<IPrinterEventPublisher>();
 
         if (reportedStateChanged || statusChanged || alertsChanged)
             await publisher.PrinterActivityChangedAsync(printer.Id, cancellationToken);

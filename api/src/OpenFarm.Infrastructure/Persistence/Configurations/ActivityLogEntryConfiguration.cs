@@ -41,6 +41,17 @@ public sealed class ActivityLogEntryConfiguration : IEntityTypeConfiguration<Act
 
         builder.HasIndex(a => new { a.EntityType, a.EntityId });
 
+        builder.Property(a => a.RelatedPrinterIds).HasColumnType("uuid[]").HasDefaultValueSql("'{}'::uuid[]");
+        builder.HasIndex(a => a.RelatedPrinterIds).HasMethod("gin");
+        builder.Property(a => a.Category).IsRequired().HasDefaultValue("Audit");
+        builder.Property(a => a.ChangesJson).HasColumnType("jsonb");
+        builder.HasIndex(a => new { a.Category, a.TimestampUtc, a.Id }).IsDescending(false, true, false);
+        builder.HasIndex(a => new { a.EntityType, a.EntityId, a.TimestampUtc, a.Id }).IsDescending(false, false, true, false);
+        builder.HasIndex(a => new { a.ActorId, a.TimestampUtc, a.Id }).IsDescending(false, true, false);
+        builder.HasIndex(a => new { a.Channel, a.TimestampUtc, a.Id }).IsDescending(false, true, false);
+        builder.HasIndex(a => a.CorrelationId);
+        builder.HasIndex(a => new { a.CredentialId, a.TimestampUtc, a.Id }).IsDescending(false, true, false);
+
         // Append-only: no update or delete operation is ever mapped for this entity.
     }
 }

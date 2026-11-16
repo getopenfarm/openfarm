@@ -109,8 +109,8 @@ public class MarkPrinterReadyEndpointTests(CustomWebApplicationFactory factory) 
         var body = await response.Content.ReadFromJsonAsync<PrinterSummaryResponse>();
         body!.Status.Should().Be("Idle");
 
-        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
-        var page = await activityLogResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var activityLogResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=25", UriKind.Relative));
+        var page = await activityLogResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
         page!.Items.Should().ContainSingle(e =>
             e.EntityId == printer.Id.ToString() && e.EventType == "PrinterMarkedReady");
 
@@ -168,8 +168,8 @@ public class MarkPrinterReadyEndpointTests(CustomWebApplicationFactory factory) 
         release.StatusCode.Should().Be(HttpStatusCode.OK);
         (await release.Content.ReadFromJsonAsync<PrinterSummaryResponse>())!.Status.Should().Be("Idle");
 
-        var page = await (await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=50", UriKind.Relative)))
-            .Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var page = await (await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=50", UriKind.Relative)))
+            .Content.ReadFromJsonAsync<AuditLogPageResponse>();
         page!.Items.Where(e => e.EntityId == printer.Id.ToString()).Select(e => e.EventType)
             .Should().Contain(["PrinterMarkedNotReady", "PrinterMarkedReady"]);
     }

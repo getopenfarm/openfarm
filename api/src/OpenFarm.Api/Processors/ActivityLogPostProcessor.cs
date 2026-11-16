@@ -1,12 +1,8 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using FastEndpoints;
 using Microsoft.AspNetCore.SignalR;
 using OpenFarm.Api.Hubs;
-using OpenFarm.Application.ActivityLog;
 using OpenFarm.Application.Printers;
 using OpenFarm.Application.Production;
-using OpenFarm.Domain.ActivityLog;
 
 namespace OpenFarm.Api.Processors;
 
@@ -36,47 +32,31 @@ public sealed class ActivityLogPostProcessor : IGlobalPostProcessor
 }
 
 /// <summary>
-/// Writes the activity row(s) for a successful state-changing request and sends the matching live
-/// events. Shared by the FastEndpoints post-processor and MCP write tools, so both log the same way.
+/// Publishes operational refreshes after a successful state-changing request. Persistence captures
+/// the audit rows before commit. REST and MCP share these notifications.
 /// </summary>
 public static class ActivityRecorder
 {
     public static async Task RecordAsync(HttpContext context, IActivityLoggable loggable, object? response, CancellationToken ct)
     {
-        var (actorId, actorType) = ExtractActor(context.User);
-        var writer = context.RequestServices.GetRequiredService<IActivityLogWriter>();
-
-        if (response is IHasEntityIds hasEntityIds)
+        // Persistence captures changes atomically. This processor only publishes operational refreshes.
+        if (response is IHasEntityIds ids)
         {
-            var bulkEntries = hasEntityIds.EntityIds
-                .Select(entityId => ActivityLogEntry.Create(loggable.EntityType, entityId, loggable.EventType, actorId, actorType))
-                .ToList();
-            await writer.WriteRangeAsync(bulkEntries, ct);
-            foreach (var bulkEntry in bulkEntries) await NotifyPrinterActivityAsync(context, bulkEntry, ct);
-
-            await NotifyInventoryChangedAsync(context, loggable, ct);
-            await NotifyMaintenanceChangedAsync(context, loggable, ct);
-            return;
+            foreach (var id in ids.EntityIds)
+                await NotifyPrinterAsync(context, loggable.EntityType, id, ct);
         }
-
-        var singleEntityId = ExtractEntityId(response) ?? ExtractEntityId(loggable);
-        if (singleEntityId is null)
+        else if ((ExtractEntityId(response) ?? ExtractEntityId(loggable)) is { } id)
         {
-            return;
+            await NotifyPrinterAsync(context, loggable.EntityType, id, ct);
         }
-
-        var entry = ActivityLogEntry.Create(
-            loggable.EntityType,
-            singleEntityId,
-            loggable.EventType,
-            actorId,
-            actorType);
-
-        await writer.WriteAsync(entry, ct);
-        await NotifyPrinterActivityAsync(context, entry, ct);
         await NotifyInventoryChangedAsync(context, loggable, ct);
         await NotifyMaintenanceChangedAsync(context, loggable, ct);
     }
+
+    private static Task NotifyPrinterAsync(HttpContext context, string type, string id, CancellationToken ct) =>
+        type == "Printer" && Guid.TryParse(id, out var printerId)
+            ? context.RequestServices.GetRequiredService<IPrinterEventPublisher>().PrinterActivityChangedAsync(printerId, ct)
+            : Task.CompletedTask;
 
     // A spool or filament change moves stock and what Action required lists; every open view refreshes on this one event.
     private static Task NotifyInventoryChangedAsync(HttpContext context, IActivityLoggable loggable, CancellationToken ct) =>
@@ -90,18 +70,7 @@ public static class ActivityRecorder
             ? context.RequestServices.GetRequiredService<IFarmEventClients>().SendAsync("MaintenanceChanged", new { }, ct)
             : Task.CompletedTask;
 
-    private static Task NotifyPrinterActivityAsync(HttpContext context, ActivityLogEntry entry, CancellationToken ct) =>
-        entry.EntityType == "Printer" && Guid.TryParse(entry.EntityId, out var printerId)
-            ? context.RequestServices.GetRequiredService<IPrinterEventPublisher>()
-                .PrinterActivityChangedAsync(printerId, ct)
-            : Task.CompletedTask;
-
     private static string? ExtractEntityId(object? response) =>
         response?.GetType().GetProperty("Id")?.GetValue(response)?.ToString();
 
-    private static (Guid? ActorId, ActorType ActorType) ExtractActor(ClaimsPrincipal user)
-    {
-        var sub = user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        return Guid.TryParse(sub, out var actorId) ? (actorId, ActorType.Operator) : (null, ActorType.System);
-    }
 }

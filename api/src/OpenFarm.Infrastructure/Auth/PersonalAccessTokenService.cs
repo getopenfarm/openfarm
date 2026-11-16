@@ -114,9 +114,9 @@ public sealed class PersonalAccessTokenService(OpenFarmDbContext db, PermissionS
         }
         var query = db.PersonalAccessTokens.Where(t => t.UserId == owner && t.RevokedAtUtc == null);
         if (id is not null) query = query.Where(t => t.Id == id);
-        var rows = await query.AsNoTracking().ToArrayAsync(ct);
+        var rows = await query.ToArrayAsync(ct);
         if (id is not null && rows.Length == 0) throw new KeyNotFoundException("That token no longer exists.");
-        await query.ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAtUtc, DateTimeOffset.UtcNow), ct);
+        foreach (var row in rows) row.RevokedAtUtc = DateTimeOffset.UtcNow;
         foreach (var row in rows) Audit(actor, row, "AccessTokenRevoked");
         await db.SaveChangesAsync(ct);
     }

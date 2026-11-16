@@ -180,7 +180,7 @@ public sealed class PersonalAccessTokenTests(CustomWebApplicationFactory factory
         }
         (await RowAsync(byToken)).Details!.Via.Should().Be(new OpenFarm.Domain.ActivityLog.ActivityChannel("Token", created.Token.Id, created.Token.Name));
         (await RowAsync(byBrowser)).Details?.Via.Should().BeNull();
-        var log = await browser.GetStringAsync("/api/v1/activity-log?entityType=Vendor&pageSize=100");
+        var log = await browser.GetStringAsync("/api/v1/audit-log?entityType=Vendor&pageSize=100");
         log.Should().Contain($"\"via\":{{\"kind\":\"Token\",\"credentialId\":\"{created.Token.Id}\",\"label\":\"{created.Token.Name}\"}}");
     }
 
