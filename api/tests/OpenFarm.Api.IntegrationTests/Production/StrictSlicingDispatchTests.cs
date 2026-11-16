@@ -266,7 +266,9 @@ public class StrictSlicingDispatchTests(StrictSlicingFactory factory) : Producti
         using (var archive = new System.IO.Compression.ZipArchive(zip, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
         {
             using (var model = new StreamWriter(archive.CreateEntry("3D/3dmodel.model").Open()))
-                await model.WriteAsync($"<model unit=\"millimeter\"><!-- {Guid.NewGuid():N} --><resources/><build/></model>");
+                // Objects 2 and 3 are the ones model_settings.config places on the plates: a plate's objects must exist in the
+                // root model, or the used slots cannot be told apart and every configured slot counts.
+                await model.WriteAsync($"<model unit=\"millimeter\"><!-- {Guid.NewGuid():N} --><resources><object id=\"2\"/><object id=\"3\"/></resources><build/></model>");
             if (plate is not null)
                 using (var plates = new StreamWriter(archive.CreateEntry("Metadata/model_settings.config").Open()))
                     await plates.WriteAsync("""
