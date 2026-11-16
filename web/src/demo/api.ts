@@ -1557,7 +1557,7 @@ route('GET', '/settings/slicing-defaults', () => ({
   default: { engine: 'BambuStudio', version: '2.7.1', isExplicit: true },
   available: [
     { engine: 'BambuStudio', version: '2.7.1', platform: 'Linux' },
-    { engine: 'OrcaSlicer', version: '2.3.1', platform: 'Linux' },
+    { engine: 'OrcaSlicer', version: '2.5.1', platform: 'Linux' },
   ],
 }));
 route('GET', '/slicing/readiness', () => ({

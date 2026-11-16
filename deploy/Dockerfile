@@ -23,6 +23,10 @@ RUN dotnet publish api/src/OpenFarm.Api/OpenFarm.Api.csproj -c Release -o /out
 RUN dotnet run --project tools/provision-slicers -- \
         --manifest slicers.manifest.json --out /opt/slicers --platform linux \
     || echo "WARNING: Slicer provisioning failed or was incomplete — in-app slicing may be unavailable."
+# Headless CLI slicing never reads the GUI assets: HMS error tables, web views, images, translations (~0.14-0.32 GB
+# per build). Keep resources/profiles (System profile ingestion), fonts, calib, shaders, model. Verified: Orca 2.4.2,
+# 2.5.0, 2.5.1 and Bambu 2.7.1 slice to an identical toolpath with these gone, and the app's estimates match.
+RUN for d in hms web images i18n handy_models; do rm -rf /opt/slicers/*/*/linux/resources/$d; done
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
@@ -32,6 +36,10 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libopengl0 libglu1-mesa libwebkit2gtk-4.1-0 libsecret-1-0 libsm6 libmspack0 \
+    # Mesa's software GL (LLVM + gallium, ~180 MB) is a GL vendor library dlopen'd only when a GL context is
+    # created; headless slicing never creates one. Removed after install; nothing runs apt later. Keep libgbm1
+    # (webkit links it at load time). Fails the build if a base refresh stops pulling Mesa, on purpose.
+    && dpkg --remove --force-depends $(dpkg-query -W -f='${Package}\n' 'libllvm*' mesa-libgallium libglx-mesa0 libgl1-mesa-dri libegl-mesa0) \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=api /out ./
 COPY --from=api /opt/slicers /opt/slicers

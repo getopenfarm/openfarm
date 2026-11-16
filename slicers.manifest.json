@@ -21,15 +21,6 @@
             "version": "2.4.2",
             "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.4.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2.AppImage",
             "notes": "Ubuntu 24.04 x86-64 AppImage. Linux slicing compatibility not yet verified."
-          },
-          {
-            "version": "2.3.2",
-            "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.2/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.2.AppImage",
-            "notes": "Linux slicing compatibility not yet verified (this release segfaults on macOS — see entry notes)."
-          },
-          {
-            "version": "2.3.1",
-            "assetUrl": "https://github.com/OrcaSlicer/OrcaSlicer/releases/download/v2.3.1/OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.3.1.AppImage"
           }
         ],
         "Windows": [
