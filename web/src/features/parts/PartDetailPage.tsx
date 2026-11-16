@@ -48,7 +48,6 @@ import {
 } from '@/lib/api/generated/parts/parts';
 import { formatMinutes } from '@/lib/formatMinutes';
 import { formatFileSize, formatGrams, formatMm } from '@/lib/formatUnits';
-import { AddOrReplacePartDialog } from './components/AddOrReplacePartDialog';
 import {
   estimationProfileNames,
   estimationSourceLabel,
@@ -59,6 +58,7 @@ import {
   type DisplayFilamentRequirement,
   PartFilamentRequirementsList,
 } from './components/PartFilamentRequirementsList';
+import { PartFileActions } from './components/PartFileActions';
 import {
   type PartRemovalNoticeData,
   PartRemovalToast,
@@ -225,8 +225,6 @@ export function PartDetailPage() {
     void id;
     setRemovalNotice(undefined);
   }, [id]);
-  const [replaceOpen, setReplaceOpen] = useState(false);
-  const [reprocessOpen, setReprocessOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
 
   const partQuery = useOpenFarmApiEndpointsPartsGetPartEndpoint(id ?? '');
@@ -435,20 +433,6 @@ export function PartDetailPage() {
                   <NozzleIcon data-icon="inline-start" />
                   Print
                 </Button>
-                <Button
-                  permission="parts:replace-file"
-                  variant="outline"
-                  onClick={() => setReprocessOpen(true)}
-                >
-                  Reprocess
-                </Button>
-                <Button
-                  permission="parts:replace-file"
-                  variant="outline"
-                  onClick={() => setReplaceOpen(true)}
-                >
-                  Replace file
-                </Button>
                 <RemovePartButton
                   key={part.id}
                   onNotice={setRemovalNotice}
@@ -602,6 +586,7 @@ export function PartDetailPage() {
                 <Card className="gap-0 py-0 lg:self-start">
                   <CardHeader className={compactHeader}>
                     <CardTitle className={compactTitle}>File details</CardTitle>
+                    <PartFileActions key={part.id} part={part} />
                   </CardHeader>
                   <CardContent className="px-[18px] py-4">
                     <PartFileFacts part={part} />
@@ -660,27 +645,6 @@ export function PartDetailPage() {
             </form>
           </Form>
           <ConfirmLeaveDialog />
-
-          <AddOrReplacePartDialog
-            partId={part.id}
-            partName={part.name}
-            currentSlicer={part.slicer}
-            currentPlateNumber={part.plateNumber}
-            currentPlateName={part.plateName}
-            open={replaceOpen}
-            onOpenChange={setReplaceOpen}
-          />
-
-          <AddOrReplacePartDialog
-            partId={part.id}
-            partName={part.name}
-            currentSlicer={part.slicer}
-            currentPlateNumber={part.plateNumber}
-            currentPlateName={part.plateName}
-            mode="reprocess"
-            open={reprocessOpen}
-            onOpenChange={setReprocessOpen}
-          />
 
           {queueOpen && (
             <SendToQueueDialog

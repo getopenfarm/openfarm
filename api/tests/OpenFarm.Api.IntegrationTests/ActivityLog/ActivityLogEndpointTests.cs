@@ -35,17 +35,17 @@ public class ActivityLogEndpointTests(CustomWebApplicationFactory factory) : ICl
             new CreateVendorRequest { Name = serialNumber });
         var created = await createResponse.Content.ReadFromJsonAsync<VendorResponse>();
 
-        var response = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=25", UriKind.Relative));
+        var response = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=25", UriKind.Relative));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var page = await response.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var page = await response.Content.ReadFromJsonAsync<AuditLogPageResponse>();
         page.Should().NotBeNull();
 
         var entry = page!.Items.Should().ContainSingle(e => e.EntityId == created!.Id.ToString()).Subject;
         entry.EntityType.Should().Be("Vendor");
         entry.EventType.Should().Be("VendorCreated");
-        entry.ActorType.Should().Be("Operator");
-        entry.ActorDisplayName.Should().Be("admin");
+        entry.Channel.Should().Be("Browser");
+        entry.ActorName.Should().Be("admin");
         entry.TimestampUtc.Should().BeOnOrAfter(DateTimeOffset.UtcNow.AddMinutes(-1));
 
         page.Items.Should().BeInDescendingOrder(e => e.TimestampUtc);
@@ -63,8 +63,8 @@ public class ActivityLogEndpointTests(CustomWebApplicationFactory factory) : ICl
                 new CreateVendorRequest { Name = $"AC-{Guid.NewGuid():N}" });
         }
 
-        var response = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=2", UriKind.Relative));
-        var page = await response.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var response = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=2", UriKind.Relative));
+        var page = await response.Content.ReadFromJsonAsync<AuditLogPageResponse>();
 
         page.Should().NotBeNull();
         page!.Items.Should().HaveCount(2);
@@ -78,16 +78,16 @@ public class ActivityLogEndpointTests(CustomWebApplicationFactory factory) : ICl
     {
         var client = await AuthenticatedClientAsync();
 
-        var beforeResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=1", UriKind.Relative));
-        var before = await beforeResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var beforeResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=1", UriKind.Relative));
+        var before = await beforeResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
 
         var createResponse = await client.PostAsJsonAsync(
             new Uri("/api/v1/vendors", UriKind.Relative),
             new CreateVendorRequest { Name = string.Empty });
         createResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        var afterResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=1", UriKind.Relative));
-        var after = await afterResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var afterResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=1", UriKind.Relative));
+        var after = await afterResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
 
         after!.TotalCount.Should().Be(before!.TotalCount);
     }

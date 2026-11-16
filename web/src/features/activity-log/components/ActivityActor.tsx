@@ -1,12 +1,12 @@
 import { Badge } from '@/components/ui/badge';
-import type { ActivityLogEntryResponse } from '@/lib/api/generated/endpoints.schemas';
+import type { PrinterActivityEntryResponse } from '@/lib/api/generated/endpoints.schemas';
 
 /** Actor name, plus the token or app it acted through (akaun's `actorLine`). */
 export function ActivityActor({
   entry,
   fallback = 'System',
 }: {
-  entry: ActivityLogEntryResponse;
+  entry: PrinterActivityEntryResponse;
   fallback?: string;
 }) {
   const name = entry.actorDisplayName ?? fallback;

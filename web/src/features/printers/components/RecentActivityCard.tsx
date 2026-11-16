@@ -1,17 +1,15 @@
-import { EmptyState } from '@/components/empty-state/EmptyState';
+import { EmptyState, ErrorState } from '@/components/empty-state/EmptyState';
 import { BADGE_KIND_META } from '@/components/status-badge/kinds';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ActivityActor } from '@/features/activity-log/components/ActivityActor';
 import { ActivityDetails } from '@/features/activity-log/components/ActivityDetails';
 import {
   activityEventKind,
   describeActivityEvent,
 } from '@/features/activity-log/lib/activityEvent';
-import { useOpenFarmApiEndpointsActivityLogGetActivityLogEndpoint } from '@/lib/api/generated/activity-log/activity-log';
-import type {
-  ActivityLogEntryResponse,
-  ActivityLogPageResponse,
-} from '@/lib/api/generated/endpoints.schemas';
+import type { PrinterActivityPageResponse } from '@/lib/api/generated/endpoints.schemas';
+import { useOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpoint } from '@/lib/api/generated/printers/printers';
 import { formatRelativeTime } from '@/lib/formatRelativeTime';
 import { cn } from '@/lib/utils';
 
@@ -21,18 +19,15 @@ export interface RecentActivityCardProps {
 
 export function RecentActivityCard({ printerId }: RecentActivityCardProps) {
   const activityQuery =
-    useOpenFarmApiEndpointsActivityLogGetActivityLogEndpoint({
+    useOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpoint(printerId, {
       page: 1,
       pageSize: 20,
-      entityType: 'Printer',
-      entityId: printerId,
     });
 
-  const page = activityQuery.data?.data as ActivityLogPageResponse | undefined;
-  const entries = (page?.items ?? []).filter(
-    (entry: ActivityLogEntryResponse) =>
-      entry.entityType === 'Printer' && entry.entityId === printerId,
-  );
+  const page = activityQuery.data?.data as
+    | PrinterActivityPageResponse
+    | undefined;
+  const entries = page?.items ?? [];
 
   return (
     <Card className="gap-0 py-0">
@@ -40,7 +35,15 @@ export function RecentActivityCard({ printerId }: RecentActivityCardProps) {
         <CardTitle className="text-sm font-semibold">Recent activity</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        {entries.length === 0 ? (
+        {activityQuery.isLoading ? (
+          <Skeleton className="m-4 h-12" />
+        ) : activityQuery.isError ? (
+          <ErrorState
+            bordered={false}
+            description="Could not load printer activity."
+            onRetry={() => activityQuery.refetch()}
+          />
+        ) : entries.length === 0 ? (
           <EmptyState size="sm" bordered={false} title="No recent activity" />
         ) : (
           <ul>
@@ -71,7 +74,10 @@ export function RecentActivityCard({ printerId }: RecentActivityCardProps) {
                       </>
                     )}
                   </p>
-                  <ActivityDetails details={entry.details} />
+                  <ActivityDetails
+                    details={entry.details}
+                    entityType={entry.entityType}
+                  />
                   <p className="mt-0.5 text-[11.5px] text-muted-foreground">
                     {formatRelativeTime(entry.timestampUtc)}
                   </p>

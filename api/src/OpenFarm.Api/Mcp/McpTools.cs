@@ -3,6 +3,7 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using OpenFarm.Api.Mcp.Tools;
 using OpenFarm.Api.Processors;
+using OpenFarm.Application.AuditLog;
 
 namespace OpenFarm.Api.Mcp;
 
@@ -65,13 +66,17 @@ public static class McpTools
 
     /// <summary>
     /// Runs a write exactly as its REST endpoint does: the endpoint's request DTO and validator, then
-    /// the same handler, then the same activity row and live events (<see cref="ActivityRecorder"/>).
+    /// the same handler with atomic audit capture, then live events (<see cref="ActivityRecorder"/>).
     /// </summary>
     public static async Task<TResponse> WriteAsync<TRequest, TResponse>(this RequestContext<CallToolRequestParams> request,
         TRequest dto, Func<Task<TResponse>> run, CancellationToken ct) where TRequest : IActivityLoggable
     {
         if (request.Services!.GetService<IValidator<TRequest>>() is { } validator)
             await validator.ValidateAndThrowAsync(dto, ct);
+        var http = request.Http();
+        // Parallel tool calls can share an HTTP context. Keep attribution in the async execution scope.
+        using var auditScope = new AuditContextScope(new(request.UserId(), null, Security.CredentialClaims.Channel(http.User),
+            request.Params?.Name ?? dto.EventType, AuditContextScope.Current?.CorrelationId ?? Guid.NewGuid().ToString(), dto.EntityType, dto.EventType));
         var response = await run();
         await ActivityRecorder.RecordAsync(request.Service<IHttpContextAccessor>().HttpContext!, dto, response, ct);
         return response;

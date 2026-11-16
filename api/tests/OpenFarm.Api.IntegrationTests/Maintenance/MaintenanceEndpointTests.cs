@@ -93,9 +93,9 @@ public class MaintenanceEndpointTests(ProductionTestFactory factory) : Productio
         (await client.GetFromJsonAsync<MaintenanceTasksResponse>("/api/v1/maintenance/tasks"))!.Items.Should().NotContain(t => t.Id == task.Id);
         (await EnrollmentsAsync(client, $"taskId={task.Id}")).Should().BeEmpty();
 
-        var taskLog = await client.GetFromJsonAsync<ActivityLogPageResponse>($"/api/v1/activity-log?entityType=MaintenanceTask&entityId={task.Id}");
+        var taskLog = await client.GetFromJsonAsync<AuditLogPageResponse>($"/api/v1/audit-log?entityType=MaintenanceTask&entityId={task.Id}");
         taskLog!.Items.Select(e => e.EventType).Should().BeEquivalentTo("MaintenanceTaskCreated", "MaintenanceTaskEdited", "MaintenanceTaskDeleted");
-        var printerLog = await client.GetFromJsonAsync<ActivityLogPageResponse>($"/api/v1/activity-log?entityType=Printer&entityId={printers[1]}");
+        var printerLog = await client.GetFromJsonAsync<AuditLogPageResponse>($"/api/v1/audit-log?entityType=Printer&entityId={printers[1]}");
         printerLog!.Items.Should().Contain(e => e.EventType == "MaintenanceUnenrolled");
     }
 
@@ -127,7 +127,7 @@ public class MaintenanceEndpointTests(ProductionTestFactory factory) : Productio
         logs.Items.Should().HaveCount(2).And.OnlyContain(l => l.Notes == "Cleaned" && l.PerformedByNote == "Sam");
         logs.Items.Single(l => l.PrinterId == printers[1]).HoursAtCompletion.Should().Be(2m, "the carry is part of the completed cycle");
         (await EnrollmentsAsync(client, $"taskId={task.Id}")).Should().OnlyContain(e => e.CarryHours == 0 && e.LastDoneAtUtc != null);
-        var printerLog = await client.GetFromJsonAsync<ActivityLogPageResponse>($"/api/v1/activity-log?entityType=Printer&entityId={printers[0]}");
+        var printerLog = await client.GetFromJsonAsync<AuditLogPageResponse>($"/api/v1/audit-log?entityType=Printer&entityId={printers[0]}");
         printerLog!.Items.Should().Contain(e => e.EventType == "MaintenanceCompleted");
     }
 
@@ -206,8 +206,9 @@ public class MaintenanceEndpointTests(ProductionTestFactory factory) : Productio
         (await EnrollInTasksAsync(client, printer, [])).StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await client.GetFromJsonAsync<MaintenanceTasksResponse>("/api/v1/maintenance/tasks"))!.Items.Should().HaveCount(taskCount);
 
-        var printerLog = await client.GetFromJsonAsync<ActivityLogPageResponse>($"/api/v1/activity-log?entityType=Printer&entityId={printer}");
-        printerLog!.Items.Count(e => e.EventType == "MaintenanceEnrolled").Should().Be(1, "the no-op call logs nothing");
+        var printerLog = await client.GetFromJsonAsync<AuditLogPageResponse>($"/api/v1/audit-log?entityType=Printer&entityId={printer}");
+        printerLog!.Items.Count(e => e.EventType == "MaintenanceEnrolled").Should().Be(2, "each newly assigned task has its own audit entry; the no-op call logs nothing");
+        printerLog.Items.Where(e => e.EventType == "MaintenanceEnrolled").Select(e => e.CorrelationId).Distinct().Should().ContainSingle();
     }
 
     [Fact]

@@ -30,6 +30,7 @@ public sealed class AuthorizedFarmClients(
         "FeedUnitAutoContinued" => ["feed-units:list", "spools:list"],
         "FeedUnitsChanged" => ["feed-units:list"],
         "PartProcessingJobStatusChanged" or "PartUpserted" or "PartEstimateResolved" or "PartEstimateUnavailable" or "PartDeleted" => ["parts:read"],
+        "AuditChanged" => ["audit-log:list"],
         "MaintenanceChanged" => ["maintenance:view"],
         "NotificationsChanged" => ["print-jobs:view", "spools:list", "filaments:list"],
         _ => [],

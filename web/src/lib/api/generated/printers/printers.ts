@@ -32,7 +32,9 @@ import type {
   ListFeedUnitsResponse,
   ListFleetResponse,
   MaintenanceChangeResponse,
+  OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams,
   OpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointParams,
+  PrinterActivityPageResponse,
   PrinterCatalogResponse,
   PrinterDetailResponse,
   PrinterSummaryResponse,
@@ -2816,6 +2818,304 @@ export function useOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpoint<
   const queryOptions =
     getOpenFarmApiEndpointsFeedUnitsListFeedUnitsEndpointQueryOptions(
       printerId,
+      params,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponse200 =
+  {
+    data: PrinterActivityPageResponse;
+    status: 200;
+  };
+
+export type openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponse401 =
+  {
+    data: void;
+    status: 401;
+  };
+
+export type openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponse403 =
+  {
+    data: void;
+    status: 403;
+  };
+
+export type openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponseSuccess =
+  openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponseError =
+  (
+    | openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponse401
+    | openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponse =
+  | openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponseSuccess
+  | openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponseError;
+
+export const getOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointUrl = (
+  id: string,
+  params: OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/printers/${id}/activity?${stringifiedParams}`
+    : `/api/v1/printers/${id}/activity`;
+};
+
+export const openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint = async (
+  id: string,
+  params: OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsActivityLogGetPrinterActivityEndpointResponse>(
+    getOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointUrl(id, params),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointQueryKey =
+  (
+    id: string,
+    params?: OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams,
+  ) => {
+    return [
+      `/api/v1/printers/${id}/activity`,
+      ...(params ? [params] : []),
+    ] as const;
+  };
+
+export const getOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+      >
+    >,
+    TError = void,
+  >(
+    id: string,
+    params: OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+    },
+  ) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointQueryKey(
+        id,
+        params,
+      );
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+        >
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint(id, params, {
+        signal,
+      });
+
+    return {
+      queryKey,
+      queryFn,
+      enabled: id !== null && id !== undefined,
+      ...queryOptions,
+    } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+      >
+    >
+  >;
+export type OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointQueryError =
+  void;
+
+export function useOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  params: OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  params: OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  params: OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint>
+  >,
+  TError = void,
+>(
+  id: string,
+  params: OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof openFarmApiEndpointsActivityLogGetPrinterActivityEndpoint
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointQueryOptions(
+      id,
       params,
       options,
     );

@@ -33,7 +33,7 @@ public static class PermissionCatalog
         new("profiles", "Slicer profiles", "slicer profiles", false),
         new("tags", "Tags", "tags", false),
         new("settings", "Settings", "settings", false),
-        new("activity-log", "Activity log", "the activity log", false),
+        new("audit-log", "Audit log", "the audit log", false),
         new("users", "Users & Groups", "users and groups", true),
     ];
 
@@ -132,7 +132,7 @@ public static class PermissionCatalog
         new("settings:printer-costs:update", "settings", "Change printer costs", "Change the electricity price and printer model costs. This changes every quoted cost.", false, true, false, Phrase: "change printer costs"),
         new("settings:slicing-defaults:update", "settings", "Change slicing defaults", "Change the slicer and profiles every part is sliced with.", false, true, false, Phrase: "change slicing defaults"),
 
-        new("activity-log:list", "activity-log", "View", "See who changed what across the farm, including other users' actions.", true, true, false, IsExplicit: true, Verb: "see"),
+        new("audit-log:list", "audit-log", "View", "See who changed what across the farm, including other users' actions.", true, true, false, IsExplicit: true, Verb: "see"),
 
         new("users:manage", "users", "Manage", "Add, change and remove users and groups, and sign users out.", false, true, false, Phrase: "manage users and groups"),
     ];

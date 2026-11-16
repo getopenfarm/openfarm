@@ -8,4 +8,6 @@ public sealed record ActivityLogDetails(
     DateTimeOffset? ObservedAtUtc = null,
     IReadOnlyList<PrinterAlert>? PreviousAlerts = null,
     IReadOnlyList<PrinterAlert>? ActiveAlerts = null,
-    ActivityChannel? Via = null);
+    ActivityChannel? Via = null,
+    Guid? InitiatedByUserId = null,
+    string? InitiatedByName = null);

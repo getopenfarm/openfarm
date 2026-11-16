@@ -230,7 +230,7 @@ public sealed class ListSortingTests(ProductionTestFactory factory) : Production
         var actual = new List<Guid>();
         for (var page = 1; page <= 2; page++)
         {
-            var result = await GetAsync(client, $"/api/v1/activity-log?entityType={entity}&page={page}&pageSize=2");
+            var result = await GetAsync(client, $"/api/v1/audit-log?entityType={entity}&page={page}&pageSize=2");
             result.GetProperty("totalCount").GetInt32().Should().Be(4);
             actual.AddRange(result.GetProperty("items").EnumerateArray().Select(x => x.GetProperty("id").GetGuid()));
         }

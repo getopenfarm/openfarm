@@ -69,7 +69,7 @@ describe('PrinterDetailPage', () => {
             jsonResponse({ id: printerId, status: 'Idle' }),
           );
         }
-        if (url.includes('/activity-log'))
+        if (url.includes('/activity'))
           return Promise.resolve(jsonResponse({ items: [] }));
         if (url.includes('/feed-units'))
           return Promise.resolve(jsonResponse({ feedUnits: [] }));
@@ -108,7 +108,7 @@ describe('PrinterDetailPage', () => {
             jsonResponse({ id: 'hold', status: 'AwaitingClear' }),
           );
         }
-        if (url.includes('/activity-log'))
+        if (url.includes('/activity'))
           return Promise.resolve(jsonResponse({ items: [] }));
         if (url.includes('/feed-units'))
           return Promise.resolve(jsonResponse({ feedUnits: [] }));
@@ -166,7 +166,7 @@ describe('PrinterDetailPage', () => {
           markReadyCalls++;
           return Promise.resolve(jsonResponse({ id: 'p', status: 'Idle' }));
         }
-        if (url.includes('/activity-log'))
+        if (url.includes('/activity'))
           return Promise.resolve(jsonResponse({ items: [] }));
         if (url.includes('/feed-units'))
           return Promise.resolve(jsonResponse({ feedUnits: [] }));
@@ -204,7 +204,7 @@ describe('PrinterDetailPage', () => {
         return Promise.reject(new Error('No SignalR in unit tests'));
       if (url.endsWith('/slicer-settings') && init?.method === 'PUT')
         return Promise.resolve(jsonResponse({ id: 'sp' }));
-      if (url.includes('/activity-log'))
+      if (url.includes('/activity'))
         return Promise.resolve(jsonResponse({ items: [] }));
       if (url.includes('/feed-units'))
         return Promise.resolve(jsonResponse({ feedUnits: [] }));
@@ -342,7 +342,7 @@ describe('PrinterDetailPage', () => {
           }),
         );
       }
-      if (url.includes('/activity-log')) {
+      if (url.includes('/activity')) {
         return Promise.resolve(
           jsonResponse({
             items: [
@@ -356,9 +356,9 @@ describe('PrinterDetailPage', () => {
               },
               {
                 id: 'a2',
-                entityType: 'Job',
-                entityId: 'other',
-                eventType: 'JobQueued',
+                entityType: 'MaintenanceLog',
+                entityId: 'related-maintenance',
+                eventType: 'MaintenanceCompleted',
                 actorType: 'System',
                 timestampUtc: new Date().toISOString(),
               },
@@ -412,11 +412,7 @@ describe('PrinterDetailPage', () => {
     expect(
       fetchMock.mock.calls.some(([input]) => {
         const url = new URL(input.toString(), window.location.origin);
-        return (
-          url.pathname.endsWith('/activity-log') &&
-          url.searchParams.get('entityType') === 'Printer' &&
-          url.searchParams.get('entityId') === printerId
-        );
+        return url.pathname === `/api/v1/printers/${printerId}/activity`;
       }),
     ).toBe(true);
     expect(screen.getByText('219.4 °C')).toBeInTheDocument();
@@ -427,11 +423,11 @@ describe('PrinterDetailPage', () => {
     expect(screen.getAllByText('Feed units')).toHaveLength(1);
     expect(screen.queryByText('Filament — AMS')).not.toBeInTheDocument();
     expect(screen.getByText('62%')).toBeInTheDocument();
-    // Only the Printer-scoped activity entry is shown, not the unrelated Job one.
+    // The server-scoped history also includes business events associated with this printer.
     expect(
       await screen.findByText('Printer status changed'),
     ).toBeInTheDocument();
-    expect(screen.queryByText('Job queued')).not.toBeInTheDocument();
+    expect(screen.getByText('Maintenance done')).toBeInTheDocument();
     expect(screen.queryByText('Slicer readiness')).not.toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([url]) =>
@@ -449,7 +445,7 @@ describe('PrinterDetailPage', () => {
       }
       if (url.includes('/feed-units'))
         return Promise.resolve(jsonResponse({ feedUnits: [] }));
-      if (url.includes('/activity-log')) {
+      if (url.includes('/activity')) {
         return Promise.resolve(
           jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
         );
@@ -491,7 +487,7 @@ describe('PrinterDetailPage', () => {
       if (url.includes('/hubs/farm')) {
         return Promise.reject(new Error('SignalR not available in tests'));
       }
-      if (url.includes('/activity-log')) {
+      if (url.includes('/activity')) {
         return Promise.resolve(
           jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
         );
@@ -536,7 +532,7 @@ describe('PrinterDetailPage', () => {
       if (url.includes('/hubs/farm')) {
         return Promise.reject(new Error('SignalR not available in tests'));
       }
-      if (url.includes('/activity-log')) {
+      if (url.includes('/activity')) {
         return Promise.resolve(
           jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
         );
@@ -603,7 +599,7 @@ describe('PrinterDetailPage', () => {
       if (url.includes('/hubs/farm')) {
         return Promise.reject(new Error('SignalR not available in tests'));
       }
-      if (url.includes('/activity-log')) {
+      if (url.includes('/activity')) {
         return Promise.resolve(
           jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
         );
@@ -664,7 +660,7 @@ describe('PrinterDetailPage', () => {
       if (url.includes('/hubs/farm')) {
         return Promise.reject(new Error('SignalR not available in tests'));
       }
-      if (url.includes('/activity-log')) {
+      if (url.includes('/activity')) {
         return Promise.resolve(
           jsonResponse({ items: [], page: 1, pageSize: 20, totalCount: 0 }),
         );

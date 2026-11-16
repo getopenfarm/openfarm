@@ -44,9 +44,9 @@ function renderShell(initialPath = '/') {
             handle: { title: 'Dashboard' },
           },
           {
-            path: '/activity-log',
-            element: <div>Activity log content</div>,
-            handle: { title: 'Activity log' },
+            path: '/audit-log',
+            element: <div>Audit log content</div>,
+            handle: { title: 'Audit log' },
           },
         ],
       },
@@ -90,9 +90,7 @@ describe('AppShell', () => {
     expect(
       screen.getByRole('link', { name: 'Maintenance' }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'Activity log' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Audit log' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
 
     expect(screen.getAllByText('Operate').length).toBeGreaterThan(0);
@@ -100,10 +98,10 @@ describe('AppShell', () => {
   });
 
   it('shows the current route title in the title bar', () => {
-    renderShell('/activity-log');
+    renderShell('/audit-log');
 
     expect(
-      screen.getByText('Activity log', {
+      screen.getByText('Audit log', {
         selector: '[data-slot="breadcrumb-page"]',
       }),
     ).toBeInTheDocument();

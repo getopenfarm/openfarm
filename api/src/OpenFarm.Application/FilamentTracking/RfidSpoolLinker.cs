@@ -50,7 +50,6 @@ public sealed partial class RfidSpoolLinker(
                     if (spool.State == SpoolState.Using) await TakeOutAsync(spool, touched, cancellationToken);
                     await spools.SaveChangesAsync(cancellationToken); // frees the slot for the one-spool-per-slot index
                     spool.LoadOntoFeedSlot(slot.Id);
-                    await spools.SaveChangesAsync(cancellationToken);
                     await activityLog.WriteAsync(
                         ActivityLogEntry.Create("Spool", spool.Id.ToString(), "SpoolLoadedFromRfid", null, ActorType.System), cancellationToken);
                 }

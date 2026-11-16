@@ -1,3 +1,4 @@
+using OpenFarm.Application.AuditLog;
 using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -139,6 +140,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             return;
         }
 
+        using var auditScope = new AuditContextScope(new(null, null, null, "Process part file", job.Id.ToString(), InitiatedByUserId: job.RequestedByUserId));
         PartMaterialResolution materialResolution;
         try
         {
@@ -255,6 +257,7 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
             var activity = updateServices.GetRequiredService<IActivityLogWriter>();
             var current = await jobs.GetByIdAsync(workItem.JobId, stoppingToken);
             if (current is null) return;
+            using var auditScope = new AuditContextScope(new(null, null, null, "Resolve part estimate", current.Id.ToString(), InitiatedByUserId: current.RequestedByUserId));
             try
             {
                 if (current.Status == PartProcessingJobStatus.ReadyForReview)
@@ -361,7 +364,8 @@ public sealed partial class PartProcessingBackgroundService : BackgroundService,
         IActivityLogWriter activityLogWriter, string eventType,
         string entityType, string entityId, CancellationToken cancellationToken, Guid? actorId = null, ActorType actorType = ActorType.System)
     {
-        var entry = ActivityLogEntry.Create(entityType, entityId, eventType, actorId, actorType);
+        var entry = ActivityLogEntry.Create(entityType, entityId, eventType, null, ActorType.System);
+        entry.AttributeInitiator(actorId);
         await activityLogWriter.WriteAsync(entry, cancellationToken);
     }
 

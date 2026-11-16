@@ -39,7 +39,7 @@ describe('httpClient', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
 
-    await httpClient('/api/v1/activity-log?page=1&pageSize=25');
+    await httpClient('/api/v1/audit-log?page=1&pageSize=25');
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = new Headers(init.headers);

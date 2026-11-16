@@ -56,7 +56,7 @@ public class UpdateSlicingDefaultsEndpointTests(CustomWebApplicationFactory fact
             new Uri("/api/v1/settings/slicing-defaults", UriKind.Relative),
             new { engine = "OrcaSlicer", version = "2.2.0" });
 
-        var activityResponse = await client.GetAsync(new Uri("/api/v1/activity-log?Page=1&PageSize=50", UriKind.Relative));
+        var activityResponse = await client.GetAsync(new Uri("/api/v1/audit-log?Page=1&PageSize=50", UriKind.Relative));
         var page = await activityResponse.Content.ReadFromJsonAsync<JsonElement>();
 
         var hasEntry = page.GetProperty("items").EnumerateArray()

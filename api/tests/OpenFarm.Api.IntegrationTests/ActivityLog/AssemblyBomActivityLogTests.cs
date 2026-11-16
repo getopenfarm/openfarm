@@ -76,8 +76,8 @@ public class AssemblyBomActivityLogTests(CustomWebApplicationFactory factory) : 
             new Uri($"/api/v1/non-printed-components/{component!.Id}", UriKind.Relative),
             new { name = "Log Screw Edited", unitCost = (decimal?)null });
 
-        var logResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=200", UriKind.Relative));
-        var page = await logResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var logResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=200", UriKind.Relative));
+        var page = await logResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
 
         page!.Items.Should().Contain(e => e.EntityId == assembly.Id.ToString() && e.EventType == "AssemblyCreated");
         page.Items.Should().Contain(e => e.EntityId == assembly.Id.ToString() && e.EventType == "AssemblyEdited");
@@ -85,6 +85,6 @@ public class AssemblyBomActivityLogTests(CustomWebApplicationFactory factory) : 
         page.Items.Should().Contain(e => e.EntityId == component.Id.ToString() && e.EventType == "NonPrintedComponentCreated");
         page.Items.Should().Contain(e => e.EntityId == component.Id.ToString() && e.EventType == "NonPrintedComponentEdited");
         page.Items.Where(e => e.EntityId == assembly.Id.ToString() || e.EntityId == component.Id.ToString())
-            .Should().OnlyContain(e => e.ActorType == "Operator" && e.TimestampUtc != default);
+            .Should().OnlyContain(e => e.Channel == "Browser" && e.TimestampUtc != default);
     }
 }

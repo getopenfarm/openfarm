@@ -52,12 +52,12 @@ public class ProfileImportActivityLogTests(CustomWebApplicationFactory factory) 
             .ToList();
         allCreatedIds.Should().HaveCount(3);
 
-        var logResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=50", UriKind.Relative));
-        var page = await logResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var logResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=50", UriKind.Relative));
+        var page = await logResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
 
         foreach (var id in allCreatedIds)
         {
-            page!.Items.Should().ContainSingle(e => e.EntityId == id && e.EventType == "ProfileImported" && e.EntityType == "Profile");
+            page!.Items.Should().ContainSingle(e => e.EntityId == id && e.EventType == "ProfileImported" && e.EntityType.EndsWith("Profile", StringComparison.Ordinal));
         }
     }
 }

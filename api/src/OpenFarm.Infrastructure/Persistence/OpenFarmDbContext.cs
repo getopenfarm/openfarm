@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenFarm.Domain.ActivityLog;
+using OpenFarm.Application.AuditLog;
+using OpenFarm.Infrastructure.ActivityLog;
 using OpenFarm.Domain.Assemblies;
 using OpenFarm.Domain.ConnectionSecrets;
 using OpenFarm.Domain.FilamentTracking;
@@ -14,7 +16,7 @@ using OpenFarm.Infrastructure.Identity;
 
 namespace OpenFarm.Infrastructure.Persistence;
 
-public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> options)
+public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> options, IAuditContextAccessor? auditContext = null, IAuditChangeNotifier? auditNotifier = null)
     : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
     public DbSet<OpenFarm.Domain.Library.LibraryFolder> LibraryFolders => Set<OpenFarm.Domain.Library.LibraryFolder>();
@@ -100,6 +102,63 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
     public DbSet<MaintenanceEnrollment> MaintenanceEnrollments => Set<MaintenanceEnrollment>();
 
     public DbSet<MaintenanceLog> MaintenanceLogs => Set<MaintenanceLog>();
+
+    private readonly string _auditCorrelationId = Guid.NewGuid().ToString();
+
+    private bool _pendingAuditNotification;
+    private Guid? _auditTransactionId;
+    private void TrackAuditNotification()
+    {
+        var transactionId = Database.CurrentTransaction?.TransactionId;
+        // Disposing an uncommitted outer transaction also discards its pending notification.
+        if (_auditTransactionId is { } previous && previous != transactionId) _pendingAuditNotification = false;
+        _auditTransactionId = transactionId;
+        _pendingAuditNotification |= ChangeTracker.Entries<ActivityLogEntry>().Any(e => e.State == EntityState.Added);
+    }
+    public bool TakeAuditNotification()
+    {
+        var pending = _pendingAuditNotification;
+        _pendingAuditNotification = false;
+        return pending;
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        var entries = AuditCapture.Prepare(this, auditContext?.Current ?? AuditContextScope.Current, _auditCorrelationId);
+        TrackAuditNotification();
+        try
+        {
+            var result = base.SaveChanges(acceptAllChangesOnSuccess);
+            if (Database.CurrentTransaction is null && TakeAuditNotification() && auditNotifier is not null)
+                auditNotifier.NotifyAsync().GetAwaiter().GetResult();
+            return result;
+        }
+        catch
+        {
+            _pendingAuditNotification = false;
+            foreach (var entry in entries) Entry(entry).State = EntityState.Detached;
+            throw;
+        }
+    }
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        var entries = AuditCapture.Prepare(this, auditContext?.Current ?? AuditContextScope.Current, _auditCorrelationId);
+        TrackAuditNotification();
+        try
+        {
+            var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            if (Database.CurrentTransaction is null && TakeAuditNotification() && auditNotifier is not null)
+                await auditNotifier.NotifyAsync();
+            return result;
+        }
+        catch
+        {
+            _pendingAuditNotification = false;
+            foreach (var entry in entries) Entry(entry).State = EntityState.Detached;
+            throw;
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

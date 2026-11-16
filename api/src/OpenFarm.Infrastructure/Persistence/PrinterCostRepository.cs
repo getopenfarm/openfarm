@@ -18,7 +18,12 @@ public sealed class PrinterCostRepository(OpenFarmDbContext db) : IPrinterCostRe
         await PrinterModelCostLock.AcquireAsync(db, brand, modelCode, ct);
         if (await db.Printers.AnyAsync(p => p.Brand == brand && p.ModelCode == modelCode, ct))
             throw new PrinterModelCostsInUseException(brand, modelCode);
-        await db.PrinterModelCosts.Where(x => x.Brand == brand && x.ModelCode == modelCode).ExecuteDeleteAsync(ct);
+        var existing = await db.PrinterModelCosts.FindAsync([brand, modelCode], ct);
+        if (existing is not null)
+        {
+            db.PrinterModelCosts.Remove(existing);
+            await db.SaveChangesAsync(ct);
+        }
         if (transaction is not null) await transaction.CommitAsync(ct);
     }
 
@@ -27,18 +32,17 @@ public sealed class PrinterCostRepository(OpenFarmDbContext db) : IPrinterCostRe
 
     public async Task<PrinterModelCost> UpsertAsync(string brand, string modelCode, PrinterCostRates rates, CancellationToken ct)
     {
-        var model = PrinterModelCost.Create(brand, modelCode);
+        await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        await PrinterModelCostLock.AcquireAsync(db, brand, modelCode, ct);
+        var model = await db.PrinterModelCosts.FindAsync([brand, modelCode], ct);
+        if (model is null)
+        {
+            model = PrinterModelCost.Create(brand, modelCode);
+            db.PrinterModelCosts.Add(model);
+        }
         model.Update(rates);
-        await db.Database.ExecuteSqlInterpolatedAsync($"""
-            INSERT INTO "PrinterModelCosts" ("Brand", "ModelCode", "PrinterPurchasePrice", "PrinterUpfrontCost",
-                "LifetimeServiceCost", "LifetimePrintingHours", "AveragePrintingWatts")
-            VALUES ({model.Brand}, {model.ModelCode}, {rates.PrinterPurchasePrice}, {rates.PrinterUpfrontCost},
-                {rates.LifetimeServiceCost}, {rates.LifetimePrintingHours}, {rates.AveragePrintingWatts})
-            ON CONFLICT ("Brand", "ModelCode") DO UPDATE SET
-                "PrinterPurchasePrice" = EXCLUDED."PrinterPurchasePrice", "PrinterUpfrontCost" = EXCLUDED."PrinterUpfrontCost",
-                "LifetimeServiceCost" = EXCLUDED."LifetimeServiceCost", "LifetimePrintingHours" = EXCLUDED."LifetimePrintingHours",
-                "AveragePrintingWatts" = EXCLUDED."AveragePrintingWatts"
-            """, ct);
+        await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
         return model;
     }
 }

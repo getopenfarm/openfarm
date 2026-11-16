@@ -57,7 +57,7 @@ describe('catalog fixture', () => {
 describe('access levels', () => {
   it('offers only the levels that differ', () => {
     expect(levelsFor(leavesOf('tags'))).toEqual(['none', 'view']);
-    expect(levelsFor(leavesOf('activity-log'))).toEqual(['none']);
+    expect(levelsFor(leavesOf('audit-log'))).toEqual(['none']);
     expect(levelsFor(leavesOf('settings'))).toEqual(['none', 'view', 'edit']);
     expect(levelsFor(leavesOf('parts'))).toEqual([
       'none',

@@ -50,7 +50,7 @@ public sealed class OAuthScopesTests
     [Fact]
     public void ScopesUseKnownReadKeysForReads_AndNeverAdministrativeOrRemovalKeys()
     {
-        string[] banned = ["printers:register", "printers:edit-connection", "printers:verify-connection", "printers:remove", "activity-log:list"];
+        string[] banned = ["printers:register", "printers:edit-connection", "printers:verify-connection", "printers:remove", "audit-log:list"];
         string[] settings = ["settings:fees:read", "settings:fees:update"];
         foreach (var scope in OAuthScopes.All)
             foreach (var key in scope.Permissions)

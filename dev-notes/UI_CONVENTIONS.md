@@ -220,7 +220,7 @@ header cycles default → ascending → descending → default. Runs start by du
 undated last, so the next order due leads; their Due header toggles direction
 (the API also sorts runs by displayed label, captured names and legacy fallbacks
 included). Profiles start with name ascending and toggle direction. All server
-orders have an ascending entity-ID tie-breaker. Activity Log remains
+orders have an ascending entity-ID tie-breaker. Audit log remains
 newest first, and the print queue retains its operational ordering.
 
 Sort changes reset to page one. Profile tabs retain independent sorting, page,
@@ -389,7 +389,7 @@ visual verification. Future additions should follow the same patterns.
 | Profiles, profile detail, import | Shared tabs and spacing, in-place draft footer, import flow, and specialized profile pickers. |
 | Maintenance | Shared cards, tables, loading/error states; retain existing task-template and operational behavior. |
 | Stats | Shared cards and feedback; retain date-range presets and custom date inputs as parameter controls. |
-| Activity log | Shared loading/error/empty feedback and numbered pagination; retain chronological event layout. |
+| Audit log | Shared table, URL filters, read-only detail links, and numbered pagination. Machine observations remain on printer detail. |
 | General, slicing defaults | Side-navigation shell, shared section headers/fields, section-level saves, validation, and pending labels. |
 | Fees, fee profile, printer costs, model costs | Shared list/forms; fee profile uses the same sticky Cancel/Save footer as other full-page drafts. |
 | Users & groups, Add/Edit user | Shared header action, segmented tabs/counts/panels, table styling, real user links, warnings, and form footer. Retain mobile cards and inline group editor. |

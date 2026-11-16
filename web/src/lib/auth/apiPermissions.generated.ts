@@ -9,6 +9,10 @@ export const apiQueryPermissions = [
     permissions: ['production-runs:view'],
   },
   {
+    pattern: '^/api/v1/audit\\-log/filter\\-options$',
+    permissions: ['audit-log:list'],
+  },
+  {
     pattern: '^/api/v1/settings/slicing\\-defaults$',
     permissions: ['settings:slicing-defaults:read'],
   },
@@ -113,10 +117,6 @@ export const apiQueryPermissions = [
     permissions: ['spools:list'],
   },
   {
-    pattern: '^/api/v1/activity\\-log$',
-    permissions: ['activity-log:list'],
-  },
-  {
     pattern: '^/api/v1/auth/sessions$',
     permissions: [],
   },
@@ -155,6 +155,10 @@ export const apiQueryPermissions = [
   {
     pattern: '^/api/v1/print\\-jobs$',
     permissions: ['print-jobs:view'],
+  },
+  {
+    pattern: '^/api/v1/audit\\-log$',
+    permissions: ['audit-log:list'],
   },
   {
     pattern: '^/api/v1/assemblies$',
@@ -221,8 +225,16 @@ export const apiQueryPermissions = [
     permissions: ['print-jobs:view'],
   },
   {
+    pattern: '^/api/v1/audit\\-log/[^/]+/related$',
+    permissions: ['audit-log:list'],
+  },
+  {
     pattern: '^/api/v1/admin/users/[^/]+/tokens$',
     permissions: ['users:manage'],
+  },
+  {
+    pattern: '^/api/v1/printers/[^/]+/activity$',
+    permissions: ['printers:get-detail'],
   },
   {
     pattern: '^/api/v1/profiles/filament/[^/]+$',
@@ -271,6 +283,10 @@ export const apiQueryPermissions = [
   {
     pattern: '^/api/v1/print\\-jobs/[^/]+$',
     permissions: ['print-jobs:view'],
+  },
+  {
+    pattern: '^/api/v1/audit\\-log/[^/]+$',
+    permissions: ['audit-log:list'],
   },
   {
     pattern: '^/api/v1/assemblies/[^/]+$',

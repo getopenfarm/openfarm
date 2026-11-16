@@ -14,10 +14,11 @@ import {
   AiAssistantsSettingsPage,
   ServerSettingsPage,
 } from '@/features/settings/ServerSettingsPage';
-import { ActivityLogPage } from '../features/activity-log/ActivityLogPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
 import { AssemblyDetailPage } from '../features/assemblies/AssemblyDetailPage';
 import { AssemblyFormPage } from '../features/assemblies/AssemblyFormPage';
+import { AuditEntryPage } from '../features/audit-log/AuditEntryPage';
+import { AuditLogPage } from '../features/audit-log/AuditLogPage';
 import { ConnectErrorPage } from '../features/auth/ConnectErrorPage';
 import { ConsentPage } from '../features/auth/ConsentPage';
 import { LoginPage } from '../features/auth/LoginPage';
@@ -328,9 +329,14 @@ const routes: RouteObject[] = [
             ],
           },
           {
-            path: '/activity-log',
-            element: <ActivityLogPage />,
-            handle: { title: 'Activity log' },
+            path: '/audit-log/:id',
+            element: <AuditEntryPage />,
+            handle: { title: 'Audit entry' },
+          },
+          {
+            path: '/audit-log',
+            element: <AuditLogPage />,
+            handle: { title: 'Audit log' },
           },
           {
             path: '/settings',

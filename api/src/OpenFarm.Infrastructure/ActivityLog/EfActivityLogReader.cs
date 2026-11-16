@@ -10,8 +10,13 @@ public sealed class EfActivityLogReader(OpenFarmDbContext dbContext) : IActivity
     {
         var query = dbContext.ActivityLogEntries.AsNoTracking();
 
-        if (!string.IsNullOrWhiteSpace(entityType)) query = query.Where(e => e.EntityType == entityType);
-        if (!string.IsNullOrWhiteSpace(entityId)) query = query.Where(e => e.EntityId == entityId);
+        if (entityType == "Printer" && Guid.TryParse(entityId, out var printerId))
+            query = query.Where(e => e.EntityType == "Printer" && e.EntityId == entityId || e.RelatedPrinterIds.Contains(printerId));
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(entityType)) query = query.Where(e => e.EntityType == entityType);
+            if (!string.IsNullOrWhiteSpace(entityId)) query = query.Where(e => e.EntityId == entityId);
+        }
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -41,7 +46,7 @@ public sealed class EfActivityLogReader(OpenFarmDbContext dbContext) : IActivity
                 e.EventType,
                 e.ActorId,
                 e.ActorType,
-                e.ActorId.HasValue && actorNames.TryGetValue(e.ActorId.Value, out var name) ? name : null,
+                e.ActorName ?? (e.ActorId.HasValue && actorNames.TryGetValue(e.ActorId.Value, out var name) ? name : null),
                 e.TimestampUtc, e.Details))
             .ToList();
 

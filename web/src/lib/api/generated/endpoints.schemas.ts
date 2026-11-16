@@ -3329,6 +3329,12 @@ export interface QuoteAssemblyRequest {
   pricing?: QuotePricingRequest | null;
 }
 
+export interface AuditFieldChange {
+  field?: string;
+  before?: unknown | null;
+  after?: unknown | null;
+}
+
 export interface ActivityChannel {
   kind?: string;
   credentialId?: string;
@@ -3347,9 +3353,77 @@ export interface ActivityLogDetails {
   /** @nullable */
   activeAlerts?: PrinterAlert[] | null;
   via?: ActivityChannel | null;
+  /** @nullable */
+  initiatedByUserId?: string | null;
+  /** @nullable */
+  initiatedByName?: string | null;
 }
 
-export interface ActivityLogEntryResponse {
+export interface AuditEntryResponse {
+  id?: string;
+  entityType?: string;
+  entityId?: string;
+  /** @nullable */
+  entityLabel?: string | null;
+  eventType?: string;
+  /** @nullable */
+  action?: string | null;
+  /** @nullable */
+  actorId?: string | null;
+  /** @nullable */
+  actorName?: string | null;
+  /** @nullable */
+  channel?: string | null;
+  /** @nullable */
+  credentialId?: string | null;
+  /** @nullable */
+  credentialLabel?: string | null;
+  /** @nullable */
+  operation?: string | null;
+  /** @nullable */
+  correlationId?: string | null;
+  timestampUtc?: string;
+  changes?: AuditFieldChange[];
+  historical?: boolean;
+  details?: ActivityLogDetails | null;
+  /** @nullable */
+  href?: string | null;
+}
+
+export interface AuditLogPageResponse {
+  items?: AuditEntryResponse[];
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+}
+
+export interface AuditLogRequest {
+  [key: string]: unknown;
+}
+
+export interface AuditEntryRequest {
+  [key: string]: unknown;
+}
+
+export interface AuditActorOption {
+  id?: string;
+  name?: string;
+}
+
+export interface AuditCredentialOption {
+  id?: string;
+  label?: string;
+  channel?: string;
+}
+
+export interface AuditFilterOptionsResponse {
+  actors?: AuditActorOption[];
+  credentials?: AuditCredentialOption[];
+  entityTypes?: string[];
+  actions?: string[];
+}
+
+export interface PrinterActivityEntryResponse {
   details?: ActivityLogDetails | null;
   id?: string;
   entityType?: string;
@@ -3363,14 +3437,14 @@ export interface ActivityLogEntryResponse {
   timestampUtc?: string;
 }
 
-export interface ActivityLogPageResponse {
-  items?: ActivityLogEntryResponse[];
+export interface PrinterActivityPageResponse {
+  items?: PrinterActivityEntryResponse[];
   page?: number;
   pageSize?: number;
   totalCount?: number;
 }
 
-export interface GetActivityLogRequest {
+export interface GetPrinterActivityRequest {
   [key: string]: unknown;
 }
 
@@ -3814,7 +3888,21 @@ export type OpenFarmApiEndpointsAssembliesExplodeAssemblyEndpointParams = {
   quantity: number;
 };
 
-export type OpenFarmApiEndpointsActivityLogGetActivityLogEndpointParams = {
+export type OpenFarmApiEndpointsActivityLogGetAuditLogEndpointParams = {
+  page: number;
+  pageSize: number;
+  /**
+   * @nullable
+   */
+  actorId?: string | null;
+  /**
+   * @nullable
+   */
+  channel?: string | null;
+  /**
+   * @nullable
+   */
+  credentialId?: string | null;
   /**
    * @nullable
    */
@@ -3823,6 +3911,25 @@ export type OpenFarmApiEndpointsActivityLogGetActivityLogEndpointParams = {
    * @nullable
    */
   entityId?: string | null;
+  /**
+   * @nullable
+   */
+  action?: string | null;
+  /**
+   * @nullable
+   */
+  from?: string | null;
+  /**
+   * @nullable
+   */
+  to?: string | null;
+  /**
+   * @nullable
+   */
+  correlationId?: string | null;
+};
+
+export type OpenFarmApiEndpointsActivityLogGetPrinterActivityEndpointParams = {
   page: number;
   pageSize: number;
 };

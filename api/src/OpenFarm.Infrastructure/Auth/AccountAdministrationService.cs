@@ -82,11 +82,12 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         if (id is not null && input.Password is not null) throw new ArgumentException("Use Reset password to change another user's password.");
         user.UserName = input.Username.Trim(); user.Email = input.Email.Trim(); user.DisplayName = input.Name?.Trim(); user.IsEnabled = input.IsEnabled;
         Check(id is null ? await users.CreateAsync(user, input.Password!) : await users.UpdateAsync(user));
-        await db.UserRoles.Where(m => m.UserId == user.Id).ExecuteDeleteAsync(ct);
-        db.UserRoles.AddRange(groupIds.Select(g => new IdentityUserRole<Guid> { UserId = user.Id, RoleId = g }));
-        await db.UserClaims.Where(c => c.UserId == user.Id && c.ClaimType == PermissionCatalog.GrantClaim).ExecuteDeleteAsync(ct);
-        db.UserClaims.AddRange(input.ExtraGrants.Distinct(StringComparer.Ordinal).Select(g => new IdentityUserClaim<Guid> { UserId = user.Id, ClaimType = PermissionCatalog.GrantClaim, ClaimValue = g }));
-        Audit(actor, "User", user.Id, id is null ? "UserCreated" : "UserUpdated");
+        var memberships = await db.UserRoles.Where(m => m.UserId == user.Id).ToListAsync(ct);
+        db.UserRoles.RemoveRange(memberships.Where(m => !groupIds.Contains(m.RoleId)));
+        db.UserRoles.AddRange(groupIds.Except(memberships.Select(m => m.RoleId)).Select(g => new IdentityUserRole<Guid> { UserId = user.Id, RoleId = g }));
+        var grants = await db.UserClaims.Where(c => c.UserId == user.Id && c.ClaimType == PermissionCatalog.GrantClaim).ToListAsync(ct);
+        db.UserClaims.RemoveRange(grants.Where(c => !input.ExtraGrants.Contains(c.ClaimValue, StringComparer.Ordinal)));
+        db.UserClaims.AddRange(input.ExtraGrants.Except(grants.Select(c => c.ClaimValue!), StringComparer.Ordinal).Select(g => new IdentityUserClaim<Guid> { UserId = user.Id, ClaimType = PermissionCatalog.GrantClaim, ClaimValue = g }));
         await db.SaveChangesAsync(ct);
         await EnsureAdministratorAsync(ct);
         if (!user.IsEnabled)
@@ -119,9 +120,9 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         if (role.IsProtected) throw new ArgumentException("The Administrators group is protected.");
         role.Name = input.Name.Trim(); role.Description = input.Description?.Trim() ?? string.Empty;
         Check(id is null ? await roles.CreateAsync(role) : await roles.UpdateAsync(role));
-        await db.RoleClaims.Where(c => c.RoleId == role.Id && c.ClaimType == PermissionCatalog.GrantClaim).ExecuteDeleteAsync(ct);
-        db.RoleClaims.AddRange(input.Grants.Distinct(StringComparer.Ordinal).Select(g => new IdentityRoleClaim<Guid> { RoleId = role.Id, ClaimType = PermissionCatalog.GrantClaim, ClaimValue = g }));
-        Audit(actor, "Group", role.Id, id is null ? "GroupCreated" : "GroupUpdated");
+        var grants = await db.RoleClaims.Where(c => c.RoleId == role.Id && c.ClaimType == PermissionCatalog.GrantClaim).ToListAsync(ct);
+        db.RoleClaims.RemoveRange(grants.Where(c => !input.Grants.Contains(c.ClaimValue, StringComparer.Ordinal)));
+        db.RoleClaims.AddRange(input.Grants.Except(grants.Select(c => c.ClaimValue!), StringComparer.Ordinal).Select(g => new IdentityRoleClaim<Guid> { RoleId = role.Id, ClaimType = PermissionCatalog.GrantClaim, ClaimValue = g }));
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return role.Id;
@@ -134,7 +135,6 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         var group = await roles.FindByIdAsync(id.ToString()) ?? throw new KeyNotFoundException("Group not found.");
         if (group.IsProtected || await db.UserRoles.AnyAsync(m => m.RoleId == id, ct)) throw new ArgumentException("Only an empty, unprotected group can be removed.");
         Check(await roles.DeleteAsync(group));
-        Audit(actor, "Group", id, "GroupRemoved");
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }
@@ -148,7 +148,6 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         // Sessions, memberships and grants cascade with the user row.
         Check(await users.DeleteAsync(user));
         await EnsureAdministratorAsync(ct);
-        Audit(actor, "User", id, "UserRemoved");
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }
@@ -171,7 +170,6 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         var result = await users.UpdateAsync(user);
         if (result.Errors.Any(e => e.Code is "DuplicateEmail" or "DuplicateUserName")) throw new ArgumentException("Email or username is already taken.");
         Check(result);
-        Audit(userId, "User", userId, "ProfileUpdated");
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
     }

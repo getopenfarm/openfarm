@@ -21,15 +21,13 @@ internal static class UnsentJobs
         return unsent;
     }
 
-    /// <summary>After the save: one activity entry and one hub event per cancelled job.</summary>
+    /// <summary>After the atomic business/audit save: one hub event per cancelled job.</summary>
     public static async Task PublishAsync(
         IReadOnlyList<PrintJob> cancelled, Guid? actorId, IProductionEventPublisher publisher, IActivityLogWriter? activityLogWriter,
         CancellationToken cancellationToken)
     {
         foreach (var job in cancelled)
         {
-            if (activityLogWriter is not null)
-                await activityLogWriter.WriteAsync(ActivityLogEntry.Create("PrintJob", job.Id.ToString(), "PrintJobCancelled", actorId, actorId is null ? ActorType.System : ActorType.Operator), cancellationToken);
             await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
         }
     }

@@ -57,7 +57,7 @@ public class AccountAdministrationTests(CustomWebApplicationFactory factory) : I
         var catalog = (await admin.GetFromJsonAsync<PermissionCatalogResponse>("/api/v1/admin/permissions"))!;
         catalog.Areas.Select(a => a.Key).Should().Equal(PermissionCatalog.Areas.Select(a => a.Key));
         catalog.Permissions.Select(p => p.Key).Should().Equal(PermissionCatalog.All.Select(p => p.Key));
-        catalog.Permissions.Single(p => p.Key == "activity-log:list").IsExplicit.Should().BeTrue();
+        catalog.Permissions.Single(p => p.Key == "audit-log:list").IsExplicit.Should().BeTrue();
     }
 
     [Fact]

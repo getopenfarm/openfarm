@@ -28,8 +28,8 @@ public class FeedUnitAutoContinuationActivityLogTests(CustomWebApplicationFactor
 
         await client.PostAsJsonAsync(new Uri($"/api/v1/spools/{spool1}/usage", UriKind.Relative), new { gramsConsumed = 400m });
 
-        var logResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=100", UriKind.Relative));
-        var page = await logResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var logResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=100", UriKind.Relative));
+        var page = await logResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
 
         page!.Items.Should().ContainSingle(e => e.EntityId == feedUnitId.ToString() && e.EntityType == "FeedUnit" && e.EventType == "FeedUnitAutoContinued");
     }
@@ -49,8 +49,8 @@ public class FeedUnitAutoContinuationActivityLogTests(CustomWebApplicationFactor
 
         await client.PostAsJsonAsync(new Uri($"/api/v1/spools/{spool1}/usage", UriKind.Relative), new { gramsConsumed = 400m });
 
-        var logResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=100", UriKind.Relative));
-        var page = await logResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var logResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=100", UriKind.Relative));
+        var page = await logResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
 
         page!.Items.Should().ContainSingle(e => e.EntityId == feedUnitId.ToString() && e.EntityType == "FeedUnit" && e.EventType == "FeedUnitNoQualifyingReload");
     }

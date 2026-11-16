@@ -6,7 +6,6 @@ import {
   type PrintJobSendProgress,
   printerSendProgressKey,
 } from '@/features/production-runs/hooks/sendProgress';
-import { getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey } from '@/lib/api/generated/activity-log/activity-log';
 import type {
   FeedReadingResponse,
   FleetPrinterResponse,
@@ -118,8 +117,9 @@ export function useFarmHub(): HubConnection | null {
         invalidateFilamentTrackingQueries(queryClient);
         topologyByPrinter.clear();
         queryClient.invalidateQueries({
-          queryKey:
-            getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey(),
+          predicate: (query) =>
+            String(query.queryKey[0]).endsWith('/activity') ||
+            String(query.queryKey[0]).startsWith('/api/v1/audit-log'),
         });
         nozzleByPrinter.clear();
         invalidatePrinterQueries(queryClient);
@@ -329,23 +329,23 @@ export function useFarmHub(): HubConnection | null {
         // Covers printer removal too: its enrollments go with it.
         invalidateMaintenanceQueries(queryClient);
         queryClient.invalidateQueries({
-          queryKey:
-            getOpenFarmApiEndpointsActivityLogGetActivityLogEndpointQueryKey(),
-          predicate: (query) => {
-            const filters = query.queryKey[1] as
-              | { entityType?: string; entityId?: string }
-              | undefined;
-            return (
-              (!filters?.entityType || filters.entityType === 'Printer') &&
-              (!filters?.entityId || filters.entityId === payload.printerId)
-            );
-          },
+          predicate: (query) =>
+            query.queryKey[0] ===
+              `/api/v1/printers/${payload.printerId}/activity` ||
+            String(query.queryKey[0]).startsWith('/api/v1/audit-log'),
         });
       },
     );
 
     // Fires when a print closes, which is when automatic deduction changes spool weights.
     // Nothing else pushes those weights (SpoolStateChanged is never raised), so refresh them here.
+    connection.on('AuditChanged', () => {
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          String(query.queryKey[0]).startsWith('/api/v1/audit-log'),
+      });
+    });
+
     connection.on('NotificationsChanged', () => {
       invalidateNotificationQueries(queryClient);
       invalidateFilamentTrackingQueries(queryClient);

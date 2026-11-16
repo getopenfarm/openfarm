@@ -174,6 +174,7 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
     /// </summary>
     public async Task RevokeAsync(Guid userId, Guid? sessionId, Guid actorId, Guid? exceptSessionId, bool browsersOnly, CancellationToken ct)
     {
+        await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
         var query = db.BrowserSessions.Where(s => s.UserId == userId && s.RevokedAtUtc == null);
         if (sessionId is not null) query = query.Where(s => s.Id == sessionId);
         if (exceptSessionId is not null) query = query.Where(s => s.Id != exceptSessionId);
@@ -181,21 +182,29 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         // Pending apps (never exchanged) were never shown, so they are revoked without an audit row.
         var apps = await query.Where(s => s.ClientId != null && db.SessionCredentials.Any(c => c.SessionId == s.Id)).AsNoTracking().ToListAsync(ct);
         var now = time.GetUtcNow();
-        await query.ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
-        if (sessionId is null || apps.Count == 0) Audit(actorId, sessionId ?? userId, sessionId is null ? "AllSessionsRevoked" : "SessionRevoked");
-        foreach (var app in apps) await AuditAppAsync(actorId, app, "ConnectedAppRevoked", actorId == userId ? "user" : "administrator", ct);
+        var affected = await query.ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
+        if (affected > 0 && (sessionId is null || apps.Count == 0))
+        {
+            var entry = ActivityLogEntry.Create("BrowserSession", (sessionId ?? userId).ToString(), sessionId is null ? "AllSessionsRevoked" : "SessionRevoked", actorId, ActorType.Operator);
+            entry.RecordChanges("action", "Sessions", [new("RevokedSessionCount", 0, affected)]);
+            db.ActivityLogEntries.Add(entry);
+        }
+        foreach (var app in apps) await AuditAppAsync(actorId, app, "ConnectedAppRevoked", actorId == userId ? "user" : "administrator", ct, now);
         await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
     }
 
     /// <summary>Revokes one app for a protocol reason (<c>replaced</c>, <c>code-reuse</c>, <c>app</c>), credited to its owner.</summary>
     public async Task RevokeAppAsync(Guid sessionId, string reason, CancellationToken ct)
     {
+        await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
         var app = await db.BrowserSessions.AsNoTracking().SingleOrDefaultAsync(s => s.Id == sessionId && s.ClientId != null && s.RevokedAtUtc == null, ct);
         if (app is null) return;
         var now = time.GetUtcNow();
         if (await db.BrowserSessions.Where(s => s.Id == sessionId && s.RevokedAtUtc == null).ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct) == 0) return;
-        await AuditAppAsync(app.UserId, app, "ConnectedAppRevoked", reason, ct);
+        await AuditAppAsync(app.UserId, app, "ConnectedAppRevoked", reason, ct, now);
         await db.SaveChangesAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
     }
 
     /// <summary>Sign out: browser sessions only. A connected app's refresh credential sent as the cookie does nothing.</summary>
@@ -210,7 +219,7 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
     public const string ConnectedAppEntity = "ConnectedApp";
 
     /// <summary>Non-secret app metadata only: never a credential, code or token.</summary>
-    public async Task AuditAppAsync(Guid actorId, BrowserSession app, string eventType, string? reason, CancellationToken ct)
+    public async Task AuditAppAsync(Guid actorId, BrowserSession app, string eventType, string? reason, CancellationToken ct, DateTimeOffset? revokedAtUtc = null)
     {
         var redirect = app.RedirectUri
             ?? await db.OAuthClients.AsNoTracking().Where(c => c.Id == app.ClientId).Select(c => c.RedirectUris[0]).SingleOrDefaultAsync(ct);
@@ -223,8 +232,12 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
             app.ExpiresAtUtc,
             Reason = reason,
         });
-        db.ActivityLogEntries.Add(ActivityLogEntry.Create(ConnectedAppEntity, app.Id.ToString(), eventType, actorId, ActorType.Operator,
-            new ActivityLogDetails(ReportedState: state)));
+        var entry = ActivityLogEntry.Create(ConnectedAppEntity, app.Id.ToString(), eventType, actorId, ActorType.Operator,
+            new ActivityLogDetails(ReportedState: state));
+        entry.RecordChanges(eventType == "ConnectedAppAdded" ? "create" : "action", app.Device,
+            eventType == "ConnectedAppRevoked" ? [new("RevokedAtUtc", null, revokedAtUtc ?? app.RevokedAtUtc ?? time.GetUtcNow())]
+                : eventType == "ConnectedAppAdded" ? [new("ClientName", null, app.Device), new("Scopes", null, app.Scopes), new("ExpiresAtUtc", null, app.ExpiresAtUtc)] : []);
+        db.ActivityLogEntries.Add(entry);
     }
 
     private void Audit(Guid actorId, Guid id, string action) => db.ActivityLogEntries.Add(

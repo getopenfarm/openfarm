@@ -58,7 +58,7 @@ public class ProductionRunQueueActivityLogTests(ProductionTestFactory factory) :
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var entries = await db.ActivityLogEntries.ToListAsync();
             foreach (var type in new[] { "PrintJobReordered", "PrintJobPinned", "PrintJobUnpinned", "PrintJobPauseRequested", "PrintJobResumeRequested", "PrintJobCancelRequested", "PrintJobRequeued", "ProductionRunCancelled", "PrintJobCancelled" })
-                entries.Should().Contain(e => e.EventType == type && e.ActorType == ActorType.Operator && e.ActorId != null && e.TimestampUtc != default);
+                entries.Should().Contain(e => e.EventType == type && e.ActorType == ActorType.Operator && e.ActorId != null && e.TimestampUtc != default, $"the {type} action must be attributed to its operator");
             entries.Should().Contain(e => e.EntityId == job.Id.ToString() && e.EventType == "PrintJobDispatched" && e.ActorType == ActorType.System);
         }
         finally { await worker.StopAsync(default); }

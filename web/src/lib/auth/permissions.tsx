@@ -117,7 +117,7 @@ export function routePermission(path: string): string | null {
     'cost-catalog': 'non-printed-components:view',
     profiles: 'profiles:list-machine',
     stats: 'spools:list',
-    'activity-log': 'activity-log:list',
+    'audit-log': 'audit-log:list',
   };
   return mapping[area] ?? null;
 }

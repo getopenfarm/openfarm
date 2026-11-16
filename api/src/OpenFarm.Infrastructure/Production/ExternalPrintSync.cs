@@ -132,9 +132,9 @@ public sealed partial class ExternalPrintSync(
         {
             var print = ExternalPrint.Start(printer.Id, printer.CurrentJobName!);
             await prints.AddAsync(print, cancellationToken);
-            await prints.SaveChangesAsync(cancellationToken);
-            await activityLog.WriteAsync(ActivityLogEntry.Create(
+            await activityLog.StageAsync(ActivityLogEntry.Create(
                 "ExternalPrint", print.Id.ToString(), "ExternalPrintStarted", null, ActorType.System), cancellationToken);
+            await prints.SaveChangesAsync(cancellationToken);
             await publisher.PrintJobStatusChangedAsync(print.Id, print.Status, cancellationToken);
             return print;
         }

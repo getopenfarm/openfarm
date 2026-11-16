@@ -178,6 +178,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             if (StartNeverCame(active, printer, _startConfirmGrace))
             {
                 active.FailSend(PrinterDidNotStartReason, DateTimeOffset.UtcNow);
+                await StageJobEventAsync(services, active, "PrintJobSendFailed", cancellationToken);
                 await jobRepository.SaveChangesAsync(cancellationToken);
                 await PublishSendFailedAsync(services, active, cancellationToken);
                 RequestDispatchAttempt(printerId);
@@ -421,6 +422,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             }
 
             job.ClearBlock();
+            await StageJobEventAsync(services, job, "PrintJobDispatched", cancellationToken);
             await jobRepository.SaveChangesAsync(cancellationToken);
             await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
             return;
@@ -655,6 +657,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 if (ex is OpenFarm.Infrastructure.Printers.PrinterStartUnconfirmedException)
                 {
                     job.RecordBlock(StartUnconfirmedReason, DateTimeOffset.UtcNow);
+                    await StageJobEventAsync(services, job, "PrintJobDispatched", cancellationToken);
                     await jobRepository.SaveChangesAsync(cancellationToken);
                     await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
                     LogStartJobFailed(_logger, job.Id, printer.Id, ex);
@@ -668,6 +671,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                     if (progress.LastStage == PrintSendStage.Starting)
                     {
                         job.RecordBlock(StartUnconfirmedReason, DateTimeOffset.UtcNow);
+                        await StageJobEventAsync(services, job, "PrintJobDispatched", cancellationToken);
                         await jobRepository.SaveChangesAsync(cancellationToken);
                         await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
                         LogStartJobFailed(_logger, job.Id, printer.Id, ex);
@@ -692,6 +696,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 // Retries used up and the printer never took it: the job fails (requeue or write it off) and frees the printer,
                 // which itself pauses before the next job so a printer that cannot take files does not fail the whole queue.
                 job.FailSend(Truncate($"Send failed: {ex.Message}"), DateTimeOffset.UtcNow);
+                await StageJobEventAsync(services, job, "PrintJobSendFailed", cancellationToken);
                 await jobRepository.SaveChangesAsync(cancellationToken);
                 LogStartJobFailed(_logger, job.Id, printer.Id, ex);
                 _sendFailures[printer.Id] = (_sendFailures.GetValueOrDefault(printer.Id).Count + 1, DateTimeOffset.UtcNow);
@@ -704,6 +709,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         try
         {
             job.ClearBlock();
+            await StageJobEventAsync(services, job, "PrintJobDispatched", cancellationToken);
             await jobRepository.SaveChangesAsync(cancellationToken);
             await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
             await eventPublisher.PrintJobSendProgressAsync(job.Id, printer.Id, PrintSendStage.Sent, null, 1, null, cancellationToken);
@@ -798,11 +804,12 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
     private static string Truncate(string text) => text.Length > 500 ? text[..500] : text;
 
+    private static Task StageJobEventAsync(IServiceProvider services, PrintJob job, string eventType, CancellationToken ct) =>
+        services.GetRequiredService<IActivityLogWriter>().StageAsync(
+            ActivityLogEntry.Create("PrintJob", job.Id.ToString(), eventType, null, ActorType.System), ct);
+
     private static async Task PublishSendFailedAsync(IServiceProvider services, PrintJob job, CancellationToken cancellationToken)
     {
-        await services.GetRequiredService<IActivityLogWriter>().WriteAsync(ActivityLogEntry.Create(
-            entityType: "PrintJob", entityId: job.Id.ToString(),
-            eventType: "PrintJobSendFailed", actorId: null, actorType: ActorType.System), cancellationToken);
         var publisher = services.GetRequiredService<IProductionEventPublisher>();
         await publisher.PrintJobStatusChangedAsync(job.Id, job.Status, cancellationToken);
         await publisher.NotificationsChangedAsync(cancellationToken);
@@ -810,12 +817,6 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
     private static async Task PublishDispatchedAsync(IServiceProvider services, PrintJob job, Guid printerId, CancellationToken cancellationToken)
     {
-        var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
-        var entry = ActivityLogEntry.Create(
-            entityType: "PrintJob", entityId: job.Id.ToString(),
-            eventType: "PrintJobDispatched", actorId: null, actorType: ActorType.System);
-        await activityLogWriter.WriteAsync(entry, cancellationToken);
-
         var publisher = services.GetRequiredService<IProductionEventPublisher>();
         await publisher.PrintJobDispatchedAsync(job.Id, printerId, cancellationToken);
     }

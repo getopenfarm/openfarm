@@ -23,8 +23,8 @@ public class SpoolStateActivityLogTests(CustomWebApplicationFactory factory) : I
         await client.PutAsJsonAsync(new Uri($"/api/v1/spools/{spoolId}/load", UriKind.Relative), new { feedSlotId = slotId });
         await client.PutAsJsonAsync(new Uri($"/api/v1/spools/{spoolId}/unload", UriKind.Relative), new { action = "MarkFinished" });
 
-        var logResponse = await client.GetAsync(new Uri("/api/v1/activity-log?page=1&pageSize=100", UriKind.Relative));
-        var page = await logResponse.Content.ReadFromJsonAsync<ActivityLogPageResponse>();
+        var logResponse = await client.GetAsync(new Uri("/api/v1/audit-log?page=1&pageSize=100", UriKind.Relative));
+        var page = await logResponse.Content.ReadFromJsonAsync<AuditLogPageResponse>();
 
         page!.Items.Should().ContainSingle(e => e.EntityId == spoolId.ToString() && e.EntityType == "Spool" && e.EventType == "SpoolRegistered");
         page.Items.Should().ContainSingle(e => e.EntityId == spoolId.ToString() && e.EntityType == "Spool" && e.EventType == "SpoolLoaded");

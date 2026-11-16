@@ -202,6 +202,15 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
     private async Task SaveAndPublishAsync(IPrintJobRepository jobRepository, Print print, CancellationToken cancellationToken)
     {
         // A print started at the printer already drives the printer's own status; only OpenFarm's jobs mirror it back.
+        var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
+        if (print is PrintJob || print.IsClosed)
+        {
+            var entry = ActivityLogEntry.Create(
+                entityType: print is PrintJob ? "PrintJob" : "ExternalPrint", entityId: print.Id.ToString(),
+                eventType: print is PrintJob ? "PrintJobStatusObserved" : "ExternalPrintFinished", actorId: null, actorType: ActorType.System);
+            await activityLogWriter.StageAsync(entry, cancellationToken);
+        }
+
         if (print is PrintJob job)
         {
             var printers = services.GetRequiredService<IPrinterRepository>();
@@ -215,15 +224,6 @@ public sealed class JobTelemetrySync(IServiceProvider services) : IJobTelemetryS
         else
         {
             await services.GetRequiredService<IExternalPrintRepository>().SaveChangesAsync(cancellationToken);
-        }
-
-        var activityLogWriter = services.GetRequiredService<IActivityLogWriter>();
-        if (print is PrintJob || print.IsClosed)
-        {
-            var entry = ActivityLogEntry.Create(
-                entityType: print is PrintJob ? "PrintJob" : "ExternalPrint", entityId: print.Id.ToString(),
-                eventType: print is PrintJob ? "PrintJobStatusObserved" : "ExternalPrintFinished", actorId: null, actorType: ActorType.System);
-            await activityLogWriter.WriteAsync(entry, cancellationToken);
         }
 
         var publisher = services.GetRequiredService<IProductionEventPublisher>();
