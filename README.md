@@ -24,7 +24,8 @@ Engineering notes and plans live in [dev-notes/](dev-notes/).
 
 ## Local development prerequisites
 
-- .NET 10 SDK (the backend pins its version in [global.json](global.json)).
+- A stable .NET 10 SDK, version 10.0.100 or later. [global.json](global.json)
+  selects the highest installed .NET 10.0 SDK and excludes preview releases.
 - Bun for the frontend.
 - PostgreSQL, either installed locally or running through Docker Compose.
 - Bash for `dev.sh`.
@@ -32,6 +33,18 @@ Engineering notes and plans live in [dev-notes/](dev-notes/).
 Run the commands below from the repository root. See [CLAUDE.md](CLAUDE.md)
 for backend/frontend commands and architecture, and
 [dev-notes/TECH_STACKS.md](dev-notes/TECH_STACKS.md) for technology decisions.
+
+Check SDK selection from the repository root before setup:
+
+```bash
+dotnet --version
+dotnet --list-sdks
+```
+
+If an installed SDK is missing from the list, check `type -a dotnet`. Multiple
+installations can use different SDK directories. Put the directory containing
+the intended `dotnet` executable first in `PATH`, run `hash -r`, and check again.
+`./dev.sh setup` checks SDK selection before it installs frontend packages.
 
 ## Set up PostgreSQL
 

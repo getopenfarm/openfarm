@@ -203,6 +203,69 @@ describe('PartProcessingReviewSection', () => {
     expect(screen.queryByText(/PLA/)).not.toBeInTheDocument();
   });
 
+  it('shows all four weights when painted colours belong to different plates', () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ filaments: [] }), {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ),
+    );
+    const requirement = (
+      requirementIndex: number,
+      detectedColorHex: string,
+      estimatedGrams: number,
+    ) => ({
+      requirementIndex,
+      materialType: 'PLA',
+      detectedColorHex,
+      estimatedGrams,
+    });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PartProcessingReviewSection
+          status="ReadyForReview"
+          preview={{
+            estimateStatus: 'Available',
+            plates: [
+              {
+                number: 1,
+                name: 'Pikachu',
+                filamentRequirements: [
+                  requirement(0, '#FFCC3C', 0.68),
+                  requirement(2, '#000000', 3.8384),
+                ],
+              },
+              {
+                number: 2,
+                name: 'General',
+                filamentRequirements: [
+                  requirement(1, '#FFFFFF', 6.3281),
+                  requirement(2, '#000000', 0.47),
+                  requirement(3, '#CE0000', 0.87),
+                ],
+              },
+            ],
+          }}
+          overrides={{}}
+          onNarrow={vi.fn()}
+          plateNumbers={[1, 2]}
+          onPlateNumbersChange={vi.fn()}
+          multiple
+        />
+      </QueryClientProvider>,
+    );
+    for (const weight of ['0.7 g', '6.3 g', '4.3 g', '0.9 g']) {
+      expect(screen.getByText(weight)).toBeInTheDocument();
+    }
+    expect(
+      screen.getAllByRole('button', { name: /^Production filament for PLA/ }),
+    ).toHaveLength(4);
+  });
+
   it('takes several plates as checkbox tiles and narrows their filaments together', async () => {
     vi.stubGlobal(
       'fetch',

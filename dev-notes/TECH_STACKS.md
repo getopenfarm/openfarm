@@ -20,7 +20,7 @@ This is the standing reference for the technologies and notable technical decisi
 | Real-time | SignalR (server) + `@microsoft/signalr` (client) | matches .NET 10 |
 | Containerization | Docker + Docker Compose | for local dev and self-hosted deploys |
 
-Pin exact versions in `global.json` (.NET SDK) and `package.json`/`bun.lock`, and let Dependabot/Renovate keep them current — don't let this table go stale.
+Keep the minimum .NET SDK in `global.json` and use `latestFeature` to select the highest installed stable .NET 10.0 SDK. Pin frontend dependencies in `package.json`/`bun.lock`, and let Dependabot/Renovate keep them current — don't let this table go stale.
 
 ## Key technical decisions
 

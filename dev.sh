@@ -18,6 +18,32 @@ esac
 # The API resolves relative storage paths against its project dir (`dotnet run`'s CWD).
 api_path() { case "$1" in /*) echo "$1" ;; *) echo "$API_DIR/${1#./}" ;; esac; }
 
+check_dotnet() {
+  if ! command -v dotnet >/dev/null 2>&1; then
+    echo "The .NET SDK is missing from PATH. Install a stable .NET 10 SDK (see global.json)." >&2
+    return 1
+  fi
+
+  if ! dotnet --version >/dev/null 2>&1; then
+    {
+      echo "No compatible .NET SDK was found for global.json."
+      echo "Active dotnet: $(command -v dotnet)"
+      echo "SDKs visible to this dotnet:"
+      dotnet --list-sdks || true
+      echo "Install a stable .NET 10 SDK that satisfies global.json."
+      echo "If you already installed one, check 'type -a dotnet' and put its directory first in PATH."
+      echo "Then run 'hash -r' and 'dotnet --version' from the repository root."
+    } >&2
+    return 1
+  fi
+}
+
+# Check before setup installs frontend packages or up starts background processes.
+# Frontend-only commands and reset do not require the .NET SDK.
+case "${1:-help}" in
+  api|up|slicers|ingest|setup) check_dotnet ;;
+esac
+
 # Drops the whole public schema (not just tables) plus every local state dir, so the next
 # `setup`/`api`/`ingest` run migrates and seeds as if on a fresh machine.
 reset_all() {

@@ -42,13 +42,12 @@ internal static partial class ProjectUsedFilaments
         try { root = XDocument.Parse(modelSettingsXml).Root!; }
         catch (XmlException) { return null; }
 
-        // ponytail: painted slots count for every plate, as they are read per model file, not per object; split them by
-        // object if a plate ever lists a colour only another plate paints.
         var onPlate = objectIds ?? root.Elements("plate").Elements("model_instance")
             .Select(instance => Metadata(instance, "object_id")).OfType<string>().ToHashSet();
         // ponytail: a volume's own extruder counts even if every triangle is repainted, so such a slot shows unused-but-listed;
         // check for an unpainted triangle per volume if that ever matters.
         var used = new HashSet<int>();
+        if (onPlate.Any(id => !root.Elements("object").Any(obj => (string?)obj.Attribute("id") == id))) return null;
         foreach (var obj in root.Elements("object"))
         {
             if (onPlate.Count > 0 && ((string?)obj.Attribute("id") is not { } id || !onPlate.Contains(id))) continue;
@@ -69,8 +68,24 @@ internal static partial class ProjectUsedFilaments
         if (SlicedPlateMetadata.Find(archive, "Metadata/model_settings.config") is not { } entry) return null;
         using var reader = new StreamReader(entry.Open());
         var xml = reader.ReadToEnd();
-        if (plate is null) return Read(xml, PaintedSlots(archive));
-        return Plates(xml).FirstOrDefault(p => p.Number == plate) is { ObjectIds.Count: > 0 } own ? Read(xml, PaintedSlots(archive), own.ObjectIds) : null;
+        var painted = new ProjectPaintedFilaments(archive);
+        if (plate is null) return Read(archive, xml, painted, null);
+        return Plates(xml).FirstOrDefault(p => p.Number == plate) is { ObjectIds.Count: > 0 } own
+            ? Read(archive, xml, painted, own.ObjectIds) : null;
+    }
+
+    internal static IReadOnlySet<int>? Read(ZipArchive archive, string xml, ProjectPaintedFilaments painted, IReadOnlySet<string>? objectIds)
+    {
+        XElement root;
+        try { root = XDocument.Parse(xml).Root!; }
+        catch (XmlException) { return null; }
+        var ids = objectIds ?? root.Elements("plate").Elements("model_instance")
+            .Select(instance => Metadata(instance, "object_id")).OfType<string>().ToHashSet();
+        if (ids.Count == 0) ids = root.Elements("object").Attributes("id").Select(a => a.Value).ToHashSet();
+        // Older/minimal projects without a root model cannot attribute geometry to objects. Retain the archive-wide
+        // conservative behaviour in that case; a broken reference in an existing root instead keeps every configured slot.
+        var slots = SlicedPlateMetadata.Find(archive, "3D/3dmodel.model") is null ? PaintedSlots(archive) : painted.Read(ids);
+        return Read(xml, slots, objectIds);
     }
 
     /// <summary>

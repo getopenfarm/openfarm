@@ -58,11 +58,11 @@ public sealed partial class UnslicedProjectMaterialResolver : IUnslicedProjectMa
             // line up with the project's arrays only when none is blank (MaterialComplete), so otherwise keep them all.
             var slots = metadata?.Slots;
             var details = metadata?.Details;
-            var painted = ProjectUsedFilaments.PaintedSlots(archive);
+            var painted = new ProjectPaintedFilaments(archive);
             // The slots some objects print with, in slot order; null keeps them all (see ProjectUsedFilaments.Read).
             IReadOnlyList<int>? UsedSlots(IReadOnlySet<string>? objectIds) =>
                 metadata is { MaterialComplete: true } && modelSettingsXml is not null
-                && ProjectUsedFilaments.Read(modelSettingsXml, painted, objectIds) is { } used && used.All(i => i < metadata.Slots.Count)
+                && ProjectUsedFilaments.Read(archive, modelSettingsXml, painted, objectIds) is { } used && used.All(i => i < metadata.Slots.Count)
                     ? used.Order().ToList() : null;
             if (UsedSlots(null) is { } order)
             {
