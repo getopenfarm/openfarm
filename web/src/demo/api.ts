@@ -1394,6 +1394,17 @@ const byStatus = (list: Job[], status: string | null) =>
 
 // Boot and account.
 route('GET', '/auth/csrf', () => ({ token: 'demo-csrf' }));
+route('GET', '/auth/providers', () => ({
+  oidcEnabled: false,
+  oidcRequired: false,
+  displayName: 'authentik',
+}));
+route('GET', '/auth/sso/identity', () => ({
+  enabled: false,
+  displayName: 'authentik',
+  linked: false,
+  passwordAllowed: true,
+}));
 route('POST', '/auth/refresh', () => ({
   token: fakeToken(),
   expiresAtUtc: new Date(now + 3_600_000).toISOString(),

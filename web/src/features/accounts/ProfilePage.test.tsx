@@ -6,7 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { httpClient } from '@/lib/api/httpClient';
 import { ProfilePage } from './ProfilePage';
 
+const profileState = vi.hoisted(() => ({ managed: false }));
+
 vi.mock('@/lib/api/httpClient', () => ({ httpClient: vi.fn() }));
+vi.mock('./OidcSecurity', () => ({
+  OidcSecurity: ({ children }: { children: import('react').ReactNode }) =>
+    children,
+}));
 vi.mock('@/lib/auth/permissions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/permissions')>()),
   useIdentity: () => ({
@@ -15,6 +21,7 @@ vi.mock('@/lib/auth/permissions', async (importOriginal) => ({
       displayName: 'Mei',
       email: 'mei@example.com',
       username: 'mei',
+      isExternallyManaged: profileState.managed,
     },
     isError: false,
   }),
@@ -42,9 +49,23 @@ function setup(tab = 'profile') {
 
 beforeEach(() => {
   http.mockReset();
+  profileState.managed = false;
 });
 
 describe('Profile form feedback', () => {
+  it('shows centrally managed profile details without editable fields or a save action', () => {
+    profileState.managed = true;
+    setup();
+    expect(
+      screen.getByText('Your identity provider manages these account details.'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Display name')).toBeDisabled();
+    expect(screen.getByLabelText('Email')).toBeDisabled();
+    expect(screen.getByLabelText('Username')).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Save' }),
+    ).not.toBeInTheDocument();
+  });
   it('keeps the section save workflow and disables conflicting controls while saving', async () => {
     let finish!: () => void;
     http.mockImplementation(

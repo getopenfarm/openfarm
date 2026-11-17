@@ -73,6 +73,10 @@ export const apiQueryPermissions = [
     permissions: ['users:manage'],
   },
   {
+    pattern: '^/api/v1/auth/sso/identity$',
+    permissions: [],
+  },
+  {
     pattern: '^/api/v1/maintenance/tasks$',
     permissions: ['maintenance:view'],
   },
@@ -113,8 +117,16 @@ export const apiQueryPermissions = [
     permissions: ['settings:general:read'],
   },
   {
+    pattern: '^/api/v1/auth/sso/login$',
+    permissions: [],
+  },
+  {
     pattern: '^/api/v1/spools/history$',
     permissions: ['spools:list'],
+  },
+  {
+    pattern: '^/api/v1/auth/sso/link$',
+    permissions: [],
   },
   {
     pattern: '^/api/v1/auth/sessions$',

@@ -6,8 +6,14 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/lib/auth/AuthProvider';
+import { useLoginProviders } from '@/lib/auth/oidc';
 import { clearToken, getToken } from '@/lib/auth/tokenStorage';
 import { LoginPage } from './LoginPage';
+
+vi.mock('@/lib/auth/oidc', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/oidc')>()),
+  useLoginProviders: vi.fn(),
+}));
 
 vi.mock('@/lib/auth/session', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/session')>()),
@@ -38,6 +44,14 @@ function renderLoginPage() {
 describe('LoginPage', () => {
   beforeEach(() => {
     clearToken();
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: false,
+        oidcRequired: false,
+        displayName: 'authentik',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
   });
 
   afterEach(() => {
@@ -51,6 +65,35 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Username')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  it('offers OIDC alongside local login in optional mode', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: true,
+        oidcRequired: false,
+        displayName: 'authentik',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage();
+    expect(
+      screen.getByRole('link', { name: 'Sign in with authentik' }),
+    ).toHaveAttribute('href', '/api/v1/auth/sso/login?returnTo=%2F');
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('reserves the password form for recovery when OIDC is required', async () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: { oidcEnabled: true, oidcRequired: true, displayName: 'authentik' },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Use recovery account' }));
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
   });
 
   it('blocks submission and shows inline errors when fields are empty', async () => {

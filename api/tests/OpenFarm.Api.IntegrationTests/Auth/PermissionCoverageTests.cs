@@ -11,7 +11,8 @@ public class PermissionCoverageTests
     [Fact]
     public void EveryProtectedEndpoint_DeclaresAKnownPermission()
     {
-        string[] anonymous = ["LoginEndpoint", "RefreshEndpoint", "CsrfEndpoint", "LogoutEndpoint", "PingEndpoint"];
+        string[] anonymous = ["LoginEndpoint", "RefreshEndpoint", "CsrfEndpoint", "LogoutEndpoint", "PingEndpoint",
+            "LoginProvidersEndpoint", "StartOidcLoginEndpoint", "StartOidcLinkEndpoint"];
         var endpoints = typeof(LoginEndpoint).Assembly.GetTypes().Where(t => t.Name.EndsWith("Endpoint", StringComparison.Ordinal)
             && t.BaseType?.Namespace == "FastEndpoints" && !t.IsAbstract).ToArray();
         endpoints.Length.Should().BeGreaterThan(100);

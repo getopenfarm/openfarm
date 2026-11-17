@@ -1,6 +1,53 @@
 # Accounts, sessions, and access
 
-OpenFarm uses ASP.NET Identity accounts, 15-minute JWT access tokens, and database-backed browser sessions. A session expires 14 days after sign-in. Refreshing access does not extend that deadline. Access tokens stay in browser memory; the persistent refresh credential is an HttpOnly cookie. Refresh rotates the credential, tolerates concurrent retries for ten seconds, and revokes a session if an older credential is reused afterward.
+OpenFarm uses ASP.NET Identity accounts, 15-minute JWT access tokens, and database-backed browser sessions. A password session expires 14 days after sign-in; an OIDC session uses the configured shorter deadline (eight hours by default). Refreshing access does not extend that deadline. Access tokens stay in browser memory; the persistent refresh credential is an HttpOnly cookie. Refresh rotates the credential, tolerates concurrent retries for ten seconds, and revokes a session if an older credential is reused afterward.
+
+## External sign-in (OIDC)
+
+The optional `Auth:Oidc` provider uses Authorization Code with S256 PKCE and the ASP.NET OIDC handler.
+It does not change the API bearer or MCP OAuth schemes. The callback is a GET under `/api/v1/auth/sso/callback`.
+State, nonce, correlation, signature, audience, issuer and code exchange are validated before `OnTicketReceived` performs account work.
+Redirect URIs use the configured canonical public URL, including behind an HTTP backend proxy.
+
+Identity's `AspNetUserLogins` maps the SHA-256 authority key plus validated `sub` to the existing user.
+There is no email matching or retained provider token. Optional JIT and SCIM provisioning are described below.
+Linking requires a browser JWT, antiforgery, a current password proof with lockout, and the original refresh-cookie session.
+A five-minute protected ticket contains a nonce, owner, session and security stamp. A hashed one-use nonce in `AspNetUserTokens`
+prevents replay across processes; a new attempt supersedes the old one. User-row locking serializes linking and session creation with account edits.
+
+OIDC success creates an ordinary OpenFarm browser session and refresh cookie. The SPA restores its JWT through the existing refresh endpoint.
+`BrowserSessions.OidcConfigurationIdentity` binds external sessions to authority and client ID. External sessions have a configurable fixed 1–24 hour lifetime (default 8).
+Password sessions retain their 14-day lifetime. Required mode blocks password login, refresh and bearer validation except explicit immutable recovery user IDs.
+Password reset/change cannot bypass required mode. Startup and administrator edits preserve a working designated recovery administrator.
+
+OIDC configuration is deployment-controlled and requires restart. Startup permanently revokes browser sessions incompatible with the current login policy. Disabling the provider or changing authority/client invalidates external browser sessions.
+PATs and MCP app grants retain their own existing lifecycle. Local logout does not end the provider session.
+Upstream disablement is not polled and OIDC back-channel logout is not implemented; use SCIM deactivation or disable the local account for immediate revocation of all access.
+JIT and SCIM can enroll new managed accounts in required mode. Explicit linking of existing local accounts needs optional mode.
+
+## JIT and SCIM provisioning
+
+`Auth:Oidc:Jit:Enabled` opts into first-login passwordless account creation; verified email is required by default.
+`ExternalProvisioningService` shares account administration's transaction advisory lock for username/email/identity creation races.
+JIT resolves existing issuer/subject links first and never reactivates disabled or tombstoned accounts.
+New accounts receive `Auth:Provisioning:DefaultGroup` (Viewers by default); protected roles are rejected at startup and at creation.
+
+`Auth:Scim:Enabled` exposes `/scim/v2` behind the separate `ScimProvisioning` scheme and dedicated constant-time-checked bearer credential.
+SCIM is excluded from SPA fallback, MCP availability gating and OpenAPI; it has SCIM media types/errors, body limits, rate limits and capability discovery.
+`ApplicationUser.ProvisioningProvider/ProvisioningExternalId` scope resources to the configured OIDC issuer and opaque subject.
+Both JIT and SCIM register the same Identity external login. Local users are excluded from SCIM scope, including explicitly linked local users.
+Managed users cannot acquire passwords or edit identity fields through local APIs.
+
+SCIM User and Group CRUD supports bounded lists/equality filters, top-level projection, atomic PATCH and optional If-Match concurrency checks.
+External groups and memberships live in separate tables. `PermissionService` adds only explicitly mapped, unprotected local roles at authorization time;
+no SCIM operation writes local role definitions or removes independent local grants. Related resource revisions change when membership representations change.
+Authentik group PATCH without a path can contain core schemas; maxOperations also informs its PATCH batching even with bulk disabled.
+
+Deactivation locks the user and revokes browser sessions, OAuth app sessions, PATs and pending linking proofs in the same transaction.
+Deletion retains a disabled tombstone and Identity link for history and to prevent JIT resurrection, while removing all memberships and local grants.
+Explicit SCIM POST can restore that subject/account at baseline access; prior credentials and extra grants stay revoked/removed.
+Recovery accounts are outside provisioning scope and the last enabled administrator invariant remains enforced.
+Operator configuration and limits: `docs/content/administration/account-provisioning.md`.
 
 ## Users & Groups
 

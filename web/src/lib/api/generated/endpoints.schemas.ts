@@ -2883,6 +2883,8 @@ export interface AccountResponse {
   effectivePermissions?: string[];
   isAdministrator?: boolean;
   sessionCount?: number;
+  isExternallyManaged?: boolean;
+  managedGroups?: GroupSummary[];
 }
 
 export interface GroupResponse {
@@ -3041,6 +3043,27 @@ export interface ConsentDecisionRequest {
   scopes?: string[];
 }
 
+export interface LoginProvidersResponse {
+  oidcEnabled?: boolean;
+  displayName?: string;
+  oidcRequired?: boolean;
+}
+
+export interface OidcIdentityResponse {
+  enabled?: boolean;
+  displayName?: string;
+  linked?: boolean;
+  passwordAllowed?: boolean;
+}
+
+export interface BeginOidcLinkResponse {
+  redirectUri?: string;
+}
+
+export interface BeginOidcLinkRequest {
+  password?: string;
+}
+
 export interface CsrfResponse {
   token?: string;
 }
@@ -3067,6 +3090,7 @@ export interface WhoAmIResult {
   isAdministrator?: boolean;
   groups?: string[];
   permissions?: string[];
+  isExternallyManaged?: boolean;
 }
 
 export interface BomLineResponse {

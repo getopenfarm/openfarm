@@ -23,7 +23,9 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { apiUrl } from '@/lib/api/apiUrl';
 import { useOpenFarmApiEndpointsAuthLoginEndpoint } from '@/lib/api/generated/auth/auth';
+import { localReturnTo, useLoginProviders } from '@/lib/auth/oidc';
 import { useAuth } from '@/lib/auth/useAuth';
 
 const loginSchema = z.object({
@@ -42,6 +44,10 @@ export function LoginPage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const providers = useLoginProviders();
+  const params = new URLSearchParams(window.location.search);
+  const ssoError = params.get('ssoError');
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { username: '', password: '' },
@@ -59,10 +65,7 @@ export function LoginPage() {
         const target = new URLSearchParams(window.location.search).get(
           'returnTo',
         );
-        navigate(
-          target?.startsWith('/') && !target.startsWith('//') ? target : '/',
-          { replace: true },
-        );
+        navigate(localReturnTo(target), { replace: true });
       },
     },
   });
@@ -88,96 +91,145 @@ export function LoginPage() {
             Sign in to your OpenFarm workspace to continue.
           </p>
         </div>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-col gap-[15px]"
-          >
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field, fieldState }) => (
-                <FormItem>
-                  <FormLabel className="text-[13px]">Username</FormLabel>
-                  <div className="relative">
-                    <MailIcon className={leadIconClass} aria-hidden />
-                    <FormControl>
-                      <Input
-                        autoComplete="username"
-                        placeholder="Enter username"
-                        className={inputClass}
-                        aria-invalid={failed || !!fieldState.error}
-                        {...field}
-                      />
-                    </FormControl>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field, fieldState }) => (
-                <FormItem>
-                  <FormLabel className="text-[13px]">Password</FormLabel>
-                  <div className="relative">
-                    <LockIcon className={leadIconClass} aria-hidden />
-                    <FormControl>
-                      <Input
-                        type={showPassword ? 'text' : 'password'}
-                        autoComplete="current-password"
-                        placeholder="••••••••"
-                        className={`${inputClass} pr-11`}
-                        aria-invalid={failed || !!fieldState.error}
-                        {...field}
-                      />
-                    </FormControl>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-1/2 right-1.5 size-[34px] -translate-y-1/2 text-muted-foreground"
-                      aria-label={
-                        showPassword ? 'Hide password' : 'Show password'
-                      }
-                      onClick={() => setShowPassword((shown) => !shown)}
-                    >
-                      {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                    </Button>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {failed && (
-              <p
-                role="alert"
-                className="-mt-1.5 flex items-center gap-1.5 text-[12.5px] text-destructive"
-              >
-                <CircleAlertIcon className="size-3.5" aria-hidden />
-                Check username and password.
-              </p>
-            )}
-            <Button
-              type="submit"
-              disabled={loginMutation.isPending}
-              className="mt-1 h-[46px] w-full rounded-[10px] text-[15px] font-semibold"
+        {ssoError && (
+          <p role="alert" className="mb-4 text-sm text-destructive">
+            {ssoError === 'unavailable'
+              ? 'This identity could not access an enabled OpenFarm account. Contact an administrator to check your access.'
+              : 'SSO sign-in could not be completed. Try again or contact an administrator.'}
+          </p>
+        )}
+        {providers.isError && (
+          <p role="alert" className="mb-4 text-sm">
+            Could not load sign-in methods.{' '}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => void providers.refetch()}
             >
-              {loginMutation.isPending ? (
-                <>
-                  <Spinner data-icon="inline-start" />
-                  Signing in…
-                </>
-              ) : (
-                <>
-                  Sign in
-                  <ArrowRightIcon data-icon="inline-end" />
-                </>
+              Retry
+            </button>
+          </p>
+        )}
+        {providers.data?.oidcEnabled && (
+          <Button asChild className="mb-4 w-full">
+            <a
+              href={apiUrl(
+                `/api/v1/auth/sso/login?returnTo=${encodeURIComponent(localReturnTo(params.get('returnTo')))}`,
               )}
+            >
+              Sign in with {providers.data.displayName}
+            </a>
+          </Button>
+        )}
+        {providers.data?.oidcRequired && (
+          <>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Use your organization’s sign-in provider. Local login is reserved
+              for designated recovery accounts.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mb-4 w-full"
+              onClick={() => setShowRecovery((shown) => !shown)}
+              aria-expanded={showRecovery}
+            >
+              Use recovery account
             </Button>
-          </form>
-        </Form>
+          </>
+        )}
+        {(!providers.data?.oidcRequired || showRecovery) && (
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="flex flex-col gap-[15px]"
+            >
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field, fieldState }) => (
+                  <FormItem>
+                    <FormLabel className="text-[13px]">Username</FormLabel>
+                    <div className="relative">
+                      <MailIcon className={leadIconClass} aria-hidden />
+                      <FormControl>
+                        <Input
+                          autoComplete="username"
+                          placeholder="Enter username"
+                          className={inputClass}
+                          aria-invalid={failed || !!fieldState.error}
+                          {...field}
+                        />
+                      </FormControl>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field, fieldState }) => (
+                  <FormItem>
+                    <FormLabel className="text-[13px]">Password</FormLabel>
+                    <div className="relative">
+                      <LockIcon className={leadIconClass} aria-hidden />
+                      <FormControl>
+                        <Input
+                          type={showPassword ? 'text' : 'password'}
+                          autoComplete="current-password"
+                          placeholder="••••••••"
+                          className={`${inputClass} pr-11`}
+                          aria-invalid={failed || !!fieldState.error}
+                          {...field}
+                        />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-1/2 right-1.5 size-[34px] -translate-y-1/2 text-muted-foreground"
+                        aria-label={
+                          showPassword ? 'Hide password' : 'Show password'
+                        }
+                        onClick={() => setShowPassword((shown) => !shown)}
+                      >
+                        {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {failed && (
+                <p
+                  role="alert"
+                  className="-mt-1.5 flex items-center gap-1.5 text-[12.5px] text-destructive"
+                >
+                  <CircleAlertIcon className="size-3.5" aria-hidden />
+                  Check username and password.
+                </p>
+              )}
+              <Button
+                type="submit"
+                disabled={loginMutation.isPending}
+                className="mt-1 h-[46px] w-full rounded-[10px] text-[15px] font-semibold"
+              >
+                {loginMutation.isPending ? (
+                  <>
+                    <Spinner data-icon="inline-start" />
+                    Signing in…
+                  </>
+                ) : (
+                  <>
+                    Sign in
+                    <ArrowRightIcon data-icon="inline-end" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </Form>
+        )}
       </div>
     </div>
   );

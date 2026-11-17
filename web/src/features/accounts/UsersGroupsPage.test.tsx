@@ -97,6 +97,40 @@ describe('UsersGroupsPage', () => {
 });
 
 describe('UserFormPage', () => {
+  it('keeps externally managed identity fields read-only and exposes SCIM groups separately', async () => {
+    http.mockImplementation(async (url: string, init?: RequestInit) =>
+      init?.method
+        ? undefined
+        : {
+            data:
+              url === '/api/v1/admin/users'
+                ? [
+                    {
+                      ...(data[url] as Record<string, unknown>[])[0],
+                      isExternallyManaged: true,
+                      managedGroups: [{ id: 'g2', name: 'Viewers' }],
+                    },
+                  ]
+                : data[url],
+          },
+    );
+    renderAt('/users-groups/users/u1');
+    expect(await screen.findByLabelText('Full name')).toHaveAttribute(
+      'readonly',
+    );
+    expect(screen.getByLabelText('Email')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Username')).toHaveAttribute('readonly');
+    expect(screen.queryByLabelText('Reset password')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Remove' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Groups managed by SCIM: Viewers/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('switch', { name: 'Account enabled' }),
+    ).toBeEnabled();
+  });
   it('opens the add form from the keyboard and creates a user', async () => {
     const user = userEvent.setup();
     const router = renderAt('/users-groups');

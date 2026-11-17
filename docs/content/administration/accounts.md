@@ -5,6 +5,11 @@ description: Create farm accounts, grant permissions, and manage active browser 
 
 Administrators create accounts under **Users & groups**. There is no public self-registration or email password-recovery flow.
 
+Existing accounts can also sign in through authentik after explicit linking. See [single sign-on](single-sign-on.md) for setup and login policies.
+
+For centralized account creation and offboarding, enable [JIT or SCIM provisioning](account-provisioning.md).
+Managed accounts use OIDC without a local password. Their identity details are read-only in OpenFarm.
+
 ## Add a user
 
 1. Choose **Add user**.

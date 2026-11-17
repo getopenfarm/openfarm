@@ -9,7 +9,11 @@ namespace OpenFarm.Infrastructure.Auth;
 
 public sealed record GroupSummary(Guid Id, string Name);
 public sealed record AccountResponse(Guid Id, string Username, string Email, string? Name, bool IsEnabled,
-    DateTimeOffset CreatedAtUtc, GroupSummary[] Groups, string[] ExtraGrants, string[] EffectivePermissions, bool IsAdministrator, int SessionCount);
+    DateTimeOffset CreatedAtUtc, GroupSummary[] Groups, string[] ExtraGrants, string[] EffectivePermissions, bool IsAdministrator, int SessionCount)
+{
+    public bool IsExternallyManaged { get; init; }
+    public GroupSummary[] ManagedGroups { get; init; } = [];
+}
 public sealed record GroupResponse(Guid Id, string Name, string Description, bool IsProtected, string[] Grants, int MemberCount);
 public sealed record AccountInput(string Username, string Email, string? Name, Guid[] GroupIds, string[] ExtraGrants, bool IsEnabled, string? Password);
 public sealed record GroupInput(string Name, string Description, string[] Grants);
@@ -18,7 +22,8 @@ public sealed record ResetPasswordInput(string Password);
 public sealed record ProfileInput(string? Name, string Email, string Username);
 
 public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManager<ApplicationUser> users,
-    RoleManager<ApplicationRole> roles, PermissionService permissions, BrowserSessionService sessions, PersonalAccessTokenService tokens)
+    RoleManager<ApplicationRole> roles, PermissionService permissions, BrowserSessionService sessions, PersonalAccessTokenService tokens,
+    OidcSettings oidc)
 {
     public async Task<AccountResponse[]> ListUsersAsync(CancellationToken ct)
     {
@@ -35,7 +40,8 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
             grants = PermissionCatalog.Sort(grants.Where(PermissionCatalog.IsGrantable));
             var count = await db.BrowserSessions.CountAsync(s => s.UserId == user.Id && s.ClientId == null && s.RevokedAtUtc == null && s.ExpiresAtUtc > DateTimeOffset.UtcNow, ct);
             result.Add(new(user.Id, user.UserName!, user.Email!, user.DisplayName, user.IsEnabled, user.CreatedAtUtc,
-                groups, grants, access.Permissions, access.IsAdministrator, count));
+                groups, grants, access.Permissions, access.IsAdministrator, count)
+            { IsExternallyManaged = user.ProvisioningProvider is not null, ManagedGroups = await permissions.ManagedGroupsAsync(user.Id, ct) });
         }
         return result.ToArray();
     }
@@ -47,7 +53,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         foreach (var role in all)
             result.Add(new(role.Id, role.Name!, role.Description, role.IsProtected,
                 PermissionCatalog.Sort((await db.RoleClaims.Where(c => c.RoleId == role.Id && c.ClaimType == PermissionCatalog.GrantClaim).Select(c => c.ClaimValue!).ToArrayAsync(ct)).Where(PermissionCatalog.IsGrantable)),
-                await db.UserRoles.CountAsync(m => m.RoleId == role.Id, ct)));
+                await permissions.MemberCountAsync(role.Id, role.Name, ct)));
         return result.ToArray();
     }
 
@@ -78,9 +84,16 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         var selected = await db.Roles.Where(r => groupIds.Contains(r.Id)).ToArrayAsync(ct);
         if (selected.Length != groupIds.Length) throw new ArgumentException("One or more groups no longer exist.");
         var user = id is null ? new ApplicationUser() : await users.FindByIdAsync(id.Value.ToString()) ?? throw new KeyNotFoundException("User not found.");
+        if (user.ProvisioningProvider is not null && (user.UserName != input.Username.Trim() || user.Email != input.Email.Trim() || (user.DisplayName?.Trim() ?? "") != (input.Name?.Trim() ?? "")))
+            throw new ArgumentException("Account details are managed by the identity provider.");
+        if (user.IsScimDeleted) throw new ArgumentException("This account was deleted by provisioning and cannot be edited locally.");
         if (id is null && string.IsNullOrWhiteSpace(input.Password)) throw new ArgumentException("A temporary password is required.");
         if (id is not null && input.Password is not null) throw new ArgumentException("Use Reset password to change another user's password.");
-        user.UserName = input.Username.Trim(); user.Email = input.Email.Trim(); user.DisplayName = input.Name?.Trim(); user.IsEnabled = input.IsEnabled;
+        if (user.ProvisioningProvider is null)
+        { user.UserName = input.Username.Trim(); user.Email = input.Email.Trim(); user.DisplayName = input.Name?.Trim(); }
+        user.IsEnabled = input.IsEnabled;
+        if (user.ProvisioningProvider is not null)
+        { user.ProvisioningRevision = Guid.NewGuid(); user.ProvisioningModifiedAtUtc = DateTimeOffset.UtcNow; }
         Check(id is null ? await users.CreateAsync(user, input.Password!) : await users.UpdateAsync(user));
         var memberships = await db.UserRoles.Where(m => m.UserId == user.Id).ToListAsync(ct);
         db.UserRoles.RemoveRange(memberships.Where(m => !groupIds.Contains(m.RoleId)));
@@ -107,6 +120,19 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
                             where user.IsEnabled && role.IsProtected && role.Name == PermissionCatalog.Administrators
                             select user.Id).AnyAsync(ct);
         if (!exists) throw new ArgumentException("At least one enabled administrator must remain.");
+        await EnsureRecoveryAdministratorAsync(ct);
+    }
+
+    public async Task EnsureRecoveryAdministratorAsync(CancellationToken ct)
+    {
+        if (!oidc.Required) return;
+        var exists = await (from user in db.Users
+                            join membership in db.UserRoles on user.Id equals membership.UserId
+                            join role in db.Roles on membership.RoleId equals role.Id
+                            where user.IsEnabled && user.PasswordHash != null && user.ProvisioningProvider == null && oidc.RecoveryUserIds.Contains(user.Id)
+                                && role.IsProtected && role.Name == PermissionCatalog.Administrators
+                            select user.Id).AnyAsync(ct);
+        if (!exists) throw new ArgumentException("Required OIDC needs an enabled local recovery administrator with a password.");
     }
 
     public async Task<Guid> SaveGroupAsync(Guid? id, GroupInput input, Guid actor, CancellationToken ct)
@@ -118,6 +144,8 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         await LockAdministrationAsync(ct);
         var role = id is null ? new ApplicationRole() : await roles.FindByIdAsync(id.Value.ToString()) ?? throw new KeyNotFoundException("Group not found.");
         if (role.IsProtected) throw new ArgumentException("The Administrators group is protected.");
+        if (permissions.IsProvisioningTarget(role.Name) && !string.Equals(role.Name, input.Name.Trim(), StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("This group is used by provisioning. Update the deployment configuration before renaming it.");
         role.Name = input.Name.Trim(); role.Description = input.Description?.Trim() ?? string.Empty;
         Check(id is null ? await roles.CreateAsync(role) : await roles.UpdateAsync(role));
         var grants = await db.RoleClaims.Where(c => c.RoleId == role.Id && c.ClaimType == PermissionCatalog.GrantClaim).ToListAsync(ct);
@@ -134,6 +162,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         await LockAdministrationAsync(ct);
         var group = await roles.FindByIdAsync(id.ToString()) ?? throw new KeyNotFoundException("Group not found.");
         if (group.IsProtected || await db.UserRoles.AnyAsync(m => m.RoleId == id, ct)) throw new ArgumentException("Only an empty, unprotected group can be removed.");
+        if (permissions.IsProvisioningTarget(group.Name)) throw new ArgumentException("This group is used by provisioning. Update the deployment configuration before removing it.");
         Check(await roles.DeleteAsync(group));
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -145,6 +174,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await LockAdministrationAsync(ct);
         var user = await users.FindByIdAsync(id.ToString()) ?? throw new KeyNotFoundException("User not found.");
+        if (user.ProvisioningProvider is not null) throw new ArgumentException("Remove externally managed accounts through SCIM. Disable the account locally for emergency access removal.");
         // Sessions, memberships and grants cascade with the user row.
         Check(await users.DeleteAsync(user));
         await EnsureAdministratorAsync(ct);
@@ -164,6 +194,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await LockAdministrationAsync(ct);
         var user = await users.FindByIdAsync(userId.ToString()) ?? throw new KeyNotFoundException("User not found.");
+        if (user.ProvisioningProvider is not null) throw new ArgumentException("Account details are managed by the identity provider.");
         var name = input.Name?.Trim();
         user.DisplayName = string.IsNullOrEmpty(name) ? null : name;
         user.Email = email; user.UserName = username;
@@ -177,10 +208,12 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
     /// <summary>Changes the caller's password and signs out every other session; <paramref name="currentSessionId"/> stays signed in.</summary>
     public async Task ChangePasswordAsync(Guid userId, PasswordInput input, Guid? currentSessionId, CancellationToken ct)
     {
+        if (!oidc.AllowsPassword(userId)) throw new ArgumentException("Password login is disabled for this account. Manage your credentials with your sign-in provider.");
         if (string.IsNullOrEmpty(input.CurrentPassword)) throw new ArgumentException("Current password is required.");
         if (string.IsNullOrWhiteSpace(input.NewPassword)) throw new ArgumentException("A new password is required.");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var user = await users.FindByIdAsync(userId.ToString()) ?? throw new KeyNotFoundException("User not found.");
+        if (user.ProvisioningProvider is not null) throw new ArgumentException("Password login is disabled for externally managed accounts.");
         var result = await users.ChangePasswordAsync(user, input.CurrentPassword, input.NewPassword);
         if (result.Errors.Any(e => e.Code == "PasswordMismatch")) throw new ArgumentException("Current password is incorrect.");
         Check(result);
@@ -193,9 +226,11 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
 
     public async Task ResetPasswordAsync(Guid userId, string password, Guid actor, CancellationToken ct)
     {
+        if (!oidc.AllowsPassword(userId)) throw new ArgumentException("Password login is disabled for this account.");
         if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("A temporary password is required.");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var user = await users.FindByIdAsync(userId.ToString()) ?? throw new KeyNotFoundException("User not found.");
+        if (user.ProvisioningProvider is not null) throw new ArgumentException("Password login is disabled for externally managed accounts.");
         // Hash through Identity's validators; no plaintext password enters the activity log.
         foreach (var validator in users.PasswordValidators) Check(await validator.ValidateAsync(users, user, password));
         user.PasswordHash = users.PasswordHasher.HashPassword(user, password);

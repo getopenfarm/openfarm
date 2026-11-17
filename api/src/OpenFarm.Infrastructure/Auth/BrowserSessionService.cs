@@ -19,7 +19,7 @@ public sealed record AppGrant(string[] Scopes, string ClientName);
 /// states which kind it acts on: a browser session never acts as an app, and an app never as a browser session.
 /// </summary>
 public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService jwt, IDataProtectionProvider protection,
-    OAuthSettings oauth, TimeProvider time)
+    OAuthSettings oauth, TimeProvider time, OidcSettings oidc)
 {
     public const string AppCredentialPrefix = "ofr_";
     public static readonly TimeSpan AppLifetime = TimeSpan.FromDays(30);
@@ -32,7 +32,21 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
     public static bool IsAppCredential(string value) => value.Length == 68 && value.StartsWith(AppCredentialPrefix, StringComparison.Ordinal)
         && value.AsSpan(4).IndexOfAnyExcept(LowerHex) < 0;
 
-    public async Task<LoginResult> CreateAsync(Guid userId, string device, CancellationToken ct)
+    /// <summary>Permanently revoke incompatible browser sessions when deployment login policy changes.</summary>
+    public Task<int> ApplyLoginPolicyAsync(CancellationToken ct)
+    {
+        var identity = oidc.Enabled ? oidc.SessionIdentity : null;
+        var enabled = oidc.Enabled;
+        var required = oidc.Required;
+        var recovery = oidc.RecoveryUserIds;
+        var now = time.GetUtcNow();
+        return db.BrowserSessions.Where(s => s.ClientId == null && s.RevokedAtUtc == null
+            && ((s.OidcConfigurationIdentity != null && (!enabled || s.OidcConfigurationIdentity != identity))
+                || (s.OidcConfigurationIdentity == null && required && !recovery.Contains(s.UserId))))
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
+    }
+
+    public async Task<LoginResult> CreateAsync(Guid userId, string device, CancellationToken ct, bool external = false)
     {
         var now = time.GetUtcNow();
         var session = new BrowserSession
@@ -41,7 +55,8 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
             UserId = userId,
             CreatedAtUtc = now,
             LastSeenAtUtc = now,
-            ExpiresAtUtc = now.AddDays(14),
+            ExpiresAtUtc = external ? now.AddHours(oidc.SessionHours) : now.AddDays(14),
+            OidcConfigurationIdentity = external ? oidc.SessionIdentity : null,
             Device = device[..Math.Min(256, device.Length)],
         };
         var credential = NewCredential();
@@ -101,6 +116,7 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         var session = await db.BrowserSessions.FromSqlInterpolated($"SELECT * FROM \"BrowserSessions\" WHERE \"Id\" = {row.SessionId} FOR UPDATE").SingleAsync(ct);
         var now = time.GetUtcNow();
         if (session.ClientId != clientId) return null;
+        if (clientId is null && !oidc.AllowsBrowserSession(session.UserId, session.OidcConfigurationIdentity)) return null;
         if (clientId is not null && (!oauth.Enabled || session.OAuthConfigurationIdentity != oauth.ConfigurationIdentity)) return null;
         if (session.RevokedAtUtc is not null || session.ExpiresAtUtc <= now || !await db.Users.AnyAsync(u => u.Id == session.UserId && u.IsEnabled, ct)) return null;
         if (row.UsedAtUtc is not null)
@@ -142,7 +158,9 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
     public async Task<bool> IsActiveAsync(Guid userId, Guid sessionId, CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        return await db.BrowserSessions.AnyAsync(s => s.Id == sessionId && s.UserId == userId && s.ClientId == null && s.RevokedAtUtc == null && s.ExpiresAtUtc > now, ct)
+        var session = await db.BrowserSessions.AsNoTracking().SingleOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId
+            && s.ClientId == null && s.RevokedAtUtc == null && s.ExpiresAtUtc > now, ct);
+        return session is not null && oidc.AllowsBrowserSession(userId, session.OidcConfigurationIdentity)
             && await db.Users.AnyAsync(u => u.Id == userId && u.IsEnabled, ct);
     }
 

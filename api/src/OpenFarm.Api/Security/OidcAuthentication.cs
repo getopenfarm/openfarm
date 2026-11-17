@@ -1,0 +1,156 @@
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using OpenFarm.Api.Hosting;
+using OpenFarm.Infrastructure.Auth;
+
+namespace OpenFarm.Api.Security;
+
+public static class OidcAuthentication
+{
+    public const string Scheme = "ExternalOidc";
+    public const string CallbackPath = "/api/v1/auth/sso/callback";
+    public const string LinkCookie = "openfarm.oidc.link";
+
+    public static async Task StartChallengeAsync(HttpContext http, AuthenticationProperties properties)
+    {
+        try { await http.ChallengeAsync(Scheme, properties); }
+        catch (Exception e) when (e is HttpRequestException or IOException or InvalidOperationException)
+        {
+            // Discovery outages must return the user to a usable screen without exposing protocol details.
+            http.Response.Redirect(properties.Items.ContainsKey("link")
+                ? "/profile?tab=security&sso=failed" : "/login?ssoError=failed");
+        }
+    }
+
+    public static void AddExternalOidc(this AuthenticationBuilder builder, OidcSettings settings)
+    {
+        if (!settings.Enabled) return;
+        // The handler requires a sign-in scheme. OnTicketReceived always handles the response;
+        // no external authentication cookie is issued or accepted by API authorization.
+        builder.AddCookie("OidcExternal", options => options.ExpireTimeSpan = TimeSpan.FromMinutes(5))
+            .AddOpenIdConnect(Scheme, options =>
+            {
+                options.SignInScheme = "OidcExternal";
+                options.Authority = settings.Authority;
+                options.ClientId = settings.ClientId;
+                options.ClientSecret = settings.ClientSecret;
+                options.RequireHttpsMetadata = !new Uri(settings.Authority!).IsLoopback;
+                options.CallbackPath = CallbackPath;
+                options.RemoteSignOutPath = PathString.Empty;
+                options.ResponseType = OpenIdConnectResponseType.Code;
+                options.ResponseMode = OpenIdConnectResponseMode.Query;
+                options.UsePkce = true;
+                options.MapInboundClaims = false;
+                // Keep the validated issuer available for the explicit authority binding below.
+                options.ClaimActions.Clear();
+                options.SaveTokens = false;
+                options.GetClaimsFromUserInfoEndpoint = false;
+                options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.Disable;
+                options.Scope.Clear();
+                options.Scope.Add("openid");
+                options.Scope.Add("profile");
+                options.Scope.Add("email");
+                options.RemoteAuthenticationTimeout = TimeSpan.FromMinutes(5);
+                // A GET callback permits Lax cookies, including the existing refresh cookie used for linking.
+                options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                options.NonceCookie.SameSite = SameSiteMode.Lax;
+                options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
+                if (new Uri(settings.Authority!).IsLoopback)
+                {
+                    options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                    options.NonceCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                }
+                options.Events = new OpenIdConnectEvents
+                {
+                    OnRedirectToIdentityProvider = context =>
+                    {
+                        var origin = context.HttpContext.RequestServices.GetRequiredService<PublicOrigin>().Value
+                            ?? throw new InvalidOperationException("OIDC needs a configured public URL.");
+                        settings.ValidatePublicUrl(origin);
+                        context.ProtocolMessage.RedirectUri = origin + CallbackPath;
+                        if (context.Properties.Items.ContainsKey("link"))
+                        {
+                            context.ProtocolMessage.Prompt = "login";
+                            context.ProtocolMessage.MaxAge = "0";
+                        }
+                        return Task.CompletedTask;
+                    },
+                    OnTicketReceived = CompleteAsync,
+                    OnRemoteFailure = context =>
+                    {
+                        context.HandleResponse();
+                        context.Response.Redirect("/login?ssoError=failed");
+                        return Task.CompletedTask;
+                    },
+                };
+            });
+    }
+
+    // Runs after code, signature, audience, nonce and correlation validation have completed.
+    private static async Task CompleteAsync(TicketReceivedContext context)
+    {
+        context.HandleResponse();
+        var http = context.HttpContext;
+        var settings = http.RequestServices.GetRequiredService<OidcSettings>();
+        var subjects = context.Principal?.FindAll("sub").ToArray() ?? [];
+        var issuers = context.Principal?.FindAll("iss").ToArray() ?? [];
+        if (subjects.Length != 1 || string.IsNullOrWhiteSpace(subjects[0].Value) || subjects[0].Value.Length > 255
+            || issuers.Length != 1 || issuers[0].Value != settings.Authority)
+        {
+            http.Response.Redirect("/login?ssoError=failed");
+            return;
+        }
+        var accounts = http.RequestServices.GetRequiredService<OidcAccountService>();
+        var ct = http.RequestAborted;
+        if (context.Properties?.Items.TryGetValue("link", out var ticket) == true)
+        {
+            var cookie = http.Request.Cookies[LinkCookie];
+            http.Response.Cookies.Delete(LinkCookie, LinkCookieOptions(http));
+            try
+            {
+                if (string.IsNullOrEmpty(ticket) || cookie != ticket) throw new ArgumentException("Missing linking proof.");
+                await accounts.CompleteLinkAsync(ticket, http.Request.Cookies[SessionCookies.RefreshName] ?? "", subjects[0].Value, ct);
+                http.Response.Redirect("/profile?tab=security&sso=linked");
+            }
+            catch (ArgumentException) { http.Response.Redirect("/profile?tab=security&sso=failed"); }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+            { http.Response.Redirect("/profile?tab=security&sso=failed"); }
+            return;
+        }
+        string? Claim(string name) => context.Principal!.FindAll(name).Select(c => c.Value).SingleOrDefault();
+        OpenFarm.Application.Auth.LoginResult? result;
+        try
+        {
+            var profile = new ExternalProfile(Claim("preferred_username"), Claim("email"), Claim("name"),
+                string.Equals(Claim("email_verified"), "true", StringComparison.OrdinalIgnoreCase));
+            result = await accounts.SignInAsync(subjects[0].Value, http.Request.Headers.UserAgent.ToString(), ct, profile);
+        }
+        catch (ArgumentException) { result = null; }
+        catch (InvalidOperationException) { result = null; }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: "23505" }) { result = null; }
+        if (result is null)
+        {
+            http.Response.Redirect("/login?ssoError=unavailable");
+            return;
+        }
+        SessionCookies.Set(http, result);
+        var target = context.Properties?.Items.TryGetValue("returnTo", out var value) == true ? value : null;
+        http.Response.Redirect("/auth/complete?returnTo=" + Uri.EscapeDataString(LocalReturnTo(target)));
+    }
+
+    public static CookieOptions LinkCookieOptions(HttpContext http) => new()
+    {
+        HttpOnly = true, SameSite = SameSiteMode.Lax, Path = "/api/v1/auth/sso",
+        Secure = http.Request.IsHttps || http.RequestServices.GetRequiredService<PublicOrigin>().IsHttps,
+        MaxAge = TimeSpan.FromMinutes(5),
+    };
+
+    public static string LocalReturnTo(string? value) => !string.IsNullOrEmpty(value) && value.Length <= 2048
+        && value.StartsWith('/') && !value.StartsWith("//", StringComparison.Ordinal)
+        && !value.Any(c => char.IsControl(c) || c == '\\')
+        && !value.StartsWith("/api", StringComparison.OrdinalIgnoreCase)
+        && !value.StartsWith("/auth/complete", StringComparison.OrdinalIgnoreCase)
+            ? value : "/";
+}

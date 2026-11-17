@@ -23,6 +23,7 @@ import { httpClient } from '@/lib/api/httpClient';
 import { type CurrentUser, useIdentity } from '@/lib/auth/permissions';
 import { sessionsKey, useUpdateProfile, whoAmIKey } from './api';
 import { ConnectedAppList } from './ConnectedAppList';
+import { OidcSecurity } from './OidcSecurity';
 import { SessionList } from './SessionList';
 import { TokenList } from './TokenList';
 
@@ -75,7 +76,11 @@ export function ProfilePage() {
         ) : (
           <Skeleton className="h-48 max-w-[640px]" />
         ))}
-      {tab === 'security' && <SecurityTab />}
+      {tab === 'security' && (
+        <OidcSecurity>
+          <SecurityTab />
+        </OidcSecurity>
+      )}
       {tab === 'tokens' && (
         <SettingsSection
           title="Access tokens"
@@ -94,7 +99,7 @@ export function ProfilePage() {
       {tab === 'sessions' && (
         <SettingsSection
           title="Sessions"
-          description="Browsers signed in as you. A session ends 14 days after sign-in."
+          description="Browsers signed in as you. Password sessions last up to 14 days; your administrator configures the SSO session limit."
         >
           <SessionList />
         </SettingsSection>
@@ -136,10 +141,17 @@ function ProfileTab({ user }: { user: CurrentUser }) {
   return (
     <SettingsSection
       title="Profile"
-      description="Update your display name, email, and username"
+      description={
+        user.isExternallyManaged
+          ? 'Your identity provider manages these account details.'
+          : 'Update your display name, email, and username'
+      }
     >
       <form onSubmit={submit}>
-        <fieldset disabled={update.isPending} className="contents">
+        <fieldset
+          disabled={update.isPending || user.isExternallyManaged}
+          className="contents"
+        >
           <SettingsRows>
             <SettingsRow label="Display name" htmlFor="profile-name">
               <Input
@@ -174,10 +186,12 @@ function ProfileTab({ user }: { user: CurrentUser }) {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <Button type="submit" className="mt-4" disabled={update.isPending}>
-          {update.isPending && <Spinner data-icon="inline-start" />}
-          {update.isPending ? 'Saving…' : 'Save'}
-        </Button>
+        {!user.isExternallyManaged && (
+          <Button type="submit" className="mt-4" disabled={update.isPending}>
+            {update.isPending && <Spinner data-icon="inline-start" />}
+            {update.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        )}
       </form>
     </SettingsSection>
   );

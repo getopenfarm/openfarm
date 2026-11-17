@@ -10,6 +10,7 @@ public sealed record WhoAmIResult(Guid UserId, string Username, string Email)
     public bool IsAdministrator { get; init; }
     public string[] Groups { get; init; } = [];
     public string[] Permissions { get; init; } = [];
+    public bool IsExternallyManaged { get; init; }
 }
 
 public sealed class WhoAmIQueryHandler(IAuthenticationService authenticationService)

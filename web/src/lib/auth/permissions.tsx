@@ -12,6 +12,7 @@ export interface CurrentUser {
   isAdministrator: boolean;
   groups: string[];
   permissions: string[];
+  isExternallyManaged?: boolean;
 }
 export function useIdentity() {
   const auth = useContext(AuthContext);

@@ -232,6 +232,7 @@ function UserForm({
       <FieldLabel htmlFor={`user-${key}`}>{label}</FieldLabel>
       <Input
         id={`user-${key}`}
+        readOnly={user?.isExternallyManaged}
         type={key === 'email' ? 'email' : 'text'}
         autoComplete="off"
         placeholder={placeholder}
@@ -250,7 +251,8 @@ function UserForm({
         title={id ? name || user?.email || 'Unnamed user' : 'Add user'}
         description={id ? user?.email : undefined}
         action={
-          user && (
+          user &&
+          !user.isExternallyManaged && (
             <Button
               type="button"
               variant="destructive"
@@ -268,23 +270,33 @@ function UserForm({
         onSubmit={(e) => void submit(e)}
       >
         <FieldGroup className="max-w-3xl flex-1 gap-6">
+          {user?.isExternallyManaged && (
+            <Alert>
+              <AlertDescription>
+                This account is managed by your identity provider. Update its
+                name, email, username, and lifecycle there. You can disable
+                access here in an emergency.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="grid gap-4 md:grid-cols-2">
             {text('name', 'Full name', 'e.g. Mei Ling Tan')}
             {text('email', 'Email', 'name@example.com')}
             {text('username', 'Username', 'username')}
-            {id
-              ? text(
-                  'password',
-                  'Reset password',
-                  'Leave blank to keep current',
-                  'Leave blank to keep the current password. A new one signs the user out everywhere.',
-                )
-              : text(
-                  'password',
-                  'Temporary password',
-                  'Set an initial password',
-                  'Share it with the user. They can change it in their profile.',
-                )}
+            {!user?.isExternallyManaged &&
+              (id
+                ? text(
+                    'password',
+                    'Reset password',
+                    'Leave blank to keep current',
+                    'Leave blank to keep the current password. A new one signs the user out everywhere.',
+                  )
+                : text(
+                    'password',
+                    'Temporary password',
+                    'Set an initial password',
+                    'Share it with the user. They can change it in their profile.',
+                  ))}
           </div>
           <div className="flex items-center justify-between gap-4 rounded-md border px-3.5 py-3">
             <div className="min-w-0">
@@ -309,6 +321,13 @@ function UserForm({
 
           <section className="flex flex-col gap-3">
             <div className={sectionLabel}>Group membership</div>
+            {(user?.managedGroups?.length ?? 0) > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Groups managed by SCIM:{' '}
+                {user?.managedGroups?.map((group) => group.name).join(', ')}.
+                The choices below manage additional local memberships.
+              </p>
+            )}
             {groupIds.length === 0 && (
               <Alert role="status">
                 <TriangleAlertIcon />

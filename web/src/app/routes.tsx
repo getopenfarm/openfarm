@@ -22,6 +22,7 @@ import { AuditLogPage } from '../features/audit-log/AuditLogPage';
 import { ConnectErrorPage } from '../features/auth/ConnectErrorPage';
 import { ConsentPage } from '../features/auth/ConsentPage';
 import { LoginPage } from '../features/auth/LoginPage';
+import { OidcCompletePage } from '../features/auth/OidcCompletePage';
 import { CostCatalogPage } from '../features/cost-catalog/CostCatalogPage';
 import { CostItemFormPage } from '../features/cost-catalog/CostItemFormPage';
 import { LegacyCostCatalogRedirect } from '../features/cost-catalog/LegacyCostCatalogRedirect';
@@ -59,6 +60,7 @@ import { AppShell } from './layout/AppShell';
 import { ProtectedRoute } from './layout/ProtectedRoute';
 
 const routes: RouteObject[] = [
+  { path: '/auth/complete', element: <OidcCompletePage /> },
   {
     path: '/login',
     element: <LoginPage />,

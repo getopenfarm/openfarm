@@ -10,6 +10,9 @@ public sealed class BrowserSession
     public DateTimeOffset? RevokedAtUtc { get; set; }
     public string Device { get; set; } = string.Empty;
 
+    /// <summary>Null for password login; otherwise the OIDC authority/client configuration identity.</summary>
+    public string? OidcConfigurationIdentity { get; set; }
+
     /// <summary>Set for a connected app (an OAuth grant); null for a browser sign-in. Every query states which kind it wants.</summary>
     public string? ClientId { get; set; }
 

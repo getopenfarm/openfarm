@@ -8415,6 +8415,125 @@
         ]
       }
     },
+    "/api/v1/auth/providers": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthLoginProvidersEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso/identity": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthOidcIdentityEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcIdentityResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/sso/link": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthBeginOidcLinkEndpoint",
+        "requestBody": {
+          "x-name": "BeginOidcLinkRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginOidcLinkRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginOidcLinkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthStartOidcLinkEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso/login": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "OpenFarmApiEndpointsAuthStartOidcLoginEndpoint",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/v1/auth/csrf": {
       "get": {
         "tags": [
@@ -16944,6 +17063,15 @@
           "sessionCount": {
             "type": "integer",
             "format": "int32"
+          },
+          "isExternallyManaged": {
+            "type": "boolean"
+          },
+          "managedGroups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupSummary"
+            }
           }
         }
       },
@@ -17395,6 +17523,57 @@
           }
         }
       },
+      "LoginProvidersResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "oidcEnabled": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "oidcRequired": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OidcIdentityResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "linked": {
+            "type": "boolean"
+          },
+          "passwordAllowed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BeginOidcLinkResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "redirectUri": {
+            "type": "string"
+          }
+        }
+      },
+      "BeginOidcLinkRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "type": "string"
+          }
+        }
+      },
       "CsrfResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -17468,6 +17647,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "isExternallyManaged": {
+            "type": "boolean"
           }
         }
       },
