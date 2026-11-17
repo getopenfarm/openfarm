@@ -57,9 +57,13 @@ public class ProvisioningSettingsTests
     public void FailedPatchCannotChangeTheOriginalResource()
     {
         var original = new JsonObject { ["schemas"] = new JsonArray(ScimProtocol.UserSchema), ["active"] = true };
-        var patch = new JsonObject { ["schemas"] = new JsonArray(ScimProtocol.PatchSchema), ["Operations"] = new JsonArray(
+        var patch = new JsonObject
+        {
+            ["schemas"] = new JsonArray(ScimProtocol.PatchSchema),
+            ["Operations"] = new JsonArray(
             new JsonObject { ["op"] = "replace", ["path"] = "active", ["value"] = false },
-            new JsonObject { ["op"] = "replace", ["path"] = "password", ["value"] = "must-not-be-accepted" }) };
+            new JsonObject { ["op"] = "replace", ["path"] = "password", ["value"] = "must-not-be-accepted" })
+        };
         ((Action)(() => ScimPatch.Apply(original, patch, false))).Should().Throw<ScimException>();
         original["active"]!.GetValue<bool>().Should().BeTrue();
     }

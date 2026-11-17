@@ -109,7 +109,8 @@ public class ScimProvisioningTests(CustomWebApplicationFactory factory) : IClass
         userAfterMembership.Headers.ETag!.ToString().Should().NotBe(user["meta"]!["version"]!.GetValue<string>());
         var rename = await SendAsync(client, HttpMethod.Patch, path, Patch(new JsonObject
         {
-            ["op"] = "replace", ["value"] = new JsonObject
+            ["op"] = "replace",
+            ["value"] = new JsonObject
             { ["schemas"] = new JsonArray(ScimProtocol.GroupSchema), ["externalId"] = group["externalId"]!.DeepClone(), ["displayName"] = name },
         }));
         rename.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -161,8 +162,16 @@ public class ScimProvisioningTests(CustomWebApplicationFactory factory) : IClass
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var app = new OAuthClient { Id = Guid.NewGuid().ToString(), Name = "Test app", RedirectUris = ["https://app.example/cb"], AuthMethod = "none", CreatedAtUtc = DateTimeOffset.UtcNow };
             db.OAuthClients.Add(app);
-            db.BrowserSessions.Add(new BrowserSession { Id = Guid.NewGuid(), UserId = id, ClientId = app.Id, Scopes = [],
-                CreatedAtUtc = DateTimeOffset.UtcNow, LastSeenAtUtc = DateTimeOffset.UtcNow, ExpiresAtUtc = DateTimeOffset.UtcNow.AddDays(1) });
+            db.BrowserSessions.Add(new BrowserSession
+            {
+                Id = Guid.NewGuid(),
+                UserId = id,
+                ClientId = app.Id,
+                Scopes = [],
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                LastSeenAtUtc = DateTimeOffset.UtcNow,
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddDays(1)
+            });
             await db.SaveChangesAsync();
         }
         using var bearer = kit.Client(false);
@@ -305,12 +314,23 @@ public class ScimProvisioningTests(CustomWebApplicationFactory factory) : IClass
     private static JsonObject User()
     {
         var suffix = Guid.NewGuid().ToString("N");
-        return new() { ["schemas"] = new JsonArray(ScimProtocol.UserSchema), ["externalId"] = suffix, ["userName"] = "scim-" + suffix,
-            ["active"] = true, ["displayName"] = "Test colleague", ["emails"] = new JsonArray(new JsonObject { ["value"] = suffix + "@example.test", ["primary"] = true, ["type"] = "work" }) };
+        return new()
+        {
+            ["schemas"] = new JsonArray(ScimProtocol.UserSchema),
+            ["externalId"] = suffix,
+            ["userName"] = "scim-" + suffix,
+            ["active"] = true,
+            ["displayName"] = "Test colleague",
+            ["emails"] = new JsonArray(new JsonObject { ["value"] = suffix + "@example.test", ["primary"] = true, ["type"] = "work" })
+        };
     }
     private static JsonObject Group(string name, Guid userId) => new()
-    { ["schemas"] = new JsonArray(ScimProtocol.GroupSchema), ["externalId"] = Guid.NewGuid().ToString(), ["displayName"] = name,
-        ["members"] = new JsonArray(new JsonObject { ["value"] = userId.ToString() }) };
+    {
+        ["schemas"] = new JsonArray(ScimProtocol.GroupSchema),
+        ["externalId"] = Guid.NewGuid().ToString(),
+        ["displayName"] = name,
+        ["members"] = new JsonArray(new JsonObject { ["value"] = userId.ToString() })
+    };
     private static JsonObject Patch(params JsonObject[] operations) => new()
     { ["schemas"] = new JsonArray(ScimProtocol.PatchSchema), ["Operations"] = new JsonArray(operations.Select(o => (JsonNode)o).ToArray()) };
     private static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string path, JsonObject? body = null, string? etag = null)

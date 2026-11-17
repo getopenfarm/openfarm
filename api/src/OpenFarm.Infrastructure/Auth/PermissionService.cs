@@ -18,8 +18,10 @@ public sealed class PermissionService(OpenFarmDbContext db, ProvisioningSettings
         if (!oidc.Enabled || !provisioning.ScimEnabled) return await local.CountAsync(ct);
         var externalNames = provisioning.GroupMappings.Where(p => string.Equals(p.Value, roleName, StringComparison.OrdinalIgnoreCase))
             .Select(p => p.Key.ToUpperInvariant()).ToArray();
-        var managed = from member in db.ProvisioningGroupMembers join externalGroup in db.ProvisioningGroups on member.GroupId equals externalGroup.Id
-                      where externalGroup.Provider == oidc.ProviderKey && externalNames.Contains(externalGroup.NormalizedDisplayName) select member.UserId;
+        var managed = from member in db.ProvisioningGroupMembers
+                      join externalGroup in db.ProvisioningGroups on member.GroupId equals externalGroup.Id
+                      where externalGroup.Provider == oidc.ProviderKey && externalNames.Contains(externalGroup.NormalizedDisplayName)
+                      select member.UserId;
         return await local.Union(managed).CountAsync(ct);
     }
 

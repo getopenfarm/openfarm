@@ -142,7 +142,9 @@ public static class OidcAuthentication
 
     public static CookieOptions LinkCookieOptions(HttpContext http) => new()
     {
-        HttpOnly = true, SameSite = SameSiteMode.Lax, Path = "/api/v1/auth/sso",
+        HttpOnly = true,
+        SameSite = SameSiteMode.Lax,
+        Path = "/api/v1/auth/sso",
         Secure = http.Request.IsHttps || http.RequestServices.GetRequiredService<PublicOrigin>().IsHttps,
         MaxAge = TimeSpan.FromMinutes(5),
     };

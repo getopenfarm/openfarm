@@ -472,8 +472,11 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
                 signingCredentials: new SigningCredentials(Key, SecurityAlgorithms.RsaSha256));
             var encoded = new JwtSecurityTokenHandler().WriteToken(token);
             if (proof.Invalid == "signature") encoded = encoded[..(encoded.LastIndexOf('.') + 1)] + Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(256));
-            return new(HttpStatusCode.OK) { Content = JsonContent.Create(new
-            { access_token = "external-access-token", token_type = "Bearer", expires_in = 300, id_token = encoded }) };
+            return new(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new
+                { access_token = "external-access-token", token_type = "Bearer", expires_in = 300, id_token = encoded })
+            };
         }
 
         protected override void Dispose(bool disposing)

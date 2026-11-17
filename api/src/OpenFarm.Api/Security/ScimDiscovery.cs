@@ -17,7 +17,9 @@ public static class ScimDiscovery
         ["etag"] = new JsonObject { ["supported"] = true },
         ["authenticationSchemes"] = new JsonArray(new JsonObject
         {
-            ["type"] = "oauthbearertoken", ["name"] = "Provisioning bearer token", ["primary"] = true,
+            ["type"] = "oauthbearertoken",
+            ["name"] = "Provisioning bearer token",
+            ["primary"] = true,
             ["description"] = "A dedicated deployment-configured provisioning credential.",
             ["specUri"] = "https://www.rfc-editor.org/rfc/rfc6750",
         }),
@@ -29,7 +31,9 @@ public static class ScimDiscovery
     public static JsonObject? ResourceType(string id, string origin) => id is "User" or "Group" ? new()
     {
         ["schemas"] = new JsonArray("urn:ietf:params:scim:schemas:core:2.0:ResourceType"),
-        ["id"] = id, ["name"] = id, ["endpoint"] = id == "User" ? "/Users" : "/Groups",
+        ["id"] = id,
+        ["name"] = id,
+        ["endpoint"] = id == "User" ? "/Users" : "/Groups",
         ["schema"] = id == "User" ? ScimProtocol.UserSchema : ScimProtocol.GroupSchema,
         ["schemaExtensions"] = new JsonArray(),
         ["meta"] = new JsonObject { ["resourceType"] = "ResourceType", ["location"] = $"{origin}/scim/v2/ResourceTypes/{id}" },
@@ -55,16 +59,27 @@ public static class ScimDiscovery
         else attributes.Add(Complex("members", true, false, "readWrite", Attribute("value", "string", true), Attribute("$ref", "reference"), Attribute("display", "string", false, "readOnly")));
         return new()
         {
-            ["schemas"] = new JsonArray("urn:ietf:params:scim:schemas:core:2.0:Schema"), ["id"] = id,
-            ["name"] = user ? "User" : "Group", ["description"] = user ? "Provisioned OpenFarm user" : "External provisioning group",
+            ["schemas"] = new JsonArray("urn:ietf:params:scim:schemas:core:2.0:Schema"),
+            ["id"] = id,
+            ["name"] = user ? "User" : "Group",
+            ["description"] = user ? "Provisioned OpenFarm user" : "External provisioning group",
             ["attributes"] = attributes,
         };
     }
 
     private static JsonObject Attribute(string name, string type, bool required = false, string mutability = "readWrite", string uniqueness = "none")
     {
-        var result = new JsonObject { ["name"] = name, ["type"] = type, ["multiValued"] = false, ["required"] = required,
-            ["caseExact"] = name == "externalId", ["mutability"] = mutability, ["returned"] = name == "id" ? "always" : "default", ["uniqueness"] = uniqueness };
+        var result = new JsonObject
+        {
+            ["name"] = name,
+            ["type"] = type,
+            ["multiValued"] = false,
+            ["required"] = required,
+            ["caseExact"] = name == "externalId",
+            ["mutability"] = mutability,
+            ["returned"] = name == "id" ? "always" : "default",
+            ["uniqueness"] = uniqueness
+        };
         if (type == "reference") result["referenceTypes"] = new JsonArray("User", "Group");
         return result;
     }

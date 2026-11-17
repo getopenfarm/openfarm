@@ -70,8 +70,14 @@ public static partial class ScimProtocol
     public static JsonObject List(IEnumerable<JsonObject> resources, int total, int startIndex)
     {
         var array = new JsonArray(resources.Select(r => (JsonNode)r).ToArray());
-        return new() { ["schemas"] = new JsonArray(ListSchema), ["totalResults"] = total,
-            ["startIndex"] = startIndex, ["itemsPerPage"] = array.Count, ["Resources"] = array };
+        return new()
+        {
+            ["schemas"] = new JsonArray(ListSchema),
+            ["totalResults"] = total,
+            ["startIndex"] = startIndex,
+            ["itemsPerPage"] = array.Count,
+            ["Resources"] = array
+        };
     }
 
     public static string Version(Guid revision) => $"W/\"{revision:N}\"";

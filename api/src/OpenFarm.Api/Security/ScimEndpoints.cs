@@ -170,8 +170,12 @@ public static class ScimEndpoints
     public static Task ErrorAsync(HttpContext http, int status, string detail, string? type = null) => JsonError(status, detail, type).ExecuteAsync(http);
     private static IResult JsonError(int status, string detail, string? type = null)
     {
-        var body = new JsonObject { ["schemas"] = new JsonArray(ScimProtocol.ErrorSchema),
-            ["status"] = status.ToString(System.Globalization.CultureInfo.InvariantCulture), ["detail"] = detail };
+        var body = new JsonObject
+        {
+            ["schemas"] = new JsonArray(ScimProtocol.ErrorSchema),
+            ["status"] = status.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["detail"] = detail
+        };
         if (type is not null) body["scimType"] = type;
         return Json(body, status);
     }

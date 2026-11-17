@@ -186,16 +186,28 @@ public sealed class ScimService(OpenFarmDbContext db, UserManager<ApplicationUse
 
     private async Task<JsonObject> UserResourceAsync(ApplicationUser user, string origin, CancellationToken ct)
     {
-        var memberships = await (from member in db.ProvisioningGroupMembers join externalGroup in GroupQuery on member.GroupId equals externalGroup.Id
-                                 where member.UserId == user.Id orderby externalGroup.Id select externalGroup).AsNoTracking().ToListAsync(ct);
+        var memberships = await (from member in db.ProvisioningGroupMembers
+                                 join externalGroup in GroupQuery on member.GroupId equals externalGroup.Id
+                                 where member.UserId == user.Id
+                                 orderby externalGroup.Id
+                                 select externalGroup).AsNoTracking().ToListAsync(ct);
         return new()
         {
-            ["schemas"] = new JsonArray(ScimProtocol.UserSchema), ["id"] = user.Id.ToString(), ["externalId"] = user.ProvisioningExternalId,
-            ["userName"] = user.UserName, ["displayName"] = user.DisplayName, ["active"] = user.IsEnabled,
+            ["schemas"] = new JsonArray(ScimProtocol.UserSchema),
+            ["id"] = user.Id.ToString(),
+            ["externalId"] = user.ProvisioningExternalId,
+            ["userName"] = user.UserName,
+            ["displayName"] = user.DisplayName,
+            ["active"] = user.IsEnabled,
             ["name"] = new JsonObject { ["givenName"] = user.ProvisioningGivenName, ["familyName"] = user.ProvisioningFamilyName, ["formatted"] = user.DisplayName },
             ["emails"] = new JsonArray(new JsonObject { ["value"] = user.Email, ["type"] = "work", ["primary"] = true }),
-            ["groups"] = new JsonArray(memberships.Select(g => (JsonNode)new JsonObject { ["value"] = g.Id.ToString(), ["display"] = g.DisplayName,
-                ["type"] = "direct", ["$ref"] = Location(origin, true, g.Id) }).ToArray()),
+            ["groups"] = new JsonArray(memberships.Select(g => (JsonNode)new JsonObject
+            {
+                ["value"] = g.Id.ToString(),
+                ["display"] = g.DisplayName,
+                ["type"] = "direct",
+                ["$ref"] = Location(origin, true, g.Id)
+            }).ToArray()),
             ["meta"] = Meta("User", user.CreatedAtUtc, user.ProvisioningModifiedAtUtc ?? user.CreatedAtUtc, user.ProvisioningRevision, Location(origin, false, user.Id)),
         };
     }
@@ -203,14 +215,23 @@ public sealed class ScimService(OpenFarmDbContext db, UserManager<ApplicationUse
     private async Task<JsonObject> GroupResourceAsync(ProvisioningGroup group, string origin, CancellationToken ct)
     {
         var groupId = group.Id;
-        var members = await (from member in db.ProvisioningGroupMembers join user in UserQuery on member.UserId equals user.Id
-                             where member.GroupId == groupId orderby user.Id select user).AsNoTracking().ToListAsync(ct);
+        var members = await (from member in db.ProvisioningGroupMembers
+                             join user in UserQuery on member.UserId equals user.Id
+                             where member.GroupId == groupId
+                             orderby user.Id
+                             select user).AsNoTracking().ToListAsync(ct);
         return new()
         {
-            ["schemas"] = new JsonArray(ScimProtocol.GroupSchema), ["id"] = group.Id.ToString(), ["externalId"] = group.ExternalId,
+            ["schemas"] = new JsonArray(ScimProtocol.GroupSchema),
+            ["id"] = group.Id.ToString(),
+            ["externalId"] = group.ExternalId,
             ["displayName"] = group.DisplayName,
-            ["members"] = new JsonArray(members.Select(u => (JsonNode)new JsonObject { ["value"] = u.Id.ToString(),
-                ["display"] = u.UserName, ["$ref"] = Location(origin, false, u.Id) }).ToArray()),
+            ["members"] = new JsonArray(members.Select(u => (JsonNode)new JsonObject
+            {
+                ["value"] = u.Id.ToString(),
+                ["display"] = u.UserName,
+                ["$ref"] = Location(origin, false, u.Id)
+            }).ToArray()),
             ["meta"] = Meta("Group", group.CreatedAtUtc, group.ModifiedAtUtc, group.Revision, Location(origin, true, group.Id)),
         };
     }
@@ -246,9 +267,11 @@ public sealed class ScimService(OpenFarmDbContext db, UserManager<ApplicationUse
     private async Task EnsureAdministratorAsync(CancellationToken ct)
     {
         await db.SaveChangesAsync(ct);
-        if (!await (from user in db.Users join member in db.UserRoles on user.Id equals member.UserId
+        if (!await (from user in db.Users
+                    join member in db.UserRoles on user.Id equals member.UserId
                     join role in db.Roles on member.RoleId equals role.Id
-                    where user.IsEnabled && role.IsProtected && role.Name == PermissionCatalog.Administrators select user.Id).AnyAsync(ct))
+                    where user.IsEnabled && role.IsProtected && role.Name == PermissionCatalog.Administrators
+                    select user.Id).AnyAsync(ct))
             throw new ScimException(409, "At least one enabled administrator must remain.");
     }
 

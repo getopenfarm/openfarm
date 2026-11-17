@@ -55,9 +55,14 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
         var role = await FindAllowedRoleAsync(settings.DefaultGroup, ct);
         var user = new ApplicationUser
         {
-            UserName = username, Email = email, DisplayName = displayName, IsEnabled = active,
-            ProvisioningProvider = oidc.ProviderKey, ProvisioningExternalId = subject,
-            ProvisioningModifiedAtUtc = time.GetUtcNow(), ProvisioningRevision = Guid.NewGuid(),
+            UserName = username,
+            Email = email,
+            DisplayName = displayName,
+            IsEnabled = active,
+            ProvisioningProvider = oidc.ProviderKey,
+            ProvisioningExternalId = subject,
+            ProvisioningModifiedAtUtc = time.GetUtcNow(),
+            ProvisioningRevision = Guid.NewGuid(),
             CreatedAtUtc = time.GetUtcNow(),
         };
         Check(await users.CreateAsync(user)); // No password or local login credential is created.

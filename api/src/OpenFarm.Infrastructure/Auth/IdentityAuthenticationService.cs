@@ -39,7 +39,12 @@ public sealed class IdentityAuthenticationService(
         if (user is null || !user.IsEnabled) return null;
         var access = await permissions.ResolveAsync(user.Id, cancellationToken);
         return new WhoAmIResult(user.Id, user.UserName ?? user.Email ?? string.Empty, user.Email ?? string.Empty)
-        { DisplayName = user.DisplayName, IsAdministrator = access.IsAdministrator, Groups = access.Groups, Permissions = access.Permissions,
-            IsExternallyManaged = user.ProvisioningProvider is not null };
+        {
+            DisplayName = user.DisplayName,
+            IsAdministrator = access.IsAdministrator,
+            Groups = access.Groups,
+            Permissions = access.Permissions,
+            IsExternallyManaged = user.ProvisioningProvider is not null
+        };
     }
 }
