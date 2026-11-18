@@ -41,7 +41,8 @@ public static class OidcAuthentication
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<OpenIdConnectOptions>, OpenIdConnectPostConfigureOptions>());
         builder.Services.AddMemoryCache();
         builder.Services.AddSingleton<OidcMetadataCache>();
-        builder.Services.AddHttpClient("OidcMetadata");
+        // Discovery and JWKS requests must identify this client; some edge protections reject an empty User-Agent.
+        builder.Services.AddHttpClient("OidcMetadata", client => client.DefaultRequestHeaders.UserAgent.ParseAdd("OpenFarm"));
         // The handler requires a sign-in scheme. OnTicketReceived always handles the response;
         // no external authentication cookie is issued or accepted by API authorization.
         builder.AddCookie("OidcExternal", options => options.ExpireTimeSpan = TimeSpan.FromMinutes(5))

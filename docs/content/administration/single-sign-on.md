@@ -22,7 +22,7 @@ Do not remove the keys when replacing a container.
 ## Configure authentik
 
 1. Create an OAuth2/OpenID provider and application for OpenFarm.
-2. Choose a confidential client and a signing key.
+2. Choose a confidential client and an asymmetric signing key, such as an RSA key using RS256.
 3. Enable the **Authorization Code** grant type.
 4. Register a **Strict** redirect URI: `https://farm.example.com/api/v1/auth/sso/callback`.
 5. Configure `openid`, `profile`, and `email` scope mappings. Include their claims in the ID token.
@@ -30,6 +30,8 @@ Do not remove the keys when replacing a container.
 7. Keep the subject mode **Based on the User's hashed ID** when using SCIM with its default external ID.
 8. Apply the application-access policy and MFA policy that your users need.
 9. Record the client ID, client credential, and exact issuer URL, including its trailing slash.
+
+Select a signing key rather than leaving that field empty. Shared-secret HS256 signing does not supply the public signing keys used by this setup.
 
 Keep the subject identifier stable. Changing it prevents existing identity links from matching.
 OpenFarm requires the discovery authority and token issuer to match exactly.
@@ -157,6 +159,8 @@ OpenFarm loads the issuer's `.well-known/openid-configuration` document from its
 That address must return an OpenID configuration document, not a sign-in page or an authorization endpoint.
 Check connectivity and TLS trust from the OpenFarm server or container, as well as proxy and firewall rules.
 The OpenFarm server logs include the startup failure details; the browser shows a provider-configuration message.
+OpenFarm sends an identifying `User-Agent: OpenFarm` header when retrieving discovery and signing keys.
+Some edge protection rules reject requests that omit this header, even when a browser or curl can retrieve the document.
 
 ## Recover access
 
