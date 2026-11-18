@@ -28,6 +28,12 @@ const linkFailureMessages: Record<string, string> = {
     'Could not load or use the sign-in provider configuration. Check the Issuer URL and make sure OpenFarm can reach the provider. Administrators can check the OpenFarm server logs for details.',
   provider_response:
     'The provider sign-in response could not be verified. Ask an administrator to check the issuer, client configuration, signing key, and OpenFarm server logs.',
+  provider_denied:
+    'The provider refused the sign-in. Check that your provider account can use OpenFarm, then start linking again.',
+  issuer_mismatch:
+    'The provider issuer does not match the saved Issuer URL. Ask an administrator to enter the exact issuer, including any trailing slash.',
+  auth_time_missing:
+    'The provider did not send a usable sign-in time (auth_time). Trying again will not help. Ask an administrator to include auth_time in the provider ID token.',
   fresh_authentication:
     'The provider did not confirm a recent sign-in. Sign out of your sign-in provider, then start linking again. An administrator should check the provider authentication flow and server clocks if this continues.',
   browser_proof:

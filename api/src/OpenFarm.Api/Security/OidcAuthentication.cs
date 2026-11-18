@@ -27,6 +27,19 @@ public static class OidcAuthentication
         LogLevel.Warning, new EventId(4102, "OidcLinkFreshnessRejected"),
         "OIDC linking requires fresh authentication. Auth-time claim count: {Count}; provider authentication age (seconds): {AuthenticationAge}; request age (seconds): {RequestAge}.");
 
+    private static readonly Action<ILogger, string, string, string, Exception?> RemoteFailed = LoggerMessage.Define<string, string, string>(
+        LogLevel.Warning, new EventId(4103, "OidcRemoteFailed"),
+        "OIDC {Flow} failed before account work: {FailureType}: {FailureMessage}");
+    private static readonly Action<ILogger, string?, string?, Exception?> IssuerMismatch = LoggerMessage.Define<string?, string?>(
+        LogLevel.Warning, new EventId(4104, "OidcIssuerMismatch"),
+        "OIDC token issuer {Actual} does not match the configured Issuer URL {Expected}. Use the exact issuer, including any trailing slash.");
+
+    // Failure text can echo provider or query input: strip control characters and bound the length before logging.
+    private static string Loggable(string? value) => value is null ? "" : new string([.. value.Take(300).Select(c => char.IsControl(c) ? ' ' : c)]);
+
+    private static string Flow(AuthenticationProperties? properties) =>
+        properties?.Items.ContainsKey("link") == true ? "link" : properties?.Items.ContainsKey("test") == true ? "test" : "sign-in";
+
     private static void FailLink(HttpContext http, string reason)
     {
         var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication");
@@ -117,7 +130,11 @@ public static class OidcAuthentication
                     OnRemoteFailure = context =>
                     {
                         context.HandleResponse();
-                        if (context.Properties?.Items.ContainsKey("link") == true) FailLink(context.HttpContext, "provider_response");
+                        RemoteFailed(context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication"),
+                            Flow(context.Properties), context.Failure?.GetType().Name ?? "", Loggable(context.Failure?.Message), null);
+                        // An "error" parameter is the provider's own refusal (denied, cancelled, login required), not a failed verification.
+                        if (context.Properties?.Items.ContainsKey("link") == true)
+                            FailLink(context.HttpContext, context.Request.Query.ContainsKey("error") ? "provider_denied" : "provider_response");
                         else context.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
                         return Task.CompletedTask;
                     },
@@ -136,7 +153,11 @@ public static class OidcAuthentication
         if (!settings.Enabled || subjects.Length != 1 || string.IsNullOrWhiteSpace(subjects[0].Value) || subjects[0].Value.Length > 255
             || issuers.Length != 1 || issuers[0].Value != settings.Authority)
         {
-            if (context.Properties?.Items.ContainsKey("link") == true) FailLink(http, "provider_response");
+            var issuerMismatch = issuers.Length == 1 && issuers[0].Value != settings.Authority;
+            if (issuerMismatch)
+                IssuerMismatch(http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication"),
+                    Loggable(issuers[0].Value), Loggable(settings.Authority), null);
+            if (context.Properties?.Items.ContainsKey("link") == true) FailLink(http, issuerMismatch ? "issuer_mismatch" : "provider_response");
             else http.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
             return;
         }
@@ -179,7 +200,8 @@ public static class OidcAuthentication
                 {
                     var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication");
                     LinkFreshnessRejected(logger, times.Length, authValid ? now - authenticated : null, startValid ? now - started : null, null);
-                    FailLink(http, "fresh_authentication");
+                    // A missing or unreadable claim cannot be fixed by retrying; only the provider setup can.
+                    FailLink(http, authValid ? "fresh_authentication" : "auth_time_missing");
                     return;
                 }
                 await accounts.CompleteLinkAsync(ticket, http.Request.Cookies[SessionCookies.RefreshName] ?? "", subjects[0].Value, ct);

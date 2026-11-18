@@ -174,9 +174,17 @@ These diagnostics do not include tokens, cookies, or credentials.
 - For an expired or replaced request, start a new attempt and complete it within five minutes.
   Complete only one linking attempt at a time.
 - For a fresh authentication failure, sign out of the provider and start linking again.
-  Administrators must check that the provider returns a recent, signed `auth_time` claim.
+  Administrators must check that the provider honors `prompt=login` and `max_age=0`.
   Check the clocks on both servers. OpenFarm allows one minute of clock difference.
   The backend logs the claim count and authentication age to help identify this failure.
+- If the provider did not send a usable `auth_time` (reason `auth_time_missing`), trying again does not help.
+  The claim is missing, not a single integer, or repeated.
+  Configure the provider to include `auth_time` in the ID token.
+- If the provider refused the sign-in (reason `provider_denied`), check that the provider account can use OpenFarm.
+- If the issuer does not match (reason `issuer_mismatch`), enter the exact issuer in **Settings → Authentication**,
+  including any trailing slash. The backend logs the issuer received and the issuer saved.
+- For `provider_response`, the backend logs `OIDC link failed before account work` with the failure type and message.
+  The log omits codes, tokens and cookies.
 - For an identity conflict, ask an administrator to check the existing account association.
   OpenFarm does not automatically merge accounts.
 

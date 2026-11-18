@@ -209,7 +209,10 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         await BeginLinkAsync(browser);
         var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/link", Guid.NewGuid().ToString(), invalid);
         var response = await browser.GetAsync(callback);
-        response.Headers.Location!.OriginalString.Should().BeOneOf("/profile?tab=security&sso=failed&ssoReason=fresh_authentication", "/profile?tab=security&sso=failed&ssoReason=provider_response", "/login?ssoError=failed");
+        // A claim that is absent, unreadable or duplicated cannot be fixed by retrying: it gets its own reason.
+        var unusable = invalid is "auth-time-missing" or "auth-time-malformed" or "auth-time-duplicate";
+        response.Headers.Location!.OriginalString.Should().Be("/profile?tab=security&sso=failed&ssoReason="
+            + (unusable ? "auth_time_missing" : "fresh_authentication"));
         (await browser.GetFromJsonAsync<OidcIdentityResponse>("/api/v1/auth/sso/identity"))!.Linked.Should().BeFalse();
         (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
     }

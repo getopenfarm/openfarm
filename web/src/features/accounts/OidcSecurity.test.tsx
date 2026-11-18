@@ -125,6 +125,9 @@ describe('OIDC account security', () => {
 
   it.each([
     ['fresh_authentication', 'The provider did not confirm a recent sign-in.'],
+    ['auth_time_missing', 'The provider did not send a usable sign-in time'],
+    ['provider_denied', 'The provider refused the sign-in.'],
+    ['issuer_mismatch', 'The provider issuer does not match'],
     [
       'browser_proof',
       'The linking browser proof is missing or does not match.',
