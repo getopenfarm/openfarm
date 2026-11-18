@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using OpenFarm.Infrastructure.Auth;
 
 namespace OpenFarm.Infrastructure.Tests.Auth;
@@ -16,10 +15,10 @@ public class ProvisioningSettingsTests
     }
 
     [Theory]
-    [InlineData("Auth:Oidc:Jit:Enabled")]
-    [InlineData("Auth:Scim:Enabled")]
-    public void ProvisioningRequiresAnOidcProvider(string key) =>
-        ((Action)(() => Build((key, "true")))).Should().Throw<InvalidOperationException>();
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ProvisioningRequiresAnOidcProvider(bool jit) =>
+        ((Action)(() => Build(new() { JitEnabled = jit, ScimEnabled = !jit }))).Should().Throw<InvalidOperationException>();
 
     [Theory]
     [InlineData("")]
@@ -29,18 +28,16 @@ public class ProvisioningSettingsTests
     [InlineData("ofr_0123456789abcdef0123456789abcdef")]
     [InlineData("eyJheader0123456789.payload0123456789.signature0123456789")]
     public void ScimRequiresAStrongSeparateCredential(string credential) =>
-        ((Action)(() => Enabled(("Auth:Scim:Enabled", "true"), ("Auth:Scim:BearerToken", credential)))).Should().Throw<InvalidOperationException>();
+        ((Action)(() => Build(Enabled with { ScimEnabled = true, ScimToken = credential }))).Should().Throw<InvalidOperationException>();
 
     [Fact]
     public void ScimRejectsReusingTheOidcClientSecret() =>
-        ((Action)(() => Enabled(("Auth:Scim:Enabled", "true"), ("Auth:Scim:BearerToken", new string('x', 32)),
-            ("Auth:Oidc:ClientSecret", new string('x', 32))))).Should().Throw<InvalidOperationException>();
+        ((Action)(() => Build(Enabled with { ScimEnabled = true, ScimToken = new string('x', 32), ClientSecret = new string('x', 32) }))).Should().Throw<InvalidOperationException>();
 
     [Fact]
     public void GroupMappingsAreExplicitAndCaseInsensitive()
     {
-        var settings = Enabled(("Auth:Scim:Enabled", "true"), ("Auth:Scim:BearerToken", new string('x', 32)),
-            ("Auth:Scim:GroupMappings:farm-operators", "Operators"));
+        var settings = Build(Enabled with { ScimEnabled = true, ScimToken = new string('x', 32), GroupMappings = new() { ["farm-operators"] = "Operators" } });
         settings.GroupMappings["FARM-OPERATORS"].Should().Be("Operators");
         settings.GroupMappings.ContainsKey("Administrators").Should().BeFalse();
     }
@@ -68,14 +65,16 @@ public class ProvisioningSettingsTests
         original["active"]!.GetValue<bool>().Should().BeTrue();
     }
 
-    private static ProvisioningSettings Enabled(params (string Key, string Value)[] overrides) => Build(
-        new[] { ("Auth:Oidc:Enabled", "true"), ("Auth:Oidc:Authority", "https://identity.example/application/o/farm/"),
-            ("Auth:Oidc:ClientId", "farm"), ("Auth:Oidc:ClientSecret", "oidc-client-credential") }.Concat(overrides).ToArray());
-    private static ProvisioningSettings Build(params (string Key, string Value)[] values)
+    private static AuthenticationSettingsValues Enabled => new()
     {
-        var dictionary = new Dictionary<string, string?>();
-        foreach (var (key, value) in values) dictionary[key] = value;
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(dictionary).Build();
-        return new(configuration, new OidcSettings(configuration));
+        OidcEnabled = true,
+        Authority = "https://identity.example/application/o/farm/",
+        ClientId = "farm",
+        ClientSecret = "oidc-client-credential",
+    };
+    private static ProvisioningSettings Build(AuthenticationSettingsValues? value = null)
+    {
+        var settings = value ?? new();
+        return new(settings, new OidcSettings(settings));
     }
 }

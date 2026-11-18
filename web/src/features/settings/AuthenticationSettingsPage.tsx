@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ErrorState } from '@/components/empty-state/EmptyState';
@@ -23,8 +23,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
+import { apiUrl } from '@/lib/api/apiUrl';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
-import type { SsoSettingsResponse } from '@/lib/api/generated/endpoints.schemas';
+import type { AuthenticationSettingsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
 import { useAuthorizedQuery } from '@/lib/auth/useAuthorizedQuery';
 import {
@@ -35,11 +36,11 @@ import {
   SettingsSubhead,
 } from './SettingsParts';
 
-const key = '/api/v1/admin/settings/sso';
+const key = '/api/v1/admin/settings/authentication';
 const schema = z
   .object({
-    enabled: z.boolean(),
-    required: z.boolean(),
+    oidcEnabled: z.boolean(),
+    internalAuthenticationEnabled: z.boolean(),
     displayName: z.string().trim().min(1).max(80),
     authority: z.string().trim().max(2048),
     clientId: z.string().trim().max(256),
@@ -62,7 +63,13 @@ const schema = z
       .max(100),
   })
   .superRefine((value, ctx) => {
-    if (value.enabled) {
+    if (!value.oidcEnabled && !value.internalAuthenticationEnabled)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['internalAuthenticationEnabled'],
+        message: 'Enable at least one login method.',
+      });
+    if (value.oidcEnabled) {
       try {
         const url = new URL(value.authority);
         const loopback =
@@ -93,7 +100,7 @@ const schema = z
           message: 'Enter the provider client ID.',
         });
     }
-    if (value.required && !value.recoveryUserIds.length)
+    if (!value.internalAuthenticationEnabled && !value.recoveryUserIds.length)
       ctx.addIssue({
         code: 'custom',
         path: ['recoveryUserIds'],
@@ -108,10 +115,10 @@ const schema = z
       });
   });
 type Values = z.infer<typeof schema>;
-function defaults(data: SsoSettingsResponse): Values {
+function defaults(data: AuthenticationSettingsResponse): Values {
   return {
-    enabled: data.enabled ?? false,
-    required: data.required ?? false,
+    oidcEnabled: data.oidcEnabled ?? false,
+    internalAuthenticationEnabled: data.internalAuthenticationEnabled ?? true,
     displayName: data.displayName ?? 'authentik',
     authority: data.authority ?? '',
     clientId: data.clientId ?? '',
@@ -133,22 +140,43 @@ function defaults(data: SsoSettingsResponse): Values {
   };
 }
 
-export function SsoSettingsPage() {
+export function AuthenticationSettingsPage() {
+  const [search] = useSearchParams();
   const query = useAuthorizedQuery({
+    refetchOnWindowFocus: false,
     queryKey: [key],
     queryFn: ({ signal }) =>
-      httpClient<{ data: SsoSettingsResponse }>(key, { signal }),
+      httpClient<{ data: AuthenticationSettingsResponse }>(key, { signal }),
   });
   return (
     <SettingsSection
-      title="Single sign-on"
+      title="Authentication"
       description="Connect an identity provider and manage account provisioning."
     >
+      {search.get('test') && query.data && (
+        <Alert
+          role="status"
+          variant={
+            search.get('test') === 'success' && query.data.data.oidcTested
+              ? 'default'
+              : 'destructive'
+          }
+        >
+          <AlertDescription>
+            {search.get('test') === 'success' && query.data.data.oidcTested
+              ? 'Sign-in test passed. Your administrator session is still active.'
+              : 'Sign-in test failed. Check the provider setup and link this administrator account in My profile → Security.'}
+          </AlertDescription>
+        </Alert>
+      )}
       {query.data ? (
-        <SsoForm key={query.data.data.revision} data={query.data.data} />
+        <AuthenticationForm
+          key={query.data.data.revision}
+          data={query.data.data}
+        />
       ) : query.isError ? (
         <ErrorState
-          title="Could not load single sign-on settings"
+          title="Could not load authentication settings"
           onRetry={() => void query.refetch()}
         />
       ) : (
@@ -158,14 +186,18 @@ export function SsoSettingsPage() {
   );
 }
 
-function SsoForm({ data }: { data: SsoSettingsResponse }) {
+function AuthenticationForm({
+  data,
+}: {
+  data: AuthenticationSettingsResponse;
+}) {
   const client = useQueryClient();
   const [error, setError] = useState('');
   const form = useForm<Values>({
     resolver: zodResolver(
       schema.superRefine((draft, ctx) => {
         if (
-          draft.enabled &&
+          draft.oidcEnabled &&
           !draft.clientCredential.trim() &&
           (!data.clientCredentialConfigured ||
             draft.authority !== (data.authority ?? '') ||
@@ -212,13 +244,13 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
   const values = form.watch();
   const save = useMutation({
     mutationFn: (draft: Values) =>
-      httpClient<{ data: SsoSettingsResponse }>(key, {
+      httpClient<{ data: AuthenticationSettingsResponse }>(key, {
         method: 'PUT',
         body: JSON.stringify({
           revision: data.revision,
           settings: {
-            enabled: draft.enabled,
-            required: draft.required,
+            oidcEnabled: draft.oidcEnabled,
+            internalAuthenticationEnabled: draft.internalAuthenticationEnabled,
             displayName: draft.displayName,
             authority: draft.authority || null,
             clientId: draft.clientId || null,
@@ -248,16 +280,29 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
       setError(
         await extractErrorDetail(
           failure,
-          'Cannot save single sign-on settings. Reload the page and try again.',
+          'Cannot save authentication settings. Reload the page and try again.',
         ),
       ),
   });
-  const disabled = save.isPending || !!data.recoveryMode;
+  const test = useMutation({
+    mutationFn: () =>
+      httpClient<{ data: { redirectUri: string } }>(`${key}/test`, {
+        method: 'POST',
+      }),
+    onSuccess: (result) => {
+      window.location.assign(apiUrl(result.data.redirectUri));
+    },
+    onError: async (failure) =>
+      setError(
+        await extractErrorDetail(failure, 'Could not start the sign-in test.'),
+      ),
+  });
+  const disabled = test.isPending || save.isPending || !!data.recoveryMode;
   const errors = form.formState.errors;
   function toggle(
     name:
-      | 'enabled'
-      | 'required'
+      | 'oidcEnabled'
+      | 'internalAuthenticationEnabled'
       | 'jitEnabled'
       | 'requireVerifiedEmail'
       | 'scimEnabled',
@@ -268,8 +313,8 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
     return (
       <SettingsRow
         label={label}
-        htmlFor={`sso-${name}`}
-        help={<span id={`sso-${name}-help`}>{help}</span>}
+        htmlFor={`authentication-${name}`}
+        help={<span id={`authentication-${name}-help`}>{help}</span>}
         disabled={disabled || unavailable}
       >
         <Controller
@@ -277,16 +322,15 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
           name={name}
           render={({ field }) => (
             <Switch
-              id={`sso-${name}`}
+              id={`authentication-${name}`}
               ref={field.ref}
               checked={field.value}
               disabled={disabled || unavailable}
-              aria-describedby={`sso-${name}-help`}
+              aria-describedby={`authentication-${name}-help`}
               onCheckedChange={(checked) => {
                 field.onChange(checked);
-                if (name === 'enabled' && !checked)
+                if (name === 'oidcEnabled' && !checked)
                   for (const dependent of [
-                    'required',
                     'jitEnabled',
                     'scimEnabled',
                   ] as const)
@@ -314,14 +358,18 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
     return (
       <SettingsRow
         label={label}
-        htmlFor={`sso-${name}`}
+        htmlFor={`authentication-${name}`}
         wide
         disabled={disabled}
         invalid={!!errors[name]}
-        help={help ? <span id={`sso-${name}-help`}>{help}</span> : undefined}
+        help={
+          help ? (
+            <span id={`authentication-${name}-help`}>{help}</span>
+          ) : undefined
+        }
       >
         <Input
-          id={`sso-${name}`}
+          id={`authentication-${name}`}
           type={type}
           autoComplete={type === 'password' ? 'new-password' : 'off'}
           disabled={disabled}
@@ -334,10 +382,10 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
                 : undefined
           }
           aria-invalid={!!errors[name]}
-          aria-describedby={`sso-${name}-help sso-${name}-error`}
+          aria-describedby={`authentication-${name}-help authentication-${name}-error`}
           {...form.register(name, { valueAsNumber: type === 'number' })}
         />
-        <FieldError id={`sso-${name}-error`}>
+        <FieldError id={`authentication-${name}-error`}>
           {errors[name]?.message}
         </FieldError>
       </SettingsRow>
@@ -399,11 +447,11 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
         <Alert role="status">
           <AlertDescription>
             Deployment recovery mode is active. Turn it off before changing
-            single sign-on settings.
+            authentication settings.
           </AlertDescription>
         </Alert>
       )}
-      {!data.callbackUrl && (
+      {values.oidcEnabled && !data.callbackUrl && (
         <Alert role="status">
           <AlertDescription>
             Set an HTTPS{' '}
@@ -414,62 +462,123 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
           </AlertDescription>
         </Alert>
       )}
+      <SettingsSubhead>Login methods</SettingsSubhead>
       <SettingsRows>
         {toggle(
-          'enabled',
-          'Single sign-on',
+          'internalAuthenticationEnabled',
+          'Internal authentication',
+          'Allow local accounts to sign in with a username and password.',
+        )}
+        {toggle(
+          'oidcEnabled',
+          'OIDC authentication',
           'Allow users to sign in through OpenID Connect.',
         )}
-        {input('displayName', 'Provider name', 'Shown on the sign-in button.')}
-        {input(
-          'authority',
-          'Issuer URL',
-          'For authentik, use the per-application issuer URL, including its trailing slash.',
-        )}
-        {input('clientId', 'Client ID')}
-        {input(
-          'clientCredential',
-          'Client credential',
-          data.clientCredentialConfigured
-            ? 'Configured. Leave blank to keep the saved credential.'
-            : 'Enter the confidential client credential.',
-          'password',
-        )}
-        {input(
-          'sessionHours',
-          'Session duration (hours)',
-          'After this deadline, users must sign in through the provider again.',
-          'number',
-        )}
       </SettingsRows>
-      {data.callbackUrl && (
-        <SettingsRows>
-          <SettingsRow label="Redirect URI" wide>
-            <code className="break-all text-xs">{data.callbackUrl}</code>
-          </SettingsRow>
-          <SettingsRow
-            label="Back-channel logout URI"
-            wide
-            help="Register this address with the provider to end OpenFarm sessions centrally."
-          >
-            <code className="break-all text-xs">{data.logoutUrl}</code>
-          </SettingsRow>
-        </SettingsRows>
-      )}
-      <SettingsSubhead>Login policy</SettingsSubhead>
-      <SettingsRows>
-        {toggle(
-          'required',
-          'Require single sign-on',
-          'Only selected recovery administrators can use local passwords.',
-          !values.enabled,
-        )}
-      </SettingsRows>
-      {values.required && (
+      <FieldError>{errors.internalAuthenticationEnabled?.message}</FieldError>
+      {values.oidcEnabled && (
         <>
+          <SettingsSubhead>OpenID Connect</SettingsSubhead>
+          <SettingsRows>
+            {input(
+              'displayName',
+              'Provider name',
+              'Shown on the sign-in button.',
+            )}
+            {input(
+              'authority',
+              'Issuer URL',
+              'For authentik, use the per-application issuer URL, including its trailing slash.',
+            )}
+            {input('clientId', 'Client ID')}
+            {input(
+              'clientCredential',
+              'Client credential',
+              data.clientCredentialConfigured
+                ? 'Configured. Leave blank to keep the saved credential.'
+                : 'Enter the confidential client credential.',
+              'password',
+            )}
+          </SettingsRows>
+          {data.callbackUrl && (
+            <SettingsRows>
+              <SettingsRow label="Redirect URI" wide>
+                <code className="break-all text-xs">{data.callbackUrl}</code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    void navigator.clipboard
+                      .writeText(data.callbackUrl ?? '')
+                      .then(
+                        () => toast.success('Redirect URI copied.'),
+                        () => toast.error('Could not copy redirect URI.'),
+                      )
+                  }
+                >
+                  Copy redirect URI
+                </Button>
+              </SettingsRow>
+            </SettingsRows>
+          )}
+          <SettingsRows>
+            <SettingsRow
+              label="Test provider sign-in"
+              wide
+              help="Save the provider, then link your administrator account in My profile → Security before testing. Your current session stays active."
+            >
+              <Button
+                type="button"
+                variant="outline"
+                disabled={
+                  disabled || form.formState.isDirty || !data.oidcEnabled
+                }
+                onClick={() => test.mutate()}
+              >
+                {test.isPending && <Spinner data-icon="inline-start" />}
+                {test.isPending ? 'Starting…' : 'Test sign-in'}
+              </Button>
+              <SettingsHint>
+                {data.oidcTested
+                  ? 'This provider configuration passed the sign-in test.'
+                  : 'A successful test is required before disabling internal authentication.'}
+              </SettingsHint>
+              <Link className="text-sm underline" to="/profile?tab=security">
+                Link administrator account
+              </Link>
+            </SettingsRow>
+          </SettingsRows>
+          <details className="space-y-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              Advanced OIDC settings
+            </summary>
+            <SettingsRows>
+              {input(
+                'sessionHours',
+                'Session duration (hours)',
+                'After this deadline, users must sign in through the provider again.',
+                'number',
+              )}
+              <SettingsRow
+                label="Back-channel logout URI"
+                wide
+                help="Register this address with the provider to end OpenFarm sessions centrally."
+              >
+                <code className="break-all text-xs">{data.logoutUrl}</code>
+              </SettingsRow>
+            </SettingsRows>
+          </details>
+        </>
+      )}
+      {!values.internalAuthenticationEnabled && (
+        <>
+          <SettingsSubhead>Recovery access</SettingsSubhead>
           <SettingsHint>
-            Select local administrators whose passwords you have tested. Keep
-            one available if the provider is unavailable.
+            Regular users must use OIDC. Selected recovery administrators can
+            still use passwords. Select administrators whose passwords you have
+            tested. Keep one available if the provider is unavailable. Include
+            your current administrator when saving from a password session, or
+            sign in through OIDC first.
           </SettingsHint>
           <SettingsRows>
             {(data.recoveryAccounts ?? []).map((account) => (
@@ -485,7 +594,9 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
                   disabled={disabled}
                   aria-invalid={!!errors.recoveryUserIds}
                   aria-describedby={
-                    errors.recoveryUserIds ? 'sso-recovery-error' : undefined
+                    errors.recoveryUserIds
+                      ? 'authentication-recovery-error'
+                      : undefined
                   }
                   onCheckedChange={(checked) =>
                     form.setValue(
@@ -502,7 +613,7 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
               </SettingsRow>
             ))}
           </SettingsRows>
-          <FieldError id="sso-recovery-error">
+          <FieldError id="authentication-recovery-error">
             {errors.recoveryUserIds?.message}
           </FieldError>
         </>
@@ -511,30 +622,24 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
       <SettingsRows>
         {toggle(
           'jitEnabled',
-          'Create accounts at first sign-in',
+          'Create accounts on first sign-in (JIT)',
           'Create passwordless accounts for new users allowed by the provider.',
-          !values.enabled,
-        )}
-        {toggle(
-          'requireVerifiedEmail',
-          'Require verified email',
-          'Require email_verified=true when creating an account at first sign-in.',
-          !values.jitEnabled,
+          !values.oidcEnabled,
         )}
         {toggle(
           'scimEnabled',
-          'SCIM provisioning',
+          'Directory provisioning (SCIM)',
           'Let the provider create, update, disable, and restore managed accounts.',
-          !values.enabled,
+          !values.oidcEnabled,
         )}
         {(values.jitEnabled || values.scimEnabled) && (
           <SettingsRow
             label="Default group"
-            htmlFor="sso-defaultGroup"
+            htmlFor="authentication-defaultGroup"
             wide
             help="Initial access for new accounts. Administrator groups are excluded."
           >
-            {groupSelect('defaultGroup', 'sso-defaultGroup')}
+            {groupSelect('defaultGroup', 'authentication-defaultGroup')}
           </SettingsRow>
         )}
       </SettingsRows>
@@ -585,12 +690,6 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
                 </Button>
               </div>
             </SettingsRow>
-            {input(
-              'scimRequestsPerMinute',
-              'Requests per minute',
-              'Maximum provisioning requests accepted each minute.',
-              'number',
-            )}
             {data.scimUrl && (
               <SettingsRow label="SCIM base URL" wide>
                 <code className="break-all text-xs">{data.scimUrl}</code>
@@ -672,6 +771,37 @@ function SsoForm({ data }: { data: SsoSettingsResponse }) {
             </Button>
           </div>
         </>
+      )}
+      {(values.jitEnabled || values.scimEnabled) && (
+        <details className="space-y-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            Advanced provisioning settings
+          </summary>
+          <SettingsRows>
+            {values.jitEnabled && (
+              <>
+                {' '}
+                {toggle(
+                  'requireVerifiedEmail',
+                  'Require verified email',
+                  'Require email_verified=true when creating an account at first sign-in.',
+                  !values.jitEnabled,
+                )}
+              </>
+            )}
+            {values.scimEnabled && (
+              <>
+                {' '}
+                {input(
+                  'scimRequestsPerMinute',
+                  'Requests per minute',
+                  'Maximum provisioning requests accepted each minute.',
+                  'number',
+                )}
+              </>
+            )}
+          </SettingsRows>
+        </details>
       )}
       <SettingsHint>
         Changes apply immediately. Changing the provider, client credential, or

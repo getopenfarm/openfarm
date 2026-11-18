@@ -1,14 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Configuration;
 
 namespace OpenFarm.Infrastructure.Auth;
 
-/// <summary>Deployment-controlled login policy, independent of OpenFarm's MCP OAuth server.</summary>
+/// <summary>Saved login policy, independent of OpenFarm's MCP OAuth server.</summary>
 public sealed class OidcSettings
 {
     public bool Enabled { get; }
-    public bool Required { get; }
+    public bool InternalAuthenticationEnabled { get; }
     public string DisplayName { get; }
     public string? Authority { get; }
     public string? ClientId { get; }
@@ -17,21 +16,21 @@ public sealed class OidcSettings
     public Guid[] RecoveryUserIds { get; }
     // Bind external identities to the issuer, not to an email or a mutable display name.
     public string ProviderKey => "oidc:" + Hash(Authority!);
+    public string TestIdentity(string? publicUrl) => Hash(System.Text.Json.JsonSerializer.Serialize(new[] { Authority, ClientId, ClientSecret, publicUrl }));
     public string SessionIdentity => Hash($"{Authority}|{ClientId}");
 
-    public OidcSettings(IConfiguration configuration)
+    public OidcSettings(AuthenticationSettingsValues value)
     {
-        var section = configuration.GetSection("Auth:Oidc");
-        Enabled = section.GetValue("Enabled", false);
-        Required = section.GetValue("Required", false);
-        DisplayName = section["DisplayName"]?.Trim() is { Length: > 0 } name ? name : "authentik";
-        Authority = section["Authority"];
-        ClientId = section["ClientId"];
-        ClientSecret = section["ClientSecret"];
-        SessionHours = section.GetValue("SessionHours", 8);
-        RecoveryUserIds = section.GetSection("RecoveryUserIds").Get<Guid[]>() ?? [];
-        if (Required && (!Enabled || RecoveryUserIds.Length == 0))
-            throw new InvalidOperationException("Required OIDC needs an enabled provider and explicit RecoveryUserIds.");
+        Enabled = value.OidcEnabled;
+        InternalAuthenticationEnabled = value.InternalAuthenticationEnabled;
+        DisplayName = value.DisplayName.Trim() is { Length: > 0 } name ? name : "authentik";
+        Authority = value.Authority;
+        ClientId = value.ClientId;
+        ClientSecret = value.ClientSecret;
+        SessionHours = value.SessionHours;
+        RecoveryUserIds = value.RecoveryUserIds;
+        if (!InternalAuthenticationEnabled && (!Enabled || RecoveryUserIds.Length == 0))
+            throw new InvalidOperationException("Disabling internal authentication requires OIDC and a recovery administrator.");
         if (DisplayName.Length > 80 || SessionHours is < 1 or > 24)
             throw new InvalidOperationException("OIDC display name must be at most 80 characters; SessionHours must be 1–24.");
         if (!Enabled) return;
@@ -42,7 +41,7 @@ public sealed class OidcSettings
             throw new InvalidOperationException("OIDC needs an HTTPS authority, client ID, and client secret (HTTP is allowed only on loopback).");
     }
 
-    public bool AllowsPassword(Guid userId) => !Required || RecoveryUserIds.Contains(userId);
+    public bool AllowsPassword(Guid userId) => InternalAuthenticationEnabled || RecoveryUserIds.Contains(userId);
 
     public void ValidatePublicUrl(string? value)
     {

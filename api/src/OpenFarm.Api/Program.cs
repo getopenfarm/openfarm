@@ -114,11 +114,11 @@ builder.Services.AddScoped(sp => new OpenFarm.Api.Hosting.PublicOrigin(
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton(TimeProvider.System);
 if (args.Contains("export-openapi"))
-    builder.Services.AddScoped(_ => new AuthenticationConfiguration(new SsoConfigurationValues()));
+    builder.Services.AddScoped(_ => new AuthenticationConfiguration(new AuthenticationSettingsValues()));
 else builder.Services.AddScoped<AuthenticationConfiguration>();
 builder.Services.AddScoped(sp => sp.GetRequiredService<AuthenticationConfiguration>().Oidc);
 builder.Services.AddScoped(sp => sp.GetRequiredService<AuthenticationConfiguration>().Provisioning);
-builder.Services.AddScoped<SsoSettingsService>();
+builder.Services.AddScoped<AuthenticationSettingsService>();
 builder.Services.AddScoped<OidcAccountService>();
 builder.Services.AddScoped<OidcBackchannelLogout>();
 builder.Services.AddScoped<ExternalProvisioningService>();
@@ -724,7 +724,7 @@ if (!args.Contains("export-openapi"))
 
         var seeder = scope.ServiceProvider.GetRequiredService<FirstBootSeeder>();
         await seeder.SeedAsync();
-        await scope.ServiceProvider.GetRequiredService<AuthenticationConfiguration>().ImportDeploymentAsync(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<AuthenticationConfiguration>().EnsureCreatedAsync(CancellationToken.None);
         await scope.ServiceProvider.GetRequiredService<AccountAdministrationService>().EnsureRecoveryAdministratorAsync(CancellationToken.None);
         var settings = scope.ServiceProvider.GetRequiredService<ServerConfiguration>();
         await settings.InitializeAsync(CancellationToken.None);

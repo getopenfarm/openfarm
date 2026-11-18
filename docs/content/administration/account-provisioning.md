@@ -26,9 +26,9 @@ Protected groups, including **Administrators**, cannot be provisioning targets.
 
 ## Enable JIT
 
-1. Open **Settings → Single sign-on** as an administrator.
-2. Turn on **Create accounts at first sign-in**.
-3. Keep **Require verified email** on.
+1. Open **Settings → Authentication** as an administrator.
+2. Turn on **Create accounts on first sign-in (JIT)**.
+3. Keep **Require verified email** on under **Advanced provisioning settings**.
 4. Select the **Default group** for new accounts.
 5. Select **Save**.
 
@@ -84,8 +84,8 @@ Do not change subject mode for existing users without an identity migration plan
 
 ## Enable SCIM
 
-1. Open **Settings → Single sign-on**.
-2. Turn on **SCIM provisioning**.
+1. Open **Settings → Authentication**.
+2. Turn on **Directory provisioning (SCIM)**.
 3. Select **Generate credential**, then **Copy new credential**.
 4. Add the required external-to-OpenFarm group mappings under **SCIM group mappings**.
 5. Select **Save**. OpenFarm stores the credential encrypted and does not show it again.

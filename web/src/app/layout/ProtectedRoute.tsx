@@ -43,7 +43,7 @@ export function ProtectedRoute() {
   if (
     !can(routePermission(location.pathname)) ||
     ((location.pathname.startsWith('/settings/server') ||
-      location.pathname.startsWith('/settings/single-sign-on') ||
+      location.pathname.startsWith('/settings/authentication') ||
       location.pathname.startsWith('/settings/integrations')) &&
       !identity.data.isAdministrator)
   ) {

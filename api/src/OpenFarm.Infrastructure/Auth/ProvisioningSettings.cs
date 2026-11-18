@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 
 namespace OpenFarm.Infrastructure.Auth;
 
@@ -11,15 +10,14 @@ public sealed class ProvisioningSettings
     public string DefaultGroup { get; }
     public IReadOnlyDictionary<string, string> GroupMappings { get; }
 
-    public ProvisioningSettings(IConfiguration configuration, OidcSettings oidc, IReadOnlyDictionary<string, string>? groupMappings = null)
+    public ProvisioningSettings(AuthenticationSettingsValues value, OidcSettings oidc)
     {
-        JitEnabled = configuration.GetValue("Auth:Oidc:Jit:Enabled", false);
-        RequireVerifiedEmail = configuration.GetValue("Auth:Oidc:Jit:RequireVerifiedEmail", true);
-        ScimEnabled = configuration.GetValue("Auth:Scim:Enabled", false);
-        ScimToken = configuration["Auth:Scim:BearerToken"];
-        DefaultGroup = configuration["Auth:Provisioning:DefaultGroup"] ?? "Viewers";
-        GroupMappings = new Dictionary<string, string>(groupMappings ?? configuration.GetSection("Auth:Scim:GroupMappings")
-            .Get<Dictionary<string, string>>() ?? [], StringComparer.OrdinalIgnoreCase);
+        JitEnabled = value.JitEnabled;
+        RequireVerifiedEmail = value.RequireVerifiedEmail;
+        ScimEnabled = value.ScimEnabled;
+        ScimToken = value.ScimToken;
+        DefaultGroup = value.DefaultGroup;
+        GroupMappings = new Dictionary<string, string>(value.GroupMappings, StringComparer.OrdinalIgnoreCase);
         if ((JitEnabled || ScimEnabled) && !oidc.Enabled)
             throw new InvalidOperationException("JIT and SCIM provisioning require an enabled OIDC provider.");
         if (ScimEnabled && (string.IsNullOrWhiteSpace(ScimToken) || ScimToken.Length is < 32 or > 512

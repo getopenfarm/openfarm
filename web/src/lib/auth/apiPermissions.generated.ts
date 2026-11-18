@@ -5,6 +5,10 @@ export const apiQueryPermissions = [
     permissions: ['filaments:list'],
   },
   {
+    pattern: '^/api/v1/admin/settings/authentication$',
+    permissions: ['users:manage'],
+  },
+  {
     pattern: '^/api/v1/production\\-demands/backfill$',
     permissions: ['production-runs:view'],
   },
@@ -69,10 +73,6 @@ export const apiQueryPermissions = [
     permissions: ['users:manage'],
   },
   {
-    pattern: '^/api/v1/admin/settings/sso$',
-    permissions: ['users:manage'],
-  },
-  {
     pattern: '^/api/v1/admin/permissions$',
     permissions: ['users:manage'],
   },
@@ -130,6 +130,10 @@ export const apiQueryPermissions = [
   },
   {
     pattern: '^/api/v1/auth/sso/link$',
+    permissions: [],
+  },
+  {
+    pattern: '^/api/v1/auth/sso/test$',
     permissions: [],
   },
   {

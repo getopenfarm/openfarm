@@ -121,7 +121,7 @@ export function LoginPage() {
             </a>
           </Button>
         )}
-        {providers.data?.oidcRequired && (
+        {providers.data?.internalAuthenticationEnabled === false && (
           <>
             <p className="mb-4 text-sm text-muted-foreground">
               Use your organization’s sign-in provider. Local login is reserved
@@ -138,7 +138,8 @@ export function LoginPage() {
             </Button>
           </>
         )}
-        {(!providers.data?.oidcRequired || showRecovery) && (
+        {((providers.data?.internalAuthenticationEnabled ?? true) ||
+          showRecovery) && (
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit)}

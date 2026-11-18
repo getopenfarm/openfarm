@@ -128,7 +128,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
 
     public async Task EnsureRecoveryAdministratorAsync(CancellationToken ct)
     {
-        if (!oidc.Required) return;
+        if (oidc.InternalAuthenticationEnabled) return;
         var exists = await (from user in db.Users
                             join membership in db.UserRoles on user.Id equals membership.UserId
                             join role in db.Roles on membership.RoleId equals role.Id

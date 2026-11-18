@@ -11,7 +11,7 @@ import { routePermission } from '@/lib/auth/permissions';
 const sections = [
   { title: 'General', to: 'general' },
   { title: 'Server', to: 'server', administrator: true },
-  { title: 'Single sign-on', to: 'single-sign-on', administrator: true },
+  { title: 'Authentication', to: 'authentication', administrator: true },
   {
     title: 'AI assistants',
     to: 'integrations/ai-assistants',

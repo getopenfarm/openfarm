@@ -2203,6 +2203,31 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.AuthenticationSettingsRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProtectedConfiguration")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("TestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TestedProviderIdentity")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AuthenticationSettings");
+                });
+
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.BrowserSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2313,13 +2338,13 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("ExpiresAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTimeOffset>("ReceivedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("Provider")
                         .IsRequired()
                         .HasMaxLength(69)
                         .HasColumnType("character varying(69)");
+
+                    b.Property<DateTimeOffset>("ReceivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("SessionId")
                         .HasMaxLength(255)
@@ -2470,25 +2495,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasIndex("SessionId");
 
                     b.ToTable("SessionCredentials");
-                });
-
-            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.SsoConfiguration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ProtectedConfiguration")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("Revision")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SsoConfigurations");
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Persistence.Configurations.PartTagJoinRow", b =>

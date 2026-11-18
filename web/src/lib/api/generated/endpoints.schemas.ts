@@ -300,6 +300,87 @@ export interface GetSlicingReadinessRequest {
   [key: string]: unknown;
 }
 
+export interface AuthenticationGroupMapping {
+  externalGroup?: string;
+  localGroup?: string;
+}
+
+export interface AuthenticationRecoveryAccount {
+  id?: string;
+  username?: string;
+}
+
+export interface GroupSummary {
+  id?: string;
+  name?: string;
+}
+
+export interface AuthenticationSettingsResponse {
+  revision?: string;
+  oidcEnabled?: boolean;
+  internalAuthenticationEnabled?: boolean;
+  displayName?: string;
+  /** @nullable */
+  authority?: string | null;
+  /** @nullable */
+  clientId?: string | null;
+  clientCredentialConfigured?: boolean;
+  sessionHours?: number;
+  recoveryUserIds?: string[];
+  jitEnabled?: boolean;
+  requireVerifiedEmail?: boolean;
+  scimEnabled?: boolean;
+  scimCredentialConfigured?: boolean;
+  scimRequestsPerMinute?: number;
+  defaultGroup?: string;
+  groupMappings?: AuthenticationGroupMapping[];
+  recoveryAccounts?: AuthenticationRecoveryAccount[];
+  groups?: GroupSummary[];
+  /** @nullable */
+  callbackUrl?: string | null;
+  /** @nullable */
+  logoutUrl?: string | null;
+  /** @nullable */
+  scimUrl?: string | null;
+  recoveryMode?: boolean;
+  oidcTested?: boolean;
+}
+
+export type AuthenticationSettingsValuesGroupMappings = {
+  [key: string]: string;
+};
+
+export interface AuthenticationSettingsValues {
+  oidcEnabled?: boolean;
+  internalAuthenticationEnabled?: boolean;
+  displayName?: string;
+  /** @nullable */
+  authority?: string | null;
+  /** @nullable */
+  clientId?: string | null;
+  /** @nullable */
+  clientSecret?: string | null;
+  sessionHours?: number;
+  recoveryUserIds?: string[];
+  jitEnabled?: boolean;
+  requireVerifiedEmail?: boolean;
+  scimEnabled?: boolean;
+  /** @nullable */
+  scimToken?: string | null;
+  scimRequestsPerMinute?: number;
+  defaultGroup?: string;
+  groupMappings?: AuthenticationSettingsValuesGroupMappings;
+}
+
+export interface UpdateAuthenticationSettingsRequest {
+  revision?: string;
+  settings?: AuthenticationSettingsValues;
+}
+
+export interface TestAuthenticationResponse {
+  redirectUri?: string;
+}
+
 export interface FeeDto {
   name?: string;
   type?: string;
@@ -447,80 +528,6 @@ export interface UpdatePublicUrlRequest {
 export interface UpdateMcpSettingsRequest {
   revision?: string;
   mode?: string;
-}
-
-export interface SsoGroupMapping {
-  externalGroup?: string;
-  localGroup?: string;
-}
-
-export interface SsoRecoveryAccount {
-  id?: string;
-  username?: string;
-}
-
-export interface GroupSummary {
-  id?: string;
-  name?: string;
-}
-
-export interface SsoSettingsResponse {
-  revision?: string;
-  enabled?: boolean;
-  required?: boolean;
-  displayName?: string;
-  /** @nullable */
-  authority?: string | null;
-  /** @nullable */
-  clientId?: string | null;
-  clientCredentialConfigured?: boolean;
-  sessionHours?: number;
-  recoveryUserIds?: string[];
-  jitEnabled?: boolean;
-  requireVerifiedEmail?: boolean;
-  scimEnabled?: boolean;
-  scimCredentialConfigured?: boolean;
-  scimRequestsPerMinute?: number;
-  defaultGroup?: string;
-  groupMappings?: SsoGroupMapping[];
-  recoveryAccounts?: SsoRecoveryAccount[];
-  groups?: GroupSummary[];
-  /** @nullable */
-  callbackUrl?: string | null;
-  /** @nullable */
-  logoutUrl?: string | null;
-  /** @nullable */
-  scimUrl?: string | null;
-  recoveryMode?: boolean;
-}
-
-export type SsoConfigurationValuesGroupMappings = { [key: string]: string };
-
-export interface SsoConfigurationValues {
-  enabled?: boolean;
-  required?: boolean;
-  displayName?: string;
-  /** @nullable */
-  authority?: string | null;
-  /** @nullable */
-  clientId?: string | null;
-  /** @nullable */
-  clientSecret?: string | null;
-  sessionHours?: number;
-  recoveryUserIds?: string[];
-  jitEnabled?: boolean;
-  requireVerifiedEmail?: boolean;
-  scimEnabled?: boolean;
-  /** @nullable */
-  scimToken?: string | null;
-  scimRequestsPerMinute?: number;
-  defaultGroup?: string;
-  groupMappings?: SsoConfigurationValuesGroupMappings;
-}
-
-export interface UpdateSsoSettingsRequest {
-  revision?: string;
-  settings?: SsoConfigurationValues;
 }
 
 export interface UpdateSlicingDefaultsRequest {
@@ -3115,7 +3122,7 @@ export interface ConsentDecisionRequest {
 export interface LoginProvidersResponse {
   oidcEnabled?: boolean;
   displayName?: string;
-  oidcRequired?: boolean;
+  internalAuthenticationEnabled?: boolean;
 }
 
 export interface OidcIdentityResponse {

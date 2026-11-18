@@ -40,6 +40,60 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
     }
 
     [Fact]
+    public async Task ProviderTest_ProvesLinkedAdministratorAndPreservesOriginalBrowserSession()
+    {
+        await using var kit = new OidcKit(factory, jit: true);
+        using var browser = kit.CreateClient();
+        var userId = await kit.AuthenticateAsync(browser, administrator: true);
+        var subject = Guid.NewGuid().ToString();
+        await BeginLinkAsync(browser);
+        var link = await kit.CallbackAsync(browser, "/api/v1/auth/sso/link", subject);
+        (await browser.GetAsync(link)).Headers.Location!.OriginalString.Should().Contain("sso=linked");
+        using var scope = kit.App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var sessionsBefore = await db.BrowserSessions.CountAsync(s => s.UserId == userId);
+        (await CsrfPostAsync(browser, "/api/v1/admin/settings/authentication/test")).EnsureSuccessStatusCode();
+        var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/test", subject);
+        var tested = await browser.GetAsync(callback);
+        tested.Headers.Location!.OriginalString.Should().Be("/settings/authentication?test=success");
+        tested.Headers.GetValues("Set-Cookie").Should().NotContain(c => c.StartsWith("openfarm.refresh=", StringComparison.Ordinal));
+        (await db.BrowserSessions.CountAsync(s => s.UserId == userId)).Should().Be(sessionsBefore);
+        (await browser.GetFromJsonAsync<WhoAmIResult>("/api/v1/auth/whoami"))!.UserId.Should().Be(userId);
+        (await db.AuthenticationSettings.AsNoTracking().SingleAsync()).TestedProviderIdentity.Should()
+            .Be(scope.ServiceProvider.GetRequiredService<OidcSettings>().TestIdentity("https://farm.example"));
+        (await browser.GetAsync("/api/v1/auth/sso/test")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProviderTest_RejectsWrongIdentityOrRevokedOriginalSession_WithoutJitCreation(bool revoke)
+    {
+        await using var kit = new OidcKit(factory, jit: true);
+        using var browser = kit.CreateClient();
+        var userId = await kit.AuthenticateAsync(browser, administrator: true);
+        (await CsrfPostAsync(browser, "/api/v1/admin/settings/authentication/test")).EnsureSuccessStatusCode();
+        var subject = "test-unlinked-" + Guid.NewGuid().ToString("N");
+        kit.Provider.Profile = new(subject, subject + "@example.test", "Unexpected identity", true);
+        var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/test", subject);
+        using var scope = kit.App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        if (revoke) await db.BrowserSessions.Where(s => s.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, DateTimeOffset.UtcNow));
+        (await browser.GetAsync(callback)).Headers.Location!.OriginalString.Should().Be("/settings/authentication?test=failed");
+        (await db.Users.AnyAsync(u => u.ProvisioningExternalId == subject)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ProviderTest_RequiresAnAdministratorBrowserSession()
+    {
+        await using var kit = new OidcKit(factory);
+        using var browser = kit.CreateClient();
+        await kit.AuthenticateAsync(browser);
+        (await CsrfPostAsync(browser, "/api/v1/admin/settings/authentication/test")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Jit_ProvisionsAPasswordlessViewer_AndPreservesTheIdentityAcrossProfileChanges()
     {
         await using var kit = new OidcKit(factory, jit: true);
@@ -509,19 +563,18 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
             App = parent.WithWebHostBuilder(builder =>
             {
                 builder.UseSetting("ORIGIN", origin);
-                builder.UseSetting("Auth:Oidc:Enabled", "true");
-                builder.UseSetting("Auth:Oidc:Authority", authority);
-                builder.UseSetting("Auth:Oidc:ClientId", "farm");
-                builder.UseSetting("Auth:Oidc:ClientSecret", "test-client-credential");
-                if (jit) builder.UseSetting("Auth:Oidc:Jit:Enabled", "true");
-                if (required)
-                {
-                    builder.UseSetting("Auth:Oidc:Required", "true");
-                    builder.UseSetting("Auth:Oidc:RecoveryUserIds:0", RecoveryId.ToString());
-                }
                 builder.ConfigureServices(services =>
                 {
-                    services.AddScoped(sp => new AuthenticationConfiguration(SsoConfigurationValues.FromConfiguration(sp.GetRequiredService<IConfiguration>())));
+                    services.AddScoped(_ => new AuthenticationConfiguration(new AuthenticationSettingsValues
+                    {
+                        OidcEnabled = true,
+                        Authority = authority,
+                        ClientId = "farm",
+                        ClientSecret = "test-client-credential",
+                        JitEnabled = jit,
+                        InternalAuthenticationEnabled = !required,
+                        RecoveryUserIds = required ? [RecoveryId] : [],
+                    }));
                     services.PostConfigure<OpenIdConnectOptions>(OidcAuthentication.Scheme, options =>
                 {
                     var configuration = new OpenIdConnectConfiguration
@@ -546,14 +599,14 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
             });
         }
 
-        public async Task<Guid> AuthenticateAsync(HttpClient client)
+        public async Task<Guid> AuthenticateAsync(HttpClient client, bool administrator = false)
         {
             using var scope = App.Services.CreateScope();
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var username = "oidc-" + Guid.NewGuid().ToString("N");
             var user = new ApplicationUser { UserName = username, Email = username + "@example.com" };
             (await users.CreateAsync(user, "admin-openfarm")).Succeeded.Should().BeTrue();
-            (await users.AddToRoleAsync(user, "Viewers")).Succeeded.Should().BeTrue();
+            (await users.AddToRoleAsync(user, administrator ? "Administrators" : "Viewers")).Succeeded.Should().BeTrue();
             var response = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginCommand(username, "admin-openfarm"));
             response.EnsureSuccessStatusCode();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", (await response.Content.ReadFromJsonAsync<LoginResponse>())!.Token);

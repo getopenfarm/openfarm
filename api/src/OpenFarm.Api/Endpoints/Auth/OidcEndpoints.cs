@@ -8,13 +8,13 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Api.Endpoints.Auth;
 
-public sealed record LoginProvidersResponse(bool OidcEnabled, string DisplayName, bool OidcRequired);
+public sealed record LoginProvidersResponse(bool OidcEnabled, string DisplayName, bool InternalAuthenticationEnabled);
 public sealed class LoginProvidersEndpoint(OidcSettings settings) : EndpointWithoutRequest<LoginProvidersResponse>
 {
     public override void Configure() { Get("/api/v1/auth/providers"); AllowAnonymous(); }
     public override Task HandleAsync(CancellationToken ct)
     {
-        Response = new(settings.Enabled, settings.DisplayName, settings.Required);
+        Response = new(settings.Enabled, settings.DisplayName, settings.InternalAuthenticationEnabled);
         return Task.CompletedTask;
     }
 }
@@ -82,6 +82,20 @@ public sealed class StartOidcLinkEndpoint(OidcSettings settings, OidcAccountServ
         { await Send.UnauthorizedAsync(ct); return; }
         var properties = new AuthenticationProperties();
         properties.Items["link"] = protectedTicket;
+        await OidcAuthentication.StartChallengeAsync(HttpContext, properties);
+        HttpContext.MarkResponseStart();
+    }
+}
+
+public sealed class StartOidcTestEndpoint(OidcSettings settings) : EndpointWithoutRequest
+{
+    public override void Configure() { Get("/api/v1/auth/sso/test"); AllowAnonymous(); Throttle(10, 60); }
+    public override async Task HandleAsync(CancellationToken ct)
+    {
+        var ticket = HttpContext.Request.Cookies[OidcAuthentication.TestCookie];
+        if (!settings.Enabled || string.IsNullOrEmpty(ticket)) { await Send.UnauthorizedAsync(ct); return; }
+        var properties = new AuthenticationProperties();
+        properties.Items["test"] = ticket;
         await OidcAuthentication.StartChallengeAsync(HttpContext, properties);
         HttpContext.MarkResponseStart();
     }

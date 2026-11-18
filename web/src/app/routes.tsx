@@ -8,13 +8,13 @@ import { ProfilePage } from '@/features/accounts/ProfilePage';
 import { TokenCreatePage } from '@/features/accounts/TokenCreatePage';
 import { UserFormPage } from '@/features/accounts/UserFormPage';
 import { UsersGroupsPage } from '@/features/accounts/UsersGroupsPage';
+import { AuthenticationSettingsPage } from '@/features/settings/AuthenticationSettingsPage';
 import { GeneralSettingsPage } from '@/features/settings/GeneralSettingsPage';
 import { CurrencyProvider } from '@/features/settings/generalSettings';
 import {
   AiAssistantsSettingsPage,
   ServerSettingsPage,
 } from '@/features/settings/ServerSettingsPage';
-import { SsoSettingsPage } from '@/features/settings/SsoSettingsPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
 import { AssemblyDetailPage } from '../features/assemblies/AssemblyDetailPage';
 import { AssemblyFormPage } from '../features/assemblies/AssemblyFormPage';
@@ -361,9 +361,9 @@ const routes: RouteObject[] = [
                 handle: { title: 'Server' },
               },
               {
-                path: 'single-sign-on',
-                element: <SsoSettingsPage />,
-                handle: { title: 'Single sign-on' },
+                path: 'authentication',
+                element: <AuthenticationSettingsPage />,
+                handle: { title: 'Authentication' },
               },
               {
                 path: 'integrations/ai-assistants',

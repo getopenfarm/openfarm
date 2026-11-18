@@ -3024,6 +3024,196 @@ export function useOpenFarmApiEndpointsAuthStartOidcLoginEndpoint<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export type openFarmApiEndpointsAuthStartOidcTestEndpointResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type openFarmApiEndpointsAuthStartOidcTestEndpointResponseSuccess =
+  openFarmApiEndpointsAuthStartOidcTestEndpointResponse204 & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsAuthStartOidcTestEndpointResponse =
+  openFarmApiEndpointsAuthStartOidcTestEndpointResponseSuccess;
+
+export const getOpenFarmApiEndpointsAuthStartOidcTestEndpointUrl = () => {
+  return `/api/v1/auth/sso/test`;
+};
+
+export const openFarmApiEndpointsAuthStartOidcTestEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsAuthStartOidcTestEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsAuthStartOidcTestEndpointResponse>(
+    getOpenFarmApiEndpointsAuthStartOidcTestEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsAuthStartOidcTestEndpointQueryKey = () => {
+  return [`/api/v1/auth/sso/test`] as const;
+};
+
+export const getOpenFarmApiEndpointsAuthStartOidcTestEndpointQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+  >,
+  TError = unknown,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getOpenFarmApiEndpointsAuthStartOidcTestEndpointQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>>
+  > = ({ signal }) => openFarmApiEndpointsAuthStartOidcTestEndpoint({ signal });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type OpenFarmApiEndpointsAuthStartOidcTestEndpointQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>>
+  >;
+export type OpenFarmApiEndpointsAuthStartOidcTestEndpointQueryError = unknown;
+
+export function useOpenFarmApiEndpointsAuthStartOidcTestEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+  >,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthStartOidcTestEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+  >,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsAuthStartOidcTestEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+  >,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsAuthStartOidcTestEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+  >,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsAuthStartOidcTestEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsAuthStartOidcTestEndpointQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export type openFarmApiEndpointsAuthCsrfEndpointResponse200 = {
   data: CsrfResponse;
   status: 200;

@@ -4,9 +4,9 @@ using OpenFarm.Infrastructure.Identity;
 
 namespace OpenFarm.Infrastructure.Persistence.Configurations;
 
-public sealed class SsoConfigurationConfiguration : IEntityTypeConfiguration<SsoConfiguration>
+public sealed class AuthenticationSettingsRecordConfiguration : IEntityTypeConfiguration<AuthenticationSettingsRecord>
 {
-    public void Configure(EntityTypeBuilder<SsoConfiguration> builder)
+    public void Configure(EntityTypeBuilder<AuthenticationSettingsRecord> builder)
     {
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Revision).IsConcurrencyToken();

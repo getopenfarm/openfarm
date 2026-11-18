@@ -4,15 +4,15 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AccessContext, AdministratorContext } from '@/lib/auth/AccessContext';
+import { AuthenticationSettingsPage } from './AuthenticationSettingsPage';
 import { SettingsLayout } from './SettingsLayout';
-import { SsoSettingsPage } from './SsoSettingsPage';
 
 afterEach(() => vi.unstubAllGlobals());
 function setup({ failLoad = false, administrator = true } = {}) {
   let data = {
     revision: 'first',
-    enabled: false,
-    required: false,
+    oidcEnabled: false,
+    internalAuthenticationEnabled: true,
     displayName: 'authentik',
     authority: 'https://identity.example/application/o/farm/',
     clientId: 'farm',
@@ -73,10 +73,12 @@ function setup({ failLoad = false, administrator = true } = {}) {
       {
         path: '/settings',
         element: <SettingsLayout />,
-        children: [{ path: 'single-sign-on', element: <SsoSettingsPage /> }],
+        children: [
+          { path: 'authentication', element: <AuthenticationSettingsPage /> },
+        ],
       },
     ],
-    { initialEntries: ['/settings/single-sign-on'] },
+    { initialEntries: ['/settings/authentication'] },
   );
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -103,26 +105,31 @@ it('uses settings navigation and retains stored credentials on save', async () =
   const user = userEvent.setup();
   const { writes } = setup();
   expect(
-    await screen.findByRole('link', { name: 'Single sign-on' }),
+    await screen.findByRole('link', { name: 'Authentication' }),
   ).toHaveAttribute('aria-current', 'page');
+  expect(screen.queryByLabelText('Client credential')).not.toBeInTheDocument();
+  await user.click(
+    await screen.findByRole('switch', { name: 'OIDC authentication' }),
+  );
+  expect(screen.getByRole('button', { name: 'Test sign-in' })).toBeDisabled();
   expect(await screen.findByLabelText('Client credential')).toHaveValue('');
   expect(screen.getByLabelText('Client credential')).toHaveAttribute(
     'type',
     'password',
   );
-  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-  screen.getByRole('switch', { name: 'Single sign-on' }).focus();
-  await user.keyboard(' ');
+
   await user.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0].settings).toMatchObject({
-    enabled: true,
+    oidcEnabled: true,
     clientSecret: null,
     scimToken: null,
   });
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
   );
+  expect(screen.getByRole('button', { name: 'Test sign-in' })).toBeEnabled();
+  await user.click(screen.getByText('Advanced OIDC settings'));
   expect(
     screen.getByText('https://farm.example/api/v1/auth/sso/backchannel-logout'),
   ).toBeInTheDocument();
@@ -132,10 +139,10 @@ it('requires a recovery administrator before enforcing SSO', async () => {
   const user = userEvent.setup();
   const { writes } = setup();
   await user.click(
-    await screen.findByRole('switch', { name: 'Single sign-on' }),
+    await screen.findByRole('switch', { name: 'OIDC authentication' }),
   );
   await user.click(
-    screen.getByRole('switch', { name: 'Require single sign-on' }),
+    screen.getByRole('switch', { name: 'Internal authentication' }),
   );
   await user.click(screen.getByRole('button', { name: 'Save' }));
   expect(
@@ -149,7 +156,7 @@ it('requires a recovery administrator before enforcing SSO', async () => {
   await user.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0].settings).toMatchObject({
-    required: true,
+    internalAuthenticationEnabled: false,
     recoveryUserIds: ['admin-id'],
   });
 });
@@ -158,9 +165,11 @@ it('generates a separate SCIM credential and saves group mappings', async () => 
   const user = userEvent.setup();
   const { writes } = setup();
   await user.click(
-    await screen.findByRole('switch', { name: 'Single sign-on' }),
+    await screen.findByRole('switch', { name: 'OIDC authentication' }),
   );
-  await user.click(screen.getByRole('switch', { name: 'SCIM provisioning' }));
+  await user.click(
+    screen.getByRole('switch', { name: 'Directory provisioning (SCIM)' }),
+  );
   await user.click(screen.getByRole('button', { name: 'Generate credential' }));
   expect(
     (screen.getByLabelText('Provisioning credential') as HTMLInputElement)
@@ -182,6 +191,13 @@ it('generates a separate SCIM credential and saves group mappings', async () => 
 it('preserves edits after a save conflict and clears draft credentials on reset', async () => {
   const user = userEvent.setup();
   const { failSave } = setup();
+  await user.click(
+    await screen.findByRole('switch', { name: 'OIDC authentication' }),
+  );
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
+  );
   await user.type(
     await screen.findByLabelText('Client credential'),
     'new-credential',
@@ -202,10 +218,10 @@ it('preserves edits after a save conflict and clears draft credentials on reset'
 it('shows load errors with retry and hides the administrator navigation from delegated users', async () => {
   setup({ failLoad: true, administrator: false });
   expect(
-    await screen.findByText('Could not load single sign-on settings'),
+    await screen.findByText('Could not load authentication settings'),
   ).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   expect(
-    screen.queryByRole('link', { name: 'Single sign-on' }),
+    screen.queryByRole('link', { name: 'Authentication' }),
   ).not.toBeInTheDocument();
 });

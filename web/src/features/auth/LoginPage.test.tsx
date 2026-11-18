@@ -47,7 +47,7 @@ describe('LoginPage', () => {
     vi.mocked(useLoginProviders).mockReturnValue({
       data: {
         oidcEnabled: false,
-        oidcRequired: false,
+        internalAuthenticationEnabled: true,
         displayName: 'authentik',
       },
       isError: false,
@@ -71,7 +71,7 @@ describe('LoginPage', () => {
     vi.mocked(useLoginProviders).mockReturnValue({
       data: {
         oidcEnabled: true,
-        oidcRequired: false,
+        internalAuthenticationEnabled: true,
         displayName: 'authentik',
       },
       isError: false,
@@ -85,7 +85,11 @@ describe('LoginPage', () => {
 
   it('reserves the password form for recovery when OIDC is required', async () => {
     vi.mocked(useLoginProviders).mockReturnValue({
-      data: { oidcEnabled: true, oidcRequired: true, displayName: 'authentik' },
+      data: {
+        oidcEnabled: true,
+        internalAuthenticationEnabled: false,
+        displayName: 'authentik',
+      },
       isError: false,
     } as ReturnType<typeof useLoginProviders>);
     renderLoginPage();

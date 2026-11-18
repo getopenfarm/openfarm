@@ -4,7 +4,7 @@ import { apiUrl } from '@/lib/api/apiUrl';
 export interface LoginProviders {
   oidcEnabled: boolean;
   displayName: string;
-  oidcRequired: boolean;
+  internalAuthenticationEnabled: boolean;
 }
 
 export function useLoginProviders() {

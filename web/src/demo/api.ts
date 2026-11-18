@@ -1396,7 +1396,7 @@ const byStatus = (list: Job[], status: string | null) =>
 route('GET', '/auth/csrf', () => ({ token: 'demo-csrf' }));
 route('GET', '/auth/providers', () => ({
   oidcEnabled: false,
-  oidcRequired: false,
+  internalAuthenticationEnabled: true,
   displayName: 'authentik',
 }));
 route('GET', '/auth/sso/identity', () => ({

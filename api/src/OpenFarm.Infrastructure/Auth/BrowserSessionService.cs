@@ -39,7 +39,7 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         if (!await configuration.LockCurrentAsync(ct)) return 0;
         var identity = oidc.Enabled ? oidc.SessionIdentity : null;
         var enabled = oidc.Enabled;
-        var required = oidc.Required;
+        var required = !oidc.InternalAuthenticationEnabled;
         var recovery = oidc.RecoveryUserIds;
         var now = time.GetUtcNow();
         var affected = await db.BrowserSessions.Where(s => s.ClientId == null && s.RevokedAtUtc == null

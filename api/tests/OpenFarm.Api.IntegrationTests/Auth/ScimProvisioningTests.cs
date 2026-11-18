@@ -351,18 +351,19 @@ public class ScimProvisioningTests(CustomWebApplicationFactory factory) : IClass
         public ScimKit(CustomWebApplicationFactory parent, string defaultGroup = "Viewers", int limit = 300) => App = parent.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ORIGIN", "https://farm.example");
-            builder.ConfigureServices(services => services.AddScoped(sp => new AuthenticationConfiguration(
-                SsoConfigurationValues.FromConfiguration(sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()))));
-            builder.UseSetting("Auth:Oidc:Enabled", "true");
-            builder.UseSetting("Auth:Oidc:Authority", "https://identity.example/application/o/farm/");
-            builder.UseSetting("Auth:Oidc:ClientId", "farm");
-            builder.UseSetting("Auth:Oidc:ClientSecret", "test-client-credential");
-            builder.UseSetting("Auth:Oidc:Jit:Enabled", "true");
-            builder.UseSetting("Auth:Scim:Enabled", "true");
-            builder.UseSetting("Auth:Scim:BearerToken", Token);
-            builder.UseSetting("Auth:Provisioning:DefaultGroup", defaultGroup);
-            builder.UseSetting("Auth:Scim:RequestsPerMinute", limit.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            builder.UseSetting("Auth:Scim:GroupMappings:farm-operators", "Operators");
+            builder.ConfigureServices(services => services.AddScoped(_ => new AuthenticationConfiguration(new AuthenticationSettingsValues
+            {
+                OidcEnabled = true,
+                Authority = "https://identity.example/application/o/farm/",
+                ClientId = "farm",
+                ClientSecret = "test-client-credential",
+                JitEnabled = true,
+                ScimEnabled = true,
+                ScimToken = Token,
+                DefaultGroup = defaultGroup,
+                ScimRequestsPerMinute = limit,
+                GroupMappings = new() { ["farm-operators"] = "Operators" },
+            })));
         });
         public HttpClient Client(bool authenticated = true)
         {

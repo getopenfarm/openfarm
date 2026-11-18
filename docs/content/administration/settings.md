@@ -17,6 +17,13 @@ Administrators set the **Public URL** of the installation here. Leave it blank f
 
 The change applies without restarting and disconnects signed-in AI assistants. A deployment `ORIGIN` override makes this field read-only.
 
+## Authentication
+
+Administrators choose **Internal authentication**, **OIDC authentication**, or both.
+Configure the provider, test sign-in, and select recovery administrators before disabling internal authentication.
+JIT and SCIM provisioning are optional. Changes apply without a restart.
+See [single sign-on with authentik](single-sign-on.md) for the setup procedure.
+
 ## AI assistants
 
 Administrators choose **Disabled**, **Access tokens only**, or **Sign-in and access tokens**. MCP is disabled by default. Changes take effect without restarting. See [AI assistants](ai-assistants.md) for client setup and connection permissions.

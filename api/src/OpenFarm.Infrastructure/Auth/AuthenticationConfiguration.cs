@@ -7,10 +7,10 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.Auth;
 
-public sealed record SsoConfigurationValues
+public sealed record AuthenticationSettingsValues
 {
-    public bool Enabled { get; init; }
-    public bool Required { get; init; }
+    public bool OidcEnabled { get; init; }
+    public bool InternalAuthenticationEnabled { get; init; } = true;
     public string DisplayName { get; init; } = "authentik";
     public string? Authority { get; init; }
     public string? ClientId { get; init; }
@@ -24,53 +24,6 @@ public sealed record SsoConfigurationValues
     public int ScimRequestsPerMinute { get; init; } = 300;
     public string DefaultGroup { get; init; } = "Viewers";
     public Dictionary<string, string> GroupMappings { get; init; } = new(StringComparer.OrdinalIgnoreCase);
-
-    public IConfiguration Configuration()
-    {
-        var values = new Dictionary<string, string?>
-        {
-            ["Auth:Oidc:Enabled"] = Enabled.ToString(),
-            ["Auth:Oidc:Required"] = Required.ToString(),
-            ["Auth:Oidc:DisplayName"] = DisplayName,
-            ["Auth:Oidc:Authority"] = Authority,
-            ["Auth:Oidc:ClientId"] = ClientId,
-            ["Auth:Oidc:ClientSecret"] = ClientSecret,
-            ["Auth:Oidc:SessionHours"] = SessionHours.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["Auth:Oidc:Jit:Enabled"] = JitEnabled.ToString(),
-            ["Auth:Oidc:Jit:RequireVerifiedEmail"] = RequireVerifiedEmail.ToString(),
-            ["Auth:Scim:Enabled"] = ScimEnabled.ToString(),
-            ["Auth:Scim:BearerToken"] = ScimToken,
-            ["Auth:Provisioning:DefaultGroup"] = DefaultGroup,
-        };
-        for (var i = 0; i < RecoveryUserIds.Length; i++) values[$"Auth:Oidc:RecoveryUserIds:{i}"] = RecoveryUserIds[i].ToString();
-        return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-    }
-
-    public static SsoConfigurationValues FromConfiguration(IConfiguration configuration)
-    {
-        var limit = configuration.GetValue("Auth:Scim:RequestsPerMinute", 300);
-        if (limit is < 1 or > 10000) throw new InvalidOperationException("SCIM RequestsPerMinute must be 1–10000.");
-        var oidc = new OidcSettings(configuration);
-        var provisioning = new ProvisioningSettings(configuration, oidc);
-        return new()
-        {
-            Enabled = oidc.Enabled,
-            Required = oidc.Required,
-            DisplayName = oidc.DisplayName,
-            Authority = oidc.Authority,
-            ClientId = oidc.ClientId,
-            ClientSecret = oidc.ClientSecret,
-            SessionHours = oidc.SessionHours,
-            RecoveryUserIds = oidc.RecoveryUserIds,
-            JitEnabled = provisioning.JitEnabled,
-            RequireVerifiedEmail = provisioning.RequireVerifiedEmail,
-            ScimEnabled = provisioning.ScimEnabled,
-            ScimToken = provisioning.ScimToken,
-            ScimRequestsPerMinute = limit,
-            DefaultGroup = provisioning.DefaultGroup,
-            GroupMappings = new(provisioning.GroupMappings, StringComparer.OrdinalIgnoreCase),
-        };
-    }
 }
 
 /// <summary>One database snapshot per request. The fixed-value constructor supports isolated protocol hosts.</summary>
@@ -79,14 +32,14 @@ public sealed class AuthenticationConfiguration
     private readonly OpenFarmDbContext? _db;
     private readonly IConfiguration? _deployment;
     private readonly IDataProtector? _protector;
-    private SsoConfigurationValues? _values;
+    private AuthenticationSettingsValues? _values;
     public Guid Revision { get; private set; }
-    public bool RecoveryMode => _deployment?.GetValue("Auth:Oidc:RecoveryMode", false) == true;
-    public SsoConfigurationValues Values
+    public bool RecoveryMode => _deployment?.GetValue("Auth:RecoveryMode", false) == true;
+    public AuthenticationSettingsValues Values
     {
         get
         {
-            if (_values is null) Load(_db!.SsoConfigurations.AsNoTracking().Single(s => s.Id == SsoConfiguration.SingletonId));
+            if (_values is null) Load(_db!.AuthenticationSettings.AsNoTracking().Single(s => s.Id == AuthenticationSettingsRecord.SingletonId));
             return _values!;
         }
     }
@@ -94,38 +47,38 @@ public sealed class AuthenticationConfiguration
     {
         get
         {
-            var value = RecoveryMode ? Values with { Enabled = false, Required = false, JitEnabled = false, ScimEnabled = false } : Values;
-            return new(value.Configuration());
+            var value = RecoveryMode ? Values with { OidcEnabled = false, InternalAuthenticationEnabled = true, JitEnabled = false, ScimEnabled = false } : Values;
+            return new(value);
         }
     }
-    public ProvisioningSettings Provisioning => new((RecoveryMode ? Values with { JitEnabled = false, ScimEnabled = false } : Values).Configuration(), Oidc, Values.GroupMappings);
+    public ProvisioningSettings Provisioning => new(RecoveryMode ? Values with { JitEnabled = false, ScimEnabled = false } : Values, Oidc);
 
     public AuthenticationConfiguration(OpenFarmDbContext db, IDataProtectionProvider protection, IConfiguration deployment)
     {
         _db = db; _deployment = deployment;
-        _protector = protection.CreateProtector("OpenFarm.SsoConfiguration.v1");
+        _protector = protection.CreateProtector("OpenFarm.AuthenticationSettings.v1");
     }
-    public AuthenticationConfiguration(SsoConfigurationValues values) => _values = values;
-    public string Protect(SsoConfigurationValues values) => _protector!.Protect(JsonSerializer.Serialize(values));
-    public SsoConfigurationValues Unprotect(SsoConfiguration saved) =>
-        JsonSerializer.Deserialize<SsoConfigurationValues>(_protector!.Unprotect(saved.ProtectedConfiguration))
-        ?? throw new InvalidOperationException("Cannot read saved single sign-on settings.");
-    private void Load(SsoConfiguration saved) { _values = Unprotect(saved); Revision = saved.Revision; }
+    public AuthenticationConfiguration(AuthenticationSettingsValues values) => _values = values;
+    public string Protect(AuthenticationSettingsValues values) => _protector!.Protect(JsonSerializer.Serialize(values));
+    public AuthenticationSettingsValues Unprotect(AuthenticationSettingsRecord saved) =>
+        JsonSerializer.Deserialize<AuthenticationSettingsValues>(_protector!.Unprotect(saved.ProtectedConfiguration))
+        ?? throw new InvalidOperationException("Cannot read saved authentication settings.");
+    private void Load(AuthenticationSettingsRecord saved) { _values = Unprotect(saved); Revision = saved.Revision; }
 
     public async Task InitializeAsync(CancellationToken ct)
     {
         if (_values is not null) return;
-        Load(await _db!.SsoConfigurations.AsNoTracking().SingleAsync(s => s.Id == SsoConfiguration.SingletonId, ct));
+        Load(await _db!.AuthenticationSettings.AsNoTracking().SingleAsync(s => s.Id == AuthenticationSettingsRecord.SingletonId, ct));
     }
 
-    public async Task ImportDeploymentAsync(CancellationToken ct)
+    public async Task EnsureCreatedAsync(CancellationToken ct)
     {
         if (_db is null) return;
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         await _db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(71426500)", ct);
-        if (!await _db.SsoConfigurations.AnyAsync(ct))
+        if (!await _db.AuthenticationSettings.AnyAsync(ct))
         {
-            _db.SsoConfigurations.Add(new() { ProtectedConfiguration = Protect(SsoConfigurationValues.FromConfiguration(_deployment!)) });
+            _db.AuthenticationSettings.Add(new() { ProtectedConfiguration = Protect(new AuthenticationSettingsValues()) });
             await _db.SaveChangesAsync(ct);
         }
         await tx.CommitAsync(ct);
@@ -137,9 +90,9 @@ public sealed class AuthenticationConfiguration
     {
         if (RecoveryMode) return false;
         if (_db is null) return Oidc.Enabled && Oidc.SessionIdentity == identity;
-        var saved = await _db.SsoConfigurations.FromSqlInterpolated(
-            $"SELECT * FROM \"SsoConfigurations\" WHERE \"Id\" = {SsoConfiguration.SingletonId} FOR SHARE").AsNoTracking().SingleAsync(ct);
-        var current = new OidcSettings(Unprotect(saved).Configuration());
+        var saved = await _db.AuthenticationSettings.FromSqlInterpolated(
+            $"SELECT * FROM \"AuthenticationSettings\" WHERE \"Id\" = {AuthenticationSettingsRecord.SingletonId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+        var current = new OidcSettings(Unprotect(saved));
         return current.Enabled && current.SessionIdentity == identity;
     }
 
@@ -147,8 +100,8 @@ public sealed class AuthenticationConfiguration
     public async Task<bool> LockCurrentAsync(CancellationToken ct)
     {
         if (_db is null) return true;
-        var revision = (await _db.SsoConfigurations.FromSqlInterpolated(
-            $"SELECT * FROM \"SsoConfigurations\" WHERE \"Id\" = {SsoConfiguration.SingletonId} FOR SHARE").AsNoTracking().SingleAsync(ct)).Revision;
+        var revision = (await _db.AuthenticationSettings.FromSqlInterpolated(
+            $"SELECT * FROM \"AuthenticationSettings\" WHERE \"Id\" = {AuthenticationSettingsRecord.SingletonId} FOR SHARE").AsNoTracking().SingleAsync(ct)).Revision;
         return revision == Revision;
     }
 }

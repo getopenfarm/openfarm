@@ -13,6 +13,7 @@ public static class OidcAuthentication
 {
     public const string Scheme = "ExternalOidc";
     public const string CallbackPath = "/api/v1/auth/sso/callback";
+    public const string TestCookie = "openfarm.oidc.test";
     public const string LinkCookie = "openfarm.oidc.link";
     private const string LinkStarted = "openfarm.link.started";
 
@@ -22,7 +23,7 @@ public static class OidcAuthentication
         catch (Exception e) when (e is HttpRequestException or IOException or InvalidOperationException)
         {
             // Discovery outages must return the user to a usable screen without exposing protocol details.
-            http.Response.Redirect(properties.Items.ContainsKey("link")
+            http.Response.Redirect(properties.Items.ContainsKey("test") ? "/settings/authentication?test=failed" : properties.Items.ContainsKey("link")
                 ? "/profile?tab=security&sso=failed" : "/login?ssoError=failed");
         }
     }
@@ -74,6 +75,7 @@ public static class OidcAuthentication
                             ?? throw new InvalidOperationException("OIDC needs a configured public URL.");
                         settings.ValidatePublicUrl(origin);
                         context.ProtocolMessage.RedirectUri = origin + CallbackPath;
+                        context.Properties.Items["openfarm.oidc.origin"] = origin;
                         context.Properties.Items["openfarm.oidc.configuration"] = settings.SessionIdentity;
                         context.Properties.Items["openfarm.oidc.revision"] = context.HttpContext.RequestServices
                             .GetRequiredService<AuthenticationConfiguration>().Revision.ToString();
@@ -92,7 +94,7 @@ public static class OidcAuthentication
                     OnRemoteFailure = context =>
                     {
                         context.HandleResponse();
-                        context.Response.Redirect("/login?ssoError=failed");
+                        context.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
                         return Task.CompletedTask;
                     },
                 };
@@ -110,7 +112,7 @@ public static class OidcAuthentication
         if (!settings.Enabled || subjects.Length != 1 || string.IsNullOrWhiteSpace(subjects[0].Value) || subjects[0].Value.Length > 255
             || issuers.Length != 1 || issuers[0].Value != settings.Authority)
         {
-            http.Response.Redirect("/login?ssoError=failed");
+            http.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
             return;
         }
         if (context.Properties?.Items.TryGetValue("openfarm.oidc.configuration", out var challengedIdentity) != true
@@ -118,11 +120,19 @@ public static class OidcAuthentication
             || context.Properties.Items.TryGetValue("openfarm.oidc.revision", out var revision) != true
             || revision != http.RequestServices.GetRequiredService<AuthenticationConfiguration>().Revision.ToString())
         {
-            http.Response.Redirect("/login?ssoError=failed");
+            http.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
             return;
         }
         var accounts = http.RequestServices.GetRequiredService<OidcAccountService>();
         var ct = http.RequestAborted;
+        if (context.Properties?.Items.TryGetValue("test", out var testTicket) == true)
+        {
+            http.Response.Cookies.Delete(TestCookie, LinkCookieOptions(http));
+            var passed = !string.IsNullOrEmpty(testTicket) && http.Request.Cookies[TestCookie] == testTicket
+                && await accounts.CompleteTestAsync(testTicket, http.Request.Cookies[SessionCookies.RefreshName] ?? "", subjects[0].Value, context.Properties.Items.TryGetValue("openfarm.oidc.origin", out var challengedOrigin) ? challengedOrigin : null, ct);
+            http.Response.Redirect("/settings/authentication?test=" + (passed ? "success" : "failed"));
+            return;
+        }
         if (context.Properties?.Items.TryGetValue("link", out var ticket) == true)
         {
             var cookie = http.Request.Cookies[LinkCookie];
