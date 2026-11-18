@@ -194,7 +194,9 @@ export function AuthenticationSettingsPage() {
           <AlertDescription>
             {search.get('test') === 'success' && query.data.data.oidcTested
               ? 'Sign-in test passed. Your administrator session is still active.'
-              : 'Sign-in test failed. Check the provider setup and link this administrator account in My profile → Security.'}
+              : search.get('ssoReason') === 'provider_configuration'
+                ? 'Could not load or use the sign-in provider configuration. Check the Issuer URL, provider connectivity, and OpenFarm server logs.'
+                : 'Sign-in test failed. Check the provider setup and link this administrator account in My profile → Security.'}
           </AlertDescription>
         </Alert>
       )}
@@ -549,7 +551,7 @@ function AuthenticationForm({
             {input(
               'authority',
               'Issuer URL',
-              'For authentik, use the per-application issuer URL, including its trailing slash.',
+              'For authentik, use the per-application issuer base URL, including its trailing slash. Do not append /authorize.',
             )}
             {input('clientId', 'Client ID')}
             {input(

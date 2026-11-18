@@ -16,15 +16,23 @@ public static class OidcAuthentication
     public const string TestCookie = "openfarm.oidc.test";
     public const string LinkCookie = "openfarm.oidc.link";
     private const string LinkStarted = "openfarm.link.started";
+    private static readonly Action<ILogger, string?, Exception?> ChallengeFailed = LoggerMessage.Define<string?>(
+        LogLevel.Warning, new EventId(4100, "OidcChallengeFailed"),
+        "Could not start OIDC sign-in for issuer {Issuer}. Check provider discovery and connectivity.");
 
     public static async Task StartChallengeAsync(HttpContext http, AuthenticationProperties properties)
     {
         try { await http.ChallengeAsync(Scheme, properties); }
         catch (Exception e) when (e is HttpRequestException or IOException or InvalidOperationException)
         {
-            // Discovery outages must return the user to a usable screen without exposing protocol details.
-            http.Response.Redirect(properties.Items.ContainsKey("test") ? "/settings/authentication?test=failed" : properties.Items.ContainsKey("link")
-                ? "/profile?tab=security&sso=failed" : "/login?ssoError=failed");
+            var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication");
+            ChallengeFailed(logger, http.RequestServices.GetRequiredService<OidcSettings>().Authority, e);
+            // Keep protocol details in server logs; expose only a fixed, actionable failure category.
+            http.Response.Redirect(properties.Items.ContainsKey("test")
+                ? "/settings/authentication?test=failed&ssoReason=provider_configuration"
+                : properties.Items.ContainsKey("link")
+                    ? "/profile?tab=security&sso=failed&ssoReason=provider_configuration"
+                    : "/login?ssoError=provider_configuration");
         }
     }
 

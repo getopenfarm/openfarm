@@ -527,7 +527,36 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         kit.Provider.Unavailable = true;
         var response = await browser.GetAsync("/api/v1/auth/sso/login");
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        response.Headers.Location!.OriginalString.Should().Be("/login?ssoError=failed");
+        response.Headers.Location!.OriginalString.Should().Be("/login?ssoError=provider_configuration");
+        response.Headers.Location.OriginalString.Should().NotContain("Provider unavailable");
+    }
+
+    [Fact]
+    public async Task DiscoveryOutage_ReturnsLinkingToProfileWithAnActionableCategory_AndPreservesTheSession()
+    {
+        await using var kit = new OidcKit(factory);
+        using var browser = kit.CreateClient();
+        var id = await kit.AuthenticateAsync(browser);
+        await BeginLinkAsync(browser);
+        kit.Provider.Unavailable = true;
+        var response = await browser.GetAsync("/api/v1/auth/sso/link");
+        response.Headers.Location!.OriginalString.Should().Be("/profile?tab=security&sso=failed&ssoReason=provider_configuration");
+        response.Headers.Location.OriginalString.Should().NotContain("Provider unavailable");
+        (await browser.GetFromJsonAsync<WhoAmIResult>("/api/v1/auth/whoami"))!.UserId.Should().Be(id);
+        (await browser.GetFromJsonAsync<OidcIdentityResponse>("/api/v1/auth/sso/identity"))!.Linked.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DiscoveryOutage_ReturnsTheProviderTestToAuthenticationSettings()
+    {
+        await using var kit = new OidcKit(factory);
+        using var browser = kit.CreateClient();
+        await kit.AuthenticateAsync(browser, administrator: true);
+        (await CsrfPostAsync(browser, "/api/v1/admin/settings/authentication/test")).EnsureSuccessStatusCode();
+        kit.Provider.Unavailable = true;
+        var response = await browser.GetAsync("/api/v1/auth/sso/test");
+        response.Headers.Location!.OriginalString.Should().Be("/settings/authentication?test=failed&ssoReason=provider_configuration");
+        (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     private sealed class UnavailableConfigurationManager : IConfigurationManager<OpenIdConnectConfiguration>

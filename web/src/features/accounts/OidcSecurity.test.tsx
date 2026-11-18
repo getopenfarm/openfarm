@@ -103,6 +103,26 @@ describe('OIDC account security', () => {
     expect(password).toHaveAttribute('autocomplete', 'current-password');
   });
 
+  it('distinguishes provider configuration failures from rejected identity links', async () => {
+    http.mockResolvedValue({
+      data: {
+        enabled: true,
+        displayName: 'authentik',
+        linked: false,
+        passwordAllowed: true,
+      },
+    });
+    setup('&sso=failed&ssoReason=provider_configuration');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Check the Issuer URL',
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('OpenFarm server logs');
+    expect(
+      screen.getByRole('button', { name: 'Link authentik' }),
+    ).toBeEnabled();
+    expect(screen.getByText('Local password controls')).toBeInTheDocument();
+  });
+
   it('reports a failed provider lookup and allows retry', async () => {
     http.mockRejectedValueOnce(new Error('Unavailable'));
     http.mockResolvedValueOnce({

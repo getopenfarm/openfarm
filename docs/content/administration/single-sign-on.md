@@ -33,6 +33,8 @@ Do not remove the keys when replacing a container.
 
 Keep the subject identifier stable. Changing it prevents existing identity links from matching.
 OpenFarm requires the discovery authority and token issuer to match exactly.
+Use the issuer base URL, such as `https://authentik.company/application/o/openfarm/`.
+Do not append `/authorize` to the issuer URL.
 Authentik's global issuer mode, **Same identifier is used for all providers**, is not supported.
 
 OpenFarm exchanges authorization codes on the server and uses PKCE.
@@ -147,6 +149,14 @@ Back-channel logout leaves local password sessions, personal tokens, and connect
 Use [SCIM deactivation](account-provisioning.md) or disable the OpenFarm account to revoke account access through all methods.
 Provider-wide logout initiated from OpenFarm is not included.
 A central change takes effect after authentik successfully delivers its logout or provisioning request.
+
+## Troubleshoot provider setup
+
+If linking or testing returns to OpenFarm before authentik opens, check the saved **Issuer URL**.
+OpenFarm loads the issuer's `.well-known/openid-configuration` document from its backend.
+That address must return an OpenID configuration document, not a sign-in page or an authorization endpoint.
+Check connectivity and TLS trust from the OpenFarm server or container, as well as proxy and firewall rules.
+The OpenFarm server logs include the startup failure details; the browser shows a provider-configuration message.
 
 ## Recover access
 

@@ -20,7 +20,8 @@ vi.mock('@/lib/auth/session', async (importOriginal) => ({
   refreshSession: vi.fn().mockResolvedValue(null),
 }));
 
-function renderLoginPage() {
+function renderLoginPage(path = '/login') {
+  window.history.replaceState(null, '', path);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -29,7 +30,7 @@ function renderLoginPage() {
     return (
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <MemoryRouter initialEntries={['/login']}>
+          <MemoryRouter initialEntries={[path]}>
             {children}
             <Toaster />
           </MemoryRouter>
@@ -56,6 +57,7 @@ describe('LoginPage', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    window.history.replaceState(null, '', '/');
     clearToken();
   });
 
@@ -65,6 +67,13 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Username')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  it('explains provider startup failures while retaining local sign-in', () => {
+    renderLoginPage('/login?ssoError=provider_configuration');
+    expect(screen.getByRole('alert')).toHaveTextContent('check the issuer URL');
+    expect(screen.getByRole('alert')).toHaveTextContent('OpenFarm server logs');
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
   });
 
   it('offers OIDC alongside local login in optional mode', () => {

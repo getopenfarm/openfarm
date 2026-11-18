@@ -93,9 +93,11 @@ export function LoginPage() {
         </div>
         {ssoError && (
           <p role="alert" className="mb-4 text-sm text-destructive">
-            {ssoError === 'unavailable'
-              ? 'This identity could not access an enabled OpenFarm account. Contact an administrator to check your access.'
-              : 'SSO sign-in could not be completed. Try again or contact an administrator.'}
+            {ssoError === 'provider_configuration'
+              ? 'Could not start provider sign-in. Ask an administrator to check the issuer URL, provider connectivity, and OpenFarm server logs.'
+              : ssoError === 'unavailable'
+                ? 'This identity could not access an enabled OpenFarm account. Contact an administrator to check your access.'
+                : 'SSO sign-in could not be completed. Try again or contact an administrator.'}
           </p>
         )}
         {providers.isError && (

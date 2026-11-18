@@ -90,8 +90,9 @@ export function OidcSecurity({ children }: { children: React.ReactNode }) {
             {params.get('sso') === 'failed' && (
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>
-                  Could not link this identity. Start again, or contact an
-                  administrator.
+                  {params.get('ssoReason') === 'provider_configuration'
+                    ? 'Could not load or use the sign-in provider configuration. Check the Issuer URL and make sure OpenFarm can reach the provider. Administrators can check the OpenFarm server logs for details.'
+                    : 'Could not link this identity. Start again, or contact an administrator.'}
                 </AlertDescription>
               </Alert>
             )}

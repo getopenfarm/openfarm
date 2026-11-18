@@ -15,6 +15,7 @@ function setup({
   failLoad = false,
   administrator = true,
   configured = false,
+  search = '',
 } = {}) {
   let data = {
     revision: 'first',
@@ -87,7 +88,7 @@ function setup({
         ],
       },
     ],
-    { initialEntries: ['/settings/authentication'] },
+    { initialEntries: [`/settings/authentication${search}`] },
   );
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -453,4 +454,15 @@ it('copies both provider addresses using accessible keyboard actions', async () 
   expect(copy).toHaveBeenLastCalledWith(
     'https://farm.example/api/v1/auth/sso/backchannel-logout',
   );
+});
+
+it('explains provider configuration failures separately from account-linking failures', async () => {
+  setup({
+    configured: true,
+    search: '?test=failed&ssoReason=provider_configuration',
+  });
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Check the Issuer URL, provider connectivity, and OpenFarm server logs',
+  );
+  expect(screen.getByRole('button', { name: 'Test sign-in' })).toBeEnabled();
 });
