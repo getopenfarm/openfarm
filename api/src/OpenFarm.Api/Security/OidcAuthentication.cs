@@ -20,6 +20,20 @@ public static class OidcAuthentication
         LogLevel.Warning, new EventId(4100, "OidcChallengeFailed"),
         "Could not start OIDC sign-in for issuer {Issuer}. Check provider discovery and connectivity.");
 
+    private static readonly Action<ILogger, string, string, Exception?> LinkRejected = LoggerMessage.Define<string, string>(
+        LogLevel.Warning, new EventId(4101, "OidcLinkRejected"),
+        "OIDC linking was rejected: {Reason}. Request trace: {TraceIdentifier}.");
+    private static readonly Action<ILogger, int, long?, long?, Exception?> LinkFreshnessRejected = LoggerMessage.Define<int, long?, long?>(
+        LogLevel.Warning, new EventId(4102, "OidcLinkFreshnessRejected"),
+        "OIDC linking requires fresh authentication. Auth-time claim count: {Count}; provider authentication age (seconds): {AuthenticationAge}; request age (seconds): {RequestAge}.");
+
+    private static void FailLink(HttpContext http, string reason)
+    {
+        var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication");
+        LinkRejected(logger, reason, http.TraceIdentifier, null);
+        http.Response.Redirect("/profile?tab=security&sso=failed&ssoReason=" + Uri.EscapeDataString(reason));
+    }
+
     public static async Task StartChallengeAsync(HttpContext http, AuthenticationProperties properties)
     {
         try { await http.ChallengeAsync(Scheme, properties); }
@@ -103,7 +117,8 @@ public static class OidcAuthentication
                     OnRemoteFailure = context =>
                     {
                         context.HandleResponse();
-                        context.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
+                        if (context.Properties?.Items.ContainsKey("link") == true) FailLink(context.HttpContext, "provider_response");
+                        else context.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
                         return Task.CompletedTask;
                     },
                 };
@@ -121,7 +136,8 @@ public static class OidcAuthentication
         if (!settings.Enabled || subjects.Length != 1 || string.IsNullOrWhiteSpace(subjects[0].Value) || subjects[0].Value.Length > 255
             || issuers.Length != 1 || issuers[0].Value != settings.Authority)
         {
-            http.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
+            if (context.Properties?.Items.ContainsKey("link") == true) FailLink(http, "provider_response");
+            else http.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
             return;
         }
         if (context.Properties?.Items.TryGetValue("openfarm.oidc.configuration", out var challengedIdentity) != true
@@ -129,7 +145,8 @@ public static class OidcAuthentication
             || context.Properties.Items.TryGetValue("openfarm.oidc.revision", out var revision) != true
             || revision != http.RequestServices.GetRequiredService<AuthenticationConfiguration>().Revision.ToString())
         {
-            http.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
+            if (context.Properties?.Items.ContainsKey("link") == true) FailLink(http, "configuration_changed");
+            else http.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
             return;
         }
         var accounts = http.RequestServices.GetRequiredService<OidcAccountService>();
@@ -148,23 +165,42 @@ public static class OidcAuthentication
             http.Response.Cookies.Delete(LinkCookie, LinkCookieOptions(http));
             try
             {
-                if (string.IsNullOrEmpty(ticket) || cookie != ticket) throw new ArgumentException("Missing linking proof.");
+                if (string.IsNullOrEmpty(ticket) || cookie != ticket) { FailLink(http, "browser_proof"); return; }
                 var times = context.Principal!.FindAll("auth_time").ToArray();
                 var now = http.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow().ToUnixTimeSeconds();
                 // max_age is a request, not proof. Check the signed authentication time against
                 // the challenge time carried in protected state, allowing one minute of clock skew.
-                if (!context.Properties.Items.TryGetValue(LinkStarted, out var start)
-                    || !long.TryParse(start, NumberStyles.None, CultureInfo.InvariantCulture, out var started)
-                    || times.Length != 1
-                    || !long.TryParse(times[0].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var authenticated)
-                    || authenticated < started - 60 || authenticated > now + 60)
-                    throw new ArgumentException("Fresh authentication is required to link an identity.");
+                long started = 0, authenticated = 0;
+                var startValid = context.Properties.Items.TryGetValue(LinkStarted, out var start)
+                    && long.TryParse(start, NumberStyles.None, CultureInfo.InvariantCulture, out started);
+                var authValid = times.Length == 1
+                    && long.TryParse(times[0].Value, NumberStyles.None, CultureInfo.InvariantCulture, out authenticated);
+                if (!startValid || !authValid || authenticated < started - 60 || authenticated > now + 60)
+                {
+                    var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication");
+                    LinkFreshnessRejected(logger, times.Length, authValid ? now - authenticated : null, startValid ? now - started : null, null);
+                    FailLink(http, "fresh_authentication");
+                    return;
+                }
                 await accounts.CompleteLinkAsync(ticket, http.Request.Cookies[SessionCookies.RefreshName] ?? "", subjects[0].Value, ct);
                 http.Response.Redirect("/profile?tab=security&sso=linked");
             }
-            catch (ArgumentException) { http.Response.Redirect("/profile?tab=security&sso=failed"); }
+            catch (OidcLinkException e)
+            {
+                FailLink(http, e.Failure switch
+                {
+                    OidcLinkFailure.Expired => "expired",
+                    OidcLinkFailure.ConfigurationChanged => "configuration_changed",
+                    OidcLinkFailure.SessionChanged => "session_changed",
+                    OidcLinkFailure.RequestReplaced => "request_replaced",
+                    OidcLinkFailure.AlreadyLinked => "already_linked",
+                    OidcLinkFailure.IdentityConflict => "identity_conflict",
+                    _ => "link_failed",
+                });
+            }
+            catch (ArgumentException) { FailLink(http, "link_failed"); }
             catch (Microsoft.EntityFrameworkCore.DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: "23505" })
-            { http.Response.Redirect("/profile?tab=security&sso=failed"); }
+            { FailLink(http, "identity_conflict"); }
             return;
         }
         string? Claim(string name) => context.Principal!.FindAll(name).Select(c => c.Value).SingleOrDefault();

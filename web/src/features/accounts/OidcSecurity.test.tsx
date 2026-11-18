@@ -123,6 +123,51 @@ describe('OIDC account security', () => {
     expect(screen.getByText('Local password controls')).toBeInTheDocument();
   });
 
+  it.each([
+    ['fresh_authentication', 'The provider did not confirm a recent sign-in.'],
+    [
+      'browser_proof',
+      'The linking browser proof is missing or does not match.',
+    ],
+    ['session_changed', 'Your original OpenFarm session changed or expired.'],
+    ['expired', 'The linking request expired or could not be read.'],
+    ['request_replaced', 'The linking request was already used or replaced.'],
+    ['configuration_changed', 'The sign-in settings changed during linking.'],
+    [
+      'already_linked',
+      'This OpenFarm account is already linked to the provider.',
+    ],
+    [
+      'identity_conflict',
+      'This provider identity is already linked to an OpenFarm account.',
+    ],
+    [
+      'provider_response',
+      'The provider sign-in response could not be verified.',
+    ],
+    ['unknown', 'Could not link this identity.'],
+    ['__proto__', 'Could not link this identity.'],
+    ['toString', 'Could not link this identity.'],
+  ])(
+    'explains %s without removing retry or local password controls',
+    async (reason, message) => {
+      http.mockResolvedValue({
+        data: {
+          enabled: true,
+          displayName: 'authentik',
+          linked: false,
+          passwordAllowed: true,
+        },
+      });
+      setup(`&sso=failed&ssoReason=${reason}`);
+      expect(await screen.findByRole('alert')).toHaveTextContent(message);
+      expect(
+        screen.getByRole('button', { name: 'Link authentik' }),
+      ).toBeEnabled();
+      expect(screen.getByText('Local password controls')).toBeInTheDocument();
+    },
+  );
+
   it('reports a failed provider lookup and allows retry', async () => {
     http.mockRejectedValueOnce(new Error('Unavailable'));
     http.mockResolvedValueOnce({

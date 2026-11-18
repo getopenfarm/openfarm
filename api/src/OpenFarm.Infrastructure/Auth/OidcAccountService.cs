@@ -115,23 +115,26 @@ public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<Applica
 
     public async Task CompleteLinkAsync(string protectedTicket, string credential, string subject, CancellationToken ct)
     {
-        var ticket = ReadTicket(protectedTicket) ?? throw new ArgumentException("The linking request expired. Start again from My profile.");
+        var ticket = ReadTicket(protectedTicket) ?? throw new OidcLinkException(OidcLinkFailure.Expired, "The linking request expired. Start again from My profile.");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await provisioning.LockAsync(ct);
-        if (!await configuration.LockCurrentAsync(ct)) throw new ArgumentException("Single sign-on settings changed. Start linking again.");
+        if (!await configuration.LockCurrentAsync(ct)) throw new OidcLinkException(OidcLinkFailure.ConfigurationChanged, "Single sign-on settings changed. Start linking again.");
         await LockUserAsync(ticket.UserId, ct);
         await LockSessionAsync(ticket.SessionId, ct);
         var user = await users.FindByIdAsync(ticket.UserId.ToString());
         if (user is null || !user.IsEnabled || user.SecurityStamp != ticket.SecurityStamp
             || !await MatchesBrowserAsync(ticket.UserId, ticket.SessionId, credential, ct))
-            throw new ArgumentException("The original browser session is no longer active.");
+            throw new OidcLinkException(OidcLinkFailure.SessionChanged, "The original browser session is no longer active.");
         var hash = BrowserSessionService.Hash(ticket.Nonce);
         var consumed = await db.UserTokens.Where(t => t.UserId == user.Id && t.LoginProvider == settings.ProviderKey
             && t.Name == LinkTokenName && t.Value == hash).ExecuteDeleteAsync(ct);
-        if (consumed != 1) throw new ArgumentException("The linking request has already been used or replaced.");
+        if (consumed != 1) throw new OidcLinkException(OidcLinkFailure.RequestReplaced, "The linking request has already been used or replaced.");
         if (await db.UserLogins.AnyAsync(l => l.UserId == user.Id && l.LoginProvider == settings.ProviderKey, ct))
-            throw new ArgumentException("This account is already linked to the sign-in provider.");
-        Check(await users.AddLoginAsync(user, new UserLoginInfo(settings.ProviderKey, subject, settings.DisplayName)));
+            throw new OidcLinkException(OidcLinkFailure.AlreadyLinked, "This account is already linked to the sign-in provider.");
+        var result = await users.AddLoginAsync(user, new UserLoginInfo(settings.ProviderKey, subject, settings.DisplayName));
+        if (!result.Succeeded)
+            throw new OidcLinkException(result.Errors.Any(e => e.Code == nameof(IdentityErrorDescriber.LoginAlreadyAssociated))
+                ? OidcLinkFailure.IdentityConflict : OidcLinkFailure.Failed, "The provider identity could not be linked.");
         Audit(user.Id, "OidcIdentityLinked");
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

@@ -162,6 +162,24 @@ The OpenFarm server logs include the startup failure details; the browser shows 
 OpenFarm sends an identifying `User-Agent: OpenFarm` header when retrieving discovery and signing keys.
 Some edge protection rules reject requests that omit this header, even when a browser or curl can retrieve the document.
 
+## Troubleshoot account linking
+
+If linking fails after returning from the provider, OpenFarm shows a specific failure message.
+The backend also logs `OIDC linking was rejected` with a fixed reason code and request trace.
+These diagnostics do not include tokens, cookies, or credentials.
+
+- For a browser proof or session failure, sign in to your local OpenFarm account again.
+  Start linking in the same browser and use the same hostname throughout.
+  On a local installation, do not switch between `localhost` and `127.0.0.1`.
+- For an expired or replaced request, start a new attempt and complete it within five minutes.
+  Complete only one linking attempt at a time.
+- For a fresh authentication failure, sign out of the provider and start linking again.
+  Administrators must check that the provider returns a recent, signed `auth_time` claim.
+  Check the clocks on both servers. OpenFarm allows one minute of clock difference.
+  The backend logs the claim count and authentication age to help identify this failure.
+- For an identity conflict, ask an administrator to check the existing account association.
+  OpenFarm does not automatically merge accounts.
+
 ## Recover access
 
 If authentik is unavailable, select **Use recovery account** and use a designated local administrator.

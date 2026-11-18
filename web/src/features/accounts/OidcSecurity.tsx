@@ -23,6 +23,29 @@ interface Identity {
   passwordAllowed: boolean;
 }
 
+const linkFailureMessages: Record<string, string> = {
+  provider_configuration:
+    'Could not load or use the sign-in provider configuration. Check the Issuer URL and make sure OpenFarm can reach the provider. Administrators can check the OpenFarm server logs for details.',
+  provider_response:
+    'The provider sign-in response could not be verified. Ask an administrator to check the issuer, client configuration, signing key, and OpenFarm server logs.',
+  fresh_authentication:
+    'The provider did not confirm a recent sign-in. Sign out of your sign-in provider, then start linking again. An administrator should check the provider authentication flow and server clocks if this continues.',
+  browser_proof:
+    'The linking browser proof is missing or does not match. Start linking again in the same browser and use the same OpenFarm hostname throughout.',
+  session_changed:
+    'Your original OpenFarm session changed or expired. Sign in to your local OpenFarm account again, then start linking from this browser.',
+  expired:
+    'The linking request expired or could not be read. Start a new linking request from My profile.',
+  request_replaced:
+    'The linking request was already used or replaced. Start a new linking request and complete only that attempt.',
+  configuration_changed:
+    'The sign-in settings changed during linking. Start a new linking request.',
+  already_linked:
+    'This OpenFarm account is already linked to the provider. Reload My profile to check its status.',
+  identity_conflict:
+    'This provider identity is already linked to an OpenFarm account. Contact an administrator to check the account association.',
+};
+
 export function OidcSecurity({ children }: { children: React.ReactNode }) {
   const [params] = useSearchParams();
   const [password, setPassword] = useState('');
@@ -90,9 +113,13 @@ export function OidcSecurity({ children }: { children: React.ReactNode }) {
             {params.get('sso') === 'failed' && (
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>
-                  {params.get('ssoReason') === 'provider_configuration'
-                    ? 'Could not load or use the sign-in provider configuration. Check the Issuer URL and make sure OpenFarm can reach the provider. Administrators can check the OpenFarm server logs for details.'
-                    : 'Could not link this identity. Start again, or contact an administrator.'}
+                  {(Object.hasOwn(
+                    linkFailureMessages,
+                    params.get('ssoReason') ?? '',
+                  )
+                    ? linkFailureMessages[params.get('ssoReason') ?? '']
+                    : undefined) ??
+                    'Could not link this identity. Start again, or contact an administrator.'}
                 </AlertDescription>
               </Alert>
             )}

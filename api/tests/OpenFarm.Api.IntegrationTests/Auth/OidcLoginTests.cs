@@ -209,7 +209,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         await BeginLinkAsync(browser);
         var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/link", Guid.NewGuid().ToString(), invalid);
         var response = await browser.GetAsync(callback);
-        response.Headers.Location!.OriginalString.Should().BeOneOf("/profile?tab=security&sso=failed", "/login?ssoError=failed");
+        response.Headers.Location!.OriginalString.Should().BeOneOf("/profile?tab=security&sso=failed&ssoReason=fresh_authentication", "/profile?tab=security&sso=failed&ssoReason=provider_response", "/login?ssoError=failed");
         (await browser.GetFromJsonAsync<OidcIdentityResponse>("/api/v1/auth/sso/identity"))!.Linked.Should().BeFalse();
         (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -364,7 +364,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         var callback = await kit.CallbackAsync(owner, "/api/v1/auth/sso/link", Guid.NewGuid().ToString());
         // Revocation between password proof and callback invalidates linking.
         (await CsrfPostAsync(owner, "/api/v1/auth/logout")).EnsureSuccessStatusCode();
-        (await owner.GetAsync(callback)).Headers.Location!.OriginalString.Should().Be("/profile?tab=security&sso=failed");
+        (await owner.GetAsync(callback)).Headers.Location!.OriginalString.Should().Be("/profile?tab=security&sso=failed&ssoReason=session_changed");
     }
 
     private static async Task BeginLinkAsync(HttpClient client) =>
@@ -389,8 +389,8 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         using (var scope = kit.App.Services.CreateScope())
             await scope.ServiceProvider.GetRequiredService<OidcAccountService>().CompleteLinkAsync(proof, credential, "one-use-" + userId, CancellationToken.None);
         using (var scope = kit.App.Services.CreateScope())
-            await Assert.ThrowsAsync<ArgumentException>(() => scope.ServiceProvider.GetRequiredService<OidcAccountService>()
-                .CompleteLinkAsync(proof, credential, "replacement-" + userId, CancellationToken.None));
+            (await Assert.ThrowsAsync<OidcLinkException>(() => scope.ServiceProvider.GetRequiredService<OidcAccountService>()
+                .CompleteLinkAsync(proof, credential, "replacement-" + userId, CancellationToken.None))).Failure.Should().Be(OidcLinkFailure.RequestReplaced);
     }
 
     [Fact]
@@ -465,7 +465,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         await kit.AuthenticateAsync(other);
         await BeginLinkAsync(other);
         callback = await kit.CallbackAsync(other, "/api/v1/auth/sso/link", subject);
-        (await other.GetAsync(callback)).Headers.Location!.OriginalString.Should().Be("/profile?tab=security&sso=failed");
+        (await other.GetAsync(callback)).Headers.Location!.OriginalString.Should().Be("/profile?tab=security&sso=failed&ssoReason=identity_conflict");
         (await other.GetFromJsonAsync<OidcIdentityResponse>("/api/v1/auth/sso/identity"))!.Linked.Should().BeFalse();
         using var scope = kit.App.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
