@@ -61,6 +61,8 @@ interface SettingsRowProps {
   htmlFor?: string;
   /** 260px control instead of 220px. */
   wide?: boolean;
+  /** Place switches and checkboxes at the trailing edge on every screen size. */
+  compactControl?: boolean;
   children: ReactNode;
   invalid?: boolean;
   disabled?: boolean;
@@ -72,6 +74,7 @@ export function SettingsRow({
   help,
   htmlFor,
   wide,
+  compactControl,
   children,
   invalid,
   disabled,
@@ -81,9 +84,14 @@ export function SettingsRow({
       orientation="horizontal"
       data-invalid={invalid || undefined}
       data-disabled={disabled || undefined}
-      className="flex-col items-stretch gap-2.5 py-4 md:flex-row md:items-center md:justify-between md:gap-6"
+      className={cn(
+        'py-4',
+        compactControl
+          ? 'flex-row items-start justify-between gap-4'
+          : 'flex-col items-stretch gap-2.5 md:flex-row md:items-center md:justify-between md:gap-6',
+      )}
     >
-      <div className="min-w-0">
+      <div className={cn('min-w-0', compactControl && 'flex-1')}>
         <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>
         {help ? (
           <FieldDescription className="mt-0.5">{help}</FieldDescription>
@@ -91,8 +99,9 @@ export function SettingsRow({
       </div>
       <div
         className={cn(
-          'w-full shrink-0',
-          wide ? 'md:w-[260px]' : 'md:w-[220px]',
+          compactControl
+            ? 'shrink-0 pt-0.5'
+            : cn('w-full shrink-0', wide ? 'md:w-[260px]' : 'md:w-[220px]'),
         )}
       >
         {children}

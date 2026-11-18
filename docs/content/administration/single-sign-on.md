@@ -45,7 +45,7 @@ It requests `openid`, `profile`, and `email`; it does not need `offline_access` 
 2. Open **Settings → Authentication**.
 3. Turn on **OIDC authentication**.
 4. Enter the **Provider name**, **Issuer URL**, **Client ID**, and **Client credential**.
-5. Keep the default session duration, or change it under **Advanced OIDC settings**. The range is 1 through 24 hours.
+5. Set **Session duration (hours)** under **OpenID Connect**. The default is eight hours; the range is 1 through 24.
 6. Keep **Internal authentication** on while enrolling existing accounts.
 7. Select **Save**.
 8. Link your administrator account as described below.
@@ -60,6 +60,11 @@ Enabling OIDC adds the provider's sign-in button. Keep internal authentication o
 OpenFarm rejects configurations that disable both methods.
 Changing the public URL, issuer, client ID, or client credential requires another successful test before disabling internal authentication.
 HTTP is allowed only for localhost development.
+
+Provider configuration and account provisioning appear while **OIDC authentication** is on.
+Turning it off and on before saving preserves your draft.
+Saving it off ends OIDC sessions and disables JIT and SCIM provisioning.
+Settings in disabled sections keep their saved values; unsaved edits to those sections are not applied.
 
 The settings page shows the exact **Redirect URI**, **Back-channel logout URI**, and **SCIM base URL** for your public address.
 Saved credentials are never returned to the browser.
@@ -123,7 +128,7 @@ An active authentik session can let the user sign in again without entering a pa
 
 ### Configure back-channel logout
 
-1. Expand **Advanced OIDC settings** under **Settings → Authentication**.
+1. Open **Settings → Authentication → OpenID Connect**.
 2. Copy **Back-channel logout URI**.
 3. Open the OpenFarm OAuth2/OIDC provider in authentik.
 4. Set **Logout URI** to the copied address.

@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { CopyIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { Link, useSearchParams } from 'react-router';
@@ -9,7 +10,7 @@ import { ErrorState } from '@/components/empty-state/EmptyState';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
+import { Field, FieldError, FieldLabel, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -140,6 +141,34 @@ function defaults(data: AuthenticationSettingsResponse): Values {
   };
 }
 
+// Hidden controls retain their draft. Only enabled sections contribute edits on Save.
+function activeValues(
+  draft: Values,
+  data: AuthenticationSettingsResponse,
+): Values {
+  const saved = defaults(data);
+  const active = draft.oidcEnabled ? draft : saved;
+  const jit = draft.oidcEnabled && draft.jitEnabled;
+  const scim = draft.oidcEnabled && draft.scimEnabled;
+  return {
+    ...active,
+    oidcEnabled: draft.oidcEnabled,
+    internalAuthenticationEnabled: draft.internalAuthenticationEnabled,
+    recoveryUserIds: draft.recoveryUserIds,
+    jitEnabled: jit,
+    scimEnabled: scim,
+    requireVerifiedEmail: jit
+      ? draft.requireVerifiedEmail
+      : saved.requireVerifiedEmail,
+    defaultGroup: jit || scim ? draft.defaultGroup : saved.defaultGroup,
+    scimCredential: scim ? draft.scimCredential : '',
+    scimRequestsPerMinute: scim
+      ? draft.scimRequestsPerMinute
+      : saved.scimRequestsPerMinute,
+    groupMappings: scim ? draft.groupMappings : saved.groupMappings,
+  };
+}
+
 export function AuthenticationSettingsPage() {
   const [search] = useSearchParams();
   const query = useAuthorizedQuery({
@@ -194,44 +223,45 @@ function AuthenticationForm({
   const client = useQueryClient();
   const [error, setError] = useState('');
   const form = useForm<Values>({
-    resolver: zodResolver(
-      schema.superRefine((draft, ctx) => {
-        if (
-          draft.oidcEnabled &&
-          !draft.clientCredential.trim() &&
-          (!data.clientCredentialConfigured ||
-            draft.authority !== (data.authority ?? '') ||
-            draft.clientId !== (data.clientId ?? ''))
-        )
-          ctx.addIssue({
-            code: 'custom',
-            path: ['clientCredential'],
-            message: 'Enter the provider client credential.',
-          });
-        if (
-          draft.scimEnabled &&
-          !draft.scimCredential &&
-          !data.scimCredentialConfigured
-        )
-          ctx.addIssue({
-            code: 'custom',
-            path: ['scimCredential'],
-            message: 'Enter or generate a provisioning credential.',
-          });
-        if (
-          draft.scimEnabled &&
-          draft.scimCredential &&
-          (draft.scimCredential.length < 32 ||
-            /[\s.]/.test(draft.scimCredential))
-        )
-          ctx.addIssue({
-            code: 'custom',
-            path: ['scimCredential'],
-            message:
-              'Use a credential of at least 32 characters without whitespace or dots.',
-          });
-      }),
-    ),
+    resolver: (draft, context, options) =>
+      zodResolver(
+        schema.superRefine((draft, ctx) => {
+          if (
+            draft.oidcEnabled &&
+            !draft.clientCredential.trim() &&
+            (!data.clientCredentialConfigured ||
+              draft.authority !== (data.authority ?? '') ||
+              draft.clientId !== (data.clientId ?? ''))
+          )
+            ctx.addIssue({
+              code: 'custom',
+              path: ['clientCredential'],
+              message: 'Enter the provider client credential.',
+            });
+          if (
+            draft.scimEnabled &&
+            !draft.scimCredential &&
+            !data.scimCredentialConfigured
+          )
+            ctx.addIssue({
+              code: 'custom',
+              path: ['scimCredential'],
+              message: 'Enter or generate a provisioning credential.',
+            });
+          if (
+            draft.scimEnabled &&
+            draft.scimCredential &&
+            (draft.scimCredential.length < 32 ||
+              /[\s.]/.test(draft.scimCredential))
+          )
+            ctx.addIssue({
+              code: 'custom',
+              path: ['scimCredential'],
+              message:
+                'Use a credential of at least 32 characters without whitespace or dots.',
+            });
+        }),
+      )(activeValues(draft, data), context, options),
     defaultValues: defaults(data),
   });
   const mappings = useFieldArray({
@@ -308,14 +338,14 @@ function AuthenticationForm({
       | 'scimEnabled',
     label: string,
     help: string,
-    unavailable = false,
   ) {
     return (
       <SettingsRow
         label={label}
         htmlFor={`authentication-${name}`}
         help={<span id={`authentication-${name}-help`}>{help}</span>}
-        disabled={disabled || unavailable}
+        disabled={disabled}
+        compactControl
       >
         <Controller
           control={form.control}
@@ -325,17 +355,9 @@ function AuthenticationForm({
               id={`authentication-${name}`}
               ref={field.ref}
               checked={field.value}
-              disabled={disabled || unavailable}
+              disabled={disabled}
               aria-describedby={`authentication-${name}-help`}
-              onCheckedChange={(checked) => {
-                field.onChange(checked);
-                if (name === 'oidcEnabled' && !checked)
-                  for (const dependent of [
-                    'jitEnabled',
-                    'scimEnabled',
-                  ] as const)
-                    form.setValue(dependent, false, { shouldDirty: true });
-              }}
+              onCheckedChange={field.onChange}
             />
           )}
         />
@@ -371,6 +393,7 @@ function AuthenticationForm({
         <Input
           id={`authentication-${name}`}
           type={type}
+          className={type === 'number' ? 'w-24' : undefined}
           autoComplete={type === 'password' ? 'new-password' : 'off'}
           disabled={disabled}
           min={type === 'number' ? 1 : undefined}
@@ -433,6 +456,35 @@ function AuthenticationForm({
     );
   }
 
+  function address(
+    label: string,
+    value: string | null | undefined,
+    help?: string,
+  ) {
+    if (!value) return null;
+    return (
+      <SettingsRow label={label} wide help={help}>
+        <div className="flex items-start gap-2">
+          <code className="min-w-0 flex-1 break-all text-xs">{value}</code>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Copy ${label.toLowerCase()}`}
+            onClick={() =>
+              void navigator.clipboard.writeText(value).then(
+                () => toast.success(`${label} copied.`),
+                () => toast.error(`Could not copy ${label.toLowerCase()}.`),
+              )
+            }
+          >
+            <CopyIcon />
+          </Button>
+        </div>
+      </SettingsRow>
+    );
+  }
+
   return (
     <form
       className="flex flex-col gap-4"
@@ -472,10 +524,19 @@ function AuthenticationForm({
         {toggle(
           'oidcEnabled',
           'OIDC authentication',
-          'Allow users to sign in through OpenID Connect.',
+          'Enable provider sign-in and configure account provisioning.',
         )}
       </SettingsRows>
       <FieldError>{errors.internalAuthenticationEnabled?.message}</FieldError>
+      {data.oidcEnabled && !values.oidcEnabled && (
+        <Alert role="status">
+          <AlertDescription>
+            Saving will end existing OIDC sessions and disable JIT and SCIM
+            provisioning. Saved provider credentials and group mappings will be
+            retained. Unsaved edits to hidden settings will not be applied.
+          </AlertDescription>
+        </Alert>
+      )}
       {values.oidcEnabled && (
         <>
           <SettingsSubhead>OpenID Connect</SettingsSubhead>
@@ -499,34 +560,28 @@ function AuthenticationForm({
                 : 'Enter the confidential client credential.',
               'password',
             )}
+            {input(
+              'sessionHours',
+              'Session duration (hours)',
+              'After this deadline, users must sign in through the provider again.',
+              'number',
+            )}
           </SettingsRows>
-          {data.callbackUrl && (
+          {(data.callbackUrl || data.logoutUrl) && (
             <SettingsRows>
-              <SettingsRow label="Redirect URI" wide>
-                <code className="break-all text-xs">{data.callbackUrl}</code>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    void navigator.clipboard
-                      .writeText(data.callbackUrl ?? '')
-                      .then(
-                        () => toast.success('Redirect URI copied.'),
-                        () => toast.error('Could not copy redirect URI.'),
-                      )
-                  }
-                >
-                  Copy redirect URI
-                </Button>
-              </SettingsRow>
+              {address('Redirect URI', data.callbackUrl)}
+              {address(
+                'Back-channel logout URI',
+                data.logoutUrl,
+                'Optional. Register this address with the provider to end OpenFarm sessions centrally.',
+              )}
             </SettingsRows>
           )}
-          <SettingsRows>
-            <SettingsRow
-              label="Test provider sign-in"
-              wide
-              help="Save the provider, then link your administrator account in My profile → Security before testing. Your current session stays active."
-            >
+          <FieldSet
+            aria-label="Provider sign-in test"
+            className="gap-2 rounded-lg border bg-card p-3.5 md:p-[18px]"
+          >
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="button"
                 variant="outline"
@@ -534,40 +589,204 @@ function AuthenticationForm({
                   disabled || form.formState.isDirty || !data.oidcEnabled
                 }
                 onClick={() => test.mutate()}
+                aria-describedby="authentication-test-status authentication-test-help"
               >
                 {test.isPending && <Spinner data-icon="inline-start" />}
                 {test.isPending ? 'Starting…' : 'Test sign-in'}
               </Button>
-              <SettingsHint>
-                {data.oidcTested
-                  ? 'This provider configuration passed the sign-in test.'
-                  : 'A successful test is required before disabling internal authentication.'}
-              </SettingsHint>
-              <Link className="text-sm underline" to="/profile?tab=security">
-                Link administrator account
-              </Link>
-            </SettingsRow>
-          </SettingsRows>
-          <details className="space-y-3">
-            <summary className="cursor-pointer text-sm font-medium">
-              Advanced OIDC settings
-            </summary>
-            <SettingsRows>
-              {input(
-                'sessionHours',
-                'Session duration (hours)',
-                'After this deadline, users must sign in through the provider again.',
-                'number',
-              )}
-              <SettingsRow
-                label="Back-channel logout URI"
-                wide
-                help="Register this address with the provider to end OpenFarm sessions centrally."
+              <p
+                id="authentication-test-status"
+                className="text-sm text-muted-foreground"
               >
-                <code className="break-all text-xs">{data.logoutUrl}</code>
+                {data.oidcTested
+                  ? 'Saved provider configuration tested.'
+                  : 'Saved provider configuration not tested.'}
+              </p>
+            </div>
+            <p
+              id="authentication-test-help"
+              className="text-sm text-muted-foreground"
+            >
+              Save the provider and{' '}
+              <Link className="underline" to="/profile?tab=security">
+                link your administrator account
+              </Link>{' '}
+              before testing. Your current session stays active. A successful
+              test is required before disabling internal authentication.
+            </p>
+          </FieldSet>
+        </>
+      )}
+      {values.oidcEnabled && (
+        <>
+          <SettingsSubhead>Account provisioning</SettingsSubhead>
+          <SettingsRows>
+            {toggle(
+              'jitEnabled',
+              'Create accounts on first sign-in (JIT)',
+              'Create passwordless accounts for new users allowed by the provider.',
+            )}
+            {values.jitEnabled &&
+              toggle(
+                'requireVerifiedEmail',
+                'Require verified email',
+                'Require email_verified=true when creating an account at first sign-in.',
+              )}
+          </SettingsRows>
+          <SettingsRows>
+            {toggle(
+              'scimEnabled',
+              'Directory provisioning (SCIM)',
+              'Let the provider create, update, disable, and restore managed accounts.',
+            )}
+            {values.scimEnabled && (
+              <>
+                {input(
+                  'scimCredential',
+                  'Provisioning credential',
+                  data.scimCredentialConfigured
+                    ? 'Configured. Leave blank to keep it. Enter a new credential to rotate it.'
+                    : 'Generate a separate credential and copy it into the provider.',
+                  'password',
+                )}
+                <SettingsRow label="Provisioning credential actions" wide>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() =>
+                        form.setValue(
+                          'scimCredential',
+                          Array.from(
+                            crypto.getRandomValues(new Uint8Array(32)),
+                            (b) => b.toString(16).padStart(2, '0'),
+                          ).join(''),
+                          { shouldDirty: true },
+                        )
+                      }
+                    >
+                      Generate credential
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={disabled || !values.scimCredential}
+                      onClick={() => {
+                        void navigator.clipboard
+                          .writeText(values.scimCredential)
+                          .then(
+                            () => toast.success('Credential copied.'),
+                            () => toast.error('Could not copy credential.'),
+                          );
+                      }}
+                    >
+                      Copy new credential
+                    </Button>
+                  </div>
+                </SettingsRow>
+                {address('SCIM base URL', data.scimUrl)}
+                {input(
+                  'scimRequestsPerMinute',
+                  'Requests per minute',
+                  'Maximum provisioning requests accepted each minute.',
+                  'number',
+                )}
+              </>
+            )}
+          </SettingsRows>
+          {values.scimEnabled && (
+            <>
+              <SettingsSubhead>SCIM group mappings</SettingsSubhead>
+              <SettingsHint>
+                Map provider groups to existing OpenFarm groups. Unmapped groups
+                grant no permissions. Local grants remain independent.
+              </SettingsHint>
+              {!!mappings.fields.length && (
+                <SettingsRows>
+                  {mappings.fields.map((mapping, i) => (
+                    <SettingsRow
+                      key={mapping.id}
+                      label={`Group mapping ${i + 1}`}
+                      wide
+                      disabled={disabled}
+                    >
+                      <div className="flex flex-col gap-2">
+                        <Field>
+                          <FieldLabel htmlFor={`external-group-${i}`}>
+                            External group
+                          </FieldLabel>
+                          <Input
+                            id={`external-group-${i}`}
+                            disabled={disabled}
+                            aria-invalid={
+                              !!errors.groupMappings?.[i]?.externalGroup
+                            }
+                            aria-describedby={`external-group-${i}-error`}
+                            {...form.register(
+                              `groupMappings.${i}.externalGroup`,
+                            )}
+                          />
+                          <FieldError id={`external-group-${i}-error`}>
+                            {errors.groupMappings?.[i]?.externalGroup?.message}
+                          </FieldError>
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor={`local-group-${i}`}>
+                            OpenFarm group
+                          </FieldLabel>
+                          {groupSelect(
+                            `groupMappings.${i}.localGroup`,
+                            `local-group-${i}`,
+                          )}
+                        </Field>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={disabled}
+                          onClick={() => mappings.remove(i)}
+                          aria-label={`Remove group mapping ${i + 1}`}
+                        >
+                          Remove mapping
+                        </Button>
+                      </div>
+                    </SettingsRow>
+                  ))}
+                </SettingsRows>
+              )}
+              <FieldError>
+                {errors.groupMappings?.message ??
+                  errors.groupMappings?.root?.message}
+              </FieldError>
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={disabled || mappings.fields.length >= 100}
+                  onClick={() =>
+                    mappings.append({
+                      externalGroup: '',
+                      localGroup: values.defaultGroup,
+                    })
+                  }
+                >
+                  Add group mapping
+                </Button>
+              </div>
+            </>
+          )}
+          {(values.jitEnabled || values.scimEnabled) && (
+            <SettingsRows>
+              <SettingsRow
+                label="Default group"
+                htmlFor="authentication-defaultGroup"
+                wide
+                help="Initial access for new accounts. Administrator groups are excluded."
+              >
+                {groupSelect('defaultGroup', 'authentication-defaultGroup')}
               </SettingsRow>
             </SettingsRows>
-          </details>
+          )}
         </>
       )}
       {!values.internalAuthenticationEnabled && (
@@ -587,6 +806,7 @@ function AuthenticationForm({
                 label={account.username}
                 htmlFor={`recovery-${account.id}`}
                 disabled={disabled}
+                compactControl
               >
                 <Checkbox
                   id={`recovery-${account.id}`}
@@ -618,195 +838,17 @@ function AuthenticationForm({
           </FieldError>
         </>
       )}
-      <SettingsSubhead>Account provisioning</SettingsSubhead>
-      <SettingsRows>
-        {toggle(
-          'jitEnabled',
-          'Create accounts on first sign-in (JIT)',
-          'Create passwordless accounts for new users allowed by the provider.',
-          !values.oidcEnabled,
-        )}
-        {toggle(
-          'scimEnabled',
-          'Directory provisioning (SCIM)',
-          'Let the provider create, update, disable, and restore managed accounts.',
-          !values.oidcEnabled,
-        )}
-        {(values.jitEnabled || values.scimEnabled) && (
-          <SettingsRow
-            label="Default group"
-            htmlFor="authentication-defaultGroup"
-            wide
-            help="Initial access for new accounts. Administrator groups are excluded."
-          >
-            {groupSelect('defaultGroup', 'authentication-defaultGroup')}
-          </SettingsRow>
-        )}
-      </SettingsRows>
-      {values.scimEnabled && (
-        <>
-          <SettingsRows>
-            {input(
-              'scimCredential',
-              'Provisioning credential',
-              data.scimCredentialConfigured
-                ? 'Configured. Leave blank to keep it. Enter a new credential to rotate it.'
-                : 'Generate a separate credential and copy it into the provider.',
-              'password',
-            )}
-            <SettingsRow label="Provisioning credential actions" wide>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={disabled}
-                  onClick={() =>
-                    form.setValue(
-                      'scimCredential',
-                      Array.from(
-                        crypto.getRandomValues(new Uint8Array(32)),
-                        (b) => b.toString(16).padStart(2, '0'),
-                      ).join(''),
-                      { shouldDirty: true },
-                    )
-                  }
-                >
-                  Generate credential
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={disabled || !values.scimCredential}
-                  onClick={() => {
-                    void navigator.clipboard
-                      .writeText(values.scimCredential)
-                      .then(
-                        () => toast.success('Credential copied.'),
-                        () => toast.error('Could not copy credential.'),
-                      );
-                  }}
-                >
-                  Copy new credential
-                </Button>
-              </div>
-            </SettingsRow>
-            {data.scimUrl && (
-              <SettingsRow label="SCIM base URL" wide>
-                <code className="break-all text-xs">{data.scimUrl}</code>
-              </SettingsRow>
-            )}
-          </SettingsRows>
-          <SettingsSubhead>SCIM group mappings</SettingsSubhead>
-          <SettingsHint>
-            Map provider groups to existing OpenFarm groups. Unmapped groups
-            grant no permissions. Local grants remain independent.
-          </SettingsHint>
-          {!!mappings.fields.length && (
-            <SettingsRows>
-              {mappings.fields.map((mapping, i) => (
-                <SettingsRow
-                  key={mapping.id}
-                  label={`Group mapping ${i + 1}`}
-                  wide
-                  disabled={disabled}
-                >
-                  <div className="flex flex-col gap-2">
-                    <Field>
-                      <FieldLabel htmlFor={`external-group-${i}`}>
-                        External group
-                      </FieldLabel>
-                      <Input
-                        id={`external-group-${i}`}
-                        disabled={disabled}
-                        aria-invalid={
-                          !!errors.groupMappings?.[i]?.externalGroup
-                        }
-                        aria-describedby={`external-group-${i}-error`}
-                        {...form.register(`groupMappings.${i}.externalGroup`)}
-                      />
-                      <FieldError id={`external-group-${i}-error`}>
-                        {errors.groupMappings?.[i]?.externalGroup?.message}
-                      </FieldError>
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor={`local-group-${i}`}>
-                        OpenFarm group
-                      </FieldLabel>
-                      {groupSelect(
-                        `groupMappings.${i}.localGroup`,
-                        `local-group-${i}`,
-                      )}
-                    </Field>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={disabled}
-                      onClick={() => mappings.remove(i)}
-                      aria-label={`Remove group mapping ${i + 1}`}
-                    >
-                      Remove mapping
-                    </Button>
-                  </div>
-                </SettingsRow>
-              ))}
-            </SettingsRows>
-          )}
-          <FieldError>
-            {errors.groupMappings?.message ??
-              errors.groupMappings?.root?.message}
-          </FieldError>
-          <div>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={disabled || mappings.fields.length >= 100}
-              onClick={() =>
-                mappings.append({
-                  externalGroup: '',
-                  localGroup: values.defaultGroup,
-                })
-              }
-            >
-              Add group mapping
-            </Button>
-          </div>
-        </>
-      )}
-      {(values.jitEnabled || values.scimEnabled) && (
-        <details className="space-y-3">
-          <summary className="cursor-pointer text-sm font-medium">
-            Advanced provisioning settings
-          </summary>
-          <SettingsRows>
-            {values.jitEnabled && (
-              <>
-                {' '}
-                {toggle(
-                  'requireVerifiedEmail',
-                  'Require verified email',
-                  'Require email_verified=true when creating an account at first sign-in.',
-                  !values.jitEnabled,
-                )}
-              </>
-            )}
-            {values.scimEnabled && (
-              <>
-                {' '}
-                {input(
-                  'scimRequestsPerMinute',
-                  'Requests per minute',
-                  'Maximum provisioning requests accepted each minute.',
-                  'number',
-                )}
-              </>
-            )}
-          </SettingsRows>
-        </details>
-      )}
       <SettingsHint>
-        Changes apply immediately. Changing the provider, client credential, or
-        session duration ends existing SSO sessions. Provisioning changes take
-        effect on the provider's next synchronization.
+        Changes apply when you save. Settings in disabled sections keep their
+        saved values.
+        {values.oidcEnabled && (
+          <>
+            {' '}
+            Changing the provider, client credential, or session duration ends
+            existing SSO sessions. Provisioning changes take effect on the
+            provider's next synchronization.
+          </>
+        )}
       </SettingsHint>
       {error && (
         <Alert variant="destructive" role="alert">

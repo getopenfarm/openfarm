@@ -5,6 +5,8 @@ description: Create passwordless accounts at first sign-in or manage their lifec
 
 OpenFarm can create accounts through OIDC just-in-time provisioning (JIT) or through its SCIM 2.0 API.
 Both features are disabled by default. Configure [OIDC sign-in](single-sign-on.md) first.
+The account provisioning section appears while **OIDC authentication** is on.
+Each provisioning method shows its settings when enabled.
 
 JIT creates an account when a new user signs in. SCIM lets authentik create, update, disable, and restore accounts without a login.
 They can work together: a JIT account appears in SCIM under the same stable external identity.
@@ -28,7 +30,7 @@ Protected groups, including **Administrators**, cannot be provisioning targets.
 
 1. Open **Settings → Authentication** as an administrator.
 2. Turn on **Create accounts on first sign-in (JIT)**.
-3. Keep **Require verified email** on under **Advanced provisioning settings**.
+3. Keep **Require verified email** on beneath the JIT switch.
 4. Select the **Default group** for new accounts.
 5. Select **Save**.
 
