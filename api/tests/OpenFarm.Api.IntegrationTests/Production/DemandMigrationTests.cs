@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Domain.Production;
 using OpenFarm.Domain.Settings;
+using OpenFarm.Infrastructure.Auth;
 using OpenFarm.Infrastructure.Seed;
 using OpenFarm.Infrastructure.Persistence;
 namespace OpenFarm.Api.IntegrationTests.Production;
@@ -30,9 +31,17 @@ public class DemandMigrationTests(ProductionTestFactory factory) : ProductionTes
             var migrator = db.GetService<IMigrator>();
             await migrator.MigrateAsync("20261030071634_AddLibraryFolders");
             await migrator.MigrateAsync();
-            // The rollback drops installation settings. A real upgrade migrates AND seeds before serving requests.
+            // The rollback drops installation settings. Repeat startup initialization before serving requests.
             (await db.ServerSettings.AnyAsync()).Should().BeFalse();
+            (await db.AuthenticationSettings.AnyAsync()).Should().BeFalse();
             await scope.ServiceProvider.GetRequiredService<FirstBootSeeder>().SeedAsync();
+            var authentication = scope.ServiceProvider.GetRequiredService<AuthenticationConfiguration>();
+            await authentication.EnsureCreatedAsync(CancellationToken.None);
+            (await db.AuthenticationSettings.CountAsync()).Should().Be(1);
+            authentication.Values.InternalAuthenticationEnabled.Should().BeTrue();
+            authentication.Values.OidcEnabled.Should().BeFalse();
+            authentication.Values.JitEnabled.Should().BeFalse();
+            authentication.Values.ScimEnabled.Should().BeFalse();
             var settings = await db.ServerSettings.SingleAsync(s => s.Id == ServerSettings.SingletonId);
             settings.McpMode.Should().Be(McpAccessMode.Disabled);
         }
