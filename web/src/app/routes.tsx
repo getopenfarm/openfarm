@@ -12,7 +12,7 @@ import { AuthenticationSettingsPage } from '@/features/settings/AuthenticationSe
 import { GeneralSettingsPage } from '@/features/settings/GeneralSettingsPage';
 import { CurrencyProvider } from '@/features/settings/generalSettings';
 import {
-  AiAssistantsSettingsPage,
+  IntegrationsSettingsPage,
   ServerSettingsPage,
 } from '@/features/settings/ServerSettingsPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
@@ -366,9 +366,9 @@ const routes: RouteObject[] = [
                 handle: { title: 'Authentication' },
               },
               {
-                path: 'integrations/ai-assistants',
-                element: <AiAssistantsSettingsPage />,
-                handle: { title: 'AI assistants' },
+                path: 'integrations',
+                element: <IntegrationsSettingsPage />,
+                handle: { title: 'Integrations' },
               },
               {
                 path: 'printer-costs',

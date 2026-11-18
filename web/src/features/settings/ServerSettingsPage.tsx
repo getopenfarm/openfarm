@@ -25,7 +25,12 @@ import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import type { ServerSettingsResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
 import { useAuthorizedQuery } from '@/lib/auth/useAuthorizedQuery';
-import { SettingsRow, SettingsRows, SettingsSection } from './SettingsParts';
+import {
+  SettingsRow,
+  SettingsRows,
+  SettingsSection,
+  SettingsSubhead,
+} from './SettingsParts';
 
 const serverKey = '/api/v1/admin/settings/server';
 const mcpKey = '/api/v1/admin/settings/mcp';
@@ -39,7 +44,7 @@ const modeLabels = {
 export function ServerSettingsPage() {
   return <InstallationSettings kind="server" />;
 }
-export function AiAssistantsSettingsPage() {
+export function IntegrationsSettingsPage() {
   return <InstallationSettings kind="mcp" />;
 }
 
@@ -52,11 +57,11 @@ function InstallationSettings({ kind }: { kind: 'server' | 'mcp' }) {
   });
   return (
     <SettingsSection
-      title={kind === 'server' ? 'Server' : 'AI assistants'}
+      title={kind === 'server' ? 'Server' : 'Integrations'}
       description={
         kind === 'server'
           ? 'Set the public address for OpenFarm.'
-          : 'Set access for AI assistants.'
+          : 'Configure connections to external apps and services.'
       }
     >
       {query.data ? (
@@ -67,7 +72,11 @@ function InstallationSettings({ kind }: { kind: 'server' | 'mcp' }) {
         />
       ) : query.isError ? (
         <ErrorState
-          title="Could not load server settings"
+          title={
+            kind === 'server'
+              ? 'Could not load server settings'
+              : 'Could not load integration settings'
+          }
           onRetry={() => void query.refetch()}
         />
       ) : (
@@ -180,6 +189,9 @@ function InstallationForm({
           </AlertDescription>
         </Alert>
       )}
+      {kind === 'mcp' && (
+        <SettingsSubhead>Model Context Protocol (MCP)</SettingsSubhead>
+      )}
       <SettingsRows>
         {kind === 'server' ? (
           <SettingsRow
@@ -218,7 +230,7 @@ function InstallationForm({
             help={
               <span id="mcp-mode-help">
                 {form.watch('mode') === 'Disabled' ? (
-                  'AI assistants cannot connect.'
+                  'MCP clients cannot connect.'
                 ) : form.watch('mode') === 'AccessTokens' ? (
                   'Use a personal access token to connect.'
                 ) : (

@@ -27,7 +27,7 @@ Store the SQL dump, copied data (including `keys/`), Compose file, `.env`, and e
 
 ## Upgrade
 
-The MCP settings update adds installation settings to the database. Token-only MCP installations must enable **Access tokens only** under **Settings → AI assistants** after upgrading. Existing REST tokens remain valid. An explicit legacy `OAUTH_ENABLED=true` with a valid `ORIGIN` preserves sign-in on the first upgrade. See [AI assistant configuration](configuration.md#ai-assistant-sign-in).
+The MCP settings update adds installation settings to the database. Token-only MCP installations must enable **Access tokens only** under **Settings → Integrations** after upgrading. Existing REST tokens remain valid. An explicit legacy `OAUTH_ENABLED=true` with a valid `ORIGIN` preserves sign-in on the first upgrade. See [MCP configuration](configuration.md#mcp-sign-in).
 
 After taking a backup:
 

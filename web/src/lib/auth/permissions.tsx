@@ -46,7 +46,7 @@ const settingsPaths = [
   '/settings',
   '/settings/server',
   '/settings/authentication',
-  '/settings/integrations/ai-assistants',
+  '/settings/integrations',
   '/settings/fees',
   '/settings/printer-costs',
   '/settings/slicing-defaults',
