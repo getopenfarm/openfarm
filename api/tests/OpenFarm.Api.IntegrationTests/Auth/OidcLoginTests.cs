@@ -177,6 +177,101 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
     }
 
     [Fact]
+    public async Task BackchannelLogout_RevokesOnlyTheMatchingSsoSession_AndIsIdempotent()
+    {
+        await using var kit = new OidcKit(factory);
+        using var owner = kit.CreateClient();
+        await kit.AuthenticateAsync(owner);
+        var subject = Guid.NewGuid().ToString();
+        await BeginLinkAsync(owner);
+        (await owner.GetAsync(await kit.CallbackAsync(owner, "/api/v1/auth/sso/link", subject))).Headers.Location!.OriginalString.Should().EndWith("sso=linked");
+        using var first = kit.CreateClient();
+        kit.Provider.SessionId = "first-" + subject;
+        await SsoSessionAsync(kit, first, subject);
+        using var second = kit.CreateClient();
+        kit.Provider.SessionId = "second-" + subject;
+        await SsoSessionAsync(kit, second, subject);
+        using var sender = kit.CreateClient();
+        var token = LogoutToken(kit.Provider, subject, "first-" + subject);
+        (await PostLogoutAsync(sender, token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await PostLogoutAsync(sender, token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await first.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await second.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await owner.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
+        // Even a newly issued code for the terminated IdP sid cannot re-open a session.
+        kit.Provider.SessionId = "first-" + subject;
+        using var stale = kit.CreateClient();
+        (await stale.GetAsync(await kit.CallbackAsync(stale, "/api/v1/auth/sso/login", subject))).Headers.Location!.OriginalString.Should().Be("/login?ssoError=unavailable");
+    }
+
+    [Fact]
+    public async Task SubjectLogout_RevokesAllProviderSessions_AndBlocksAnInflightOldAuthentication()
+    {
+        await using var kit = new OidcKit(factory, jit: true);
+        var suffix = Guid.NewGuid().ToString("N");
+        kit.Provider.Profile = new("logout-" + suffix, suffix + "@example.test", "Logout", true);
+        using var browser = kit.CreateClient();
+        await SsoSessionAsync(kit, browser, suffix);
+        using var sender = kit.CreateClient();
+        var pending = await kit.CallbackAsync(sender, "/api/v1/auth/sso/login", suffix);
+        (await PostLogoutAsync(sender, LogoutToken(kit.Provider, suffix, null))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await sender.GetAsync(pending)).Headers.Location!.OriginalString.Should().Be("/login?ssoError=unavailable");
+    }
+
+    [Theory]
+    [InlineData("issuer")]
+    [InlineData("audience")]
+    [InlineData("signature")]
+    [InlineData("expired")]
+    [InlineData("stale")]
+    [InlineData("future")]
+    [InlineData("nonce")]
+    [InlineData("events")]
+    [InlineData("jti")]
+    [InlineData("identity")]
+    [InlineData("iat")]
+    public async Task BackchannelLogout_RejectsInvalidProof(string invalid)
+    {
+        await using var kit = new OidcKit(factory);
+        using var browser = kit.CreateClient();
+        (await PostLogoutAsync(browser, LogoutToken(kit.Provider, "subject", "session", invalid))).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private static async Task SsoSessionAsync(OidcKit kit, HttpClient browser, string subject)
+    {
+        (await browser.GetAsync(await kit.CallbackAsync(browser, "/api/v1/auth/sso/login", subject))).Headers.Location!.OriginalString.Should().StartWith("/auth/complete");
+        var refreshed = await CsrfPostAsync(browser, "/api/v1/auth/refresh");
+        refreshed.EnsureSuccessStatusCode();
+        browser.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", (await refreshed.Content.ReadFromJsonAsync<LoginResponse>())!.Token);
+    }
+
+    private static Task<HttpResponseMessage> PostLogoutAsync(HttpClient browser, string token) => browser.PostAsync(
+        "/api/v1/auth/sso/backchannel-logout", new FormUrlEncodedContent(new Dictionary<string, string> { ["logout_token"] = token }));
+
+    private static string LogoutToken(FakeProvider provider, string? subject, string? sid, string? invalid = null)
+    {
+        var now = DateTime.UtcNow;
+        var issued = invalid == "stale" ? now.AddMinutes(-10) : invalid == "future" ? now.AddMinutes(10) : now;
+        var claims = new List<Claim>
+        {
+            new("iat", invalid == "iat" ? "invalid" : EpochTime.GetIntDate(issued).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                invalid == "iat" ? ClaimValueTypes.String : ClaimValueTypes.Integer64),
+            new("events", invalid == "events" ? "{}" : "{\"http://schemas.openid.net/event/backchannel-logout\":{}}", "JSON"),
+        };
+        if (invalid != "jti") claims.Add(new("jti", Guid.NewGuid().ToString()));
+        if (subject is not null && invalid != "identity") claims.Add(new("sub", subject));
+        if (sid is not null && invalid != "identity") claims.Add(new("sid", sid));
+        if (invalid == "nonce") claims.Add(new("nonce", "not-a-logout-token"));
+        var token = new JwtSecurityToken(invalid == "issuer" ? "https://wrong.example/" : FakeProvider.Issuer,
+            invalid == "audience" ? "another-client" : "farm", claims, notBefore: now.AddHours(-1),
+            expires: invalid == "expired" ? now.AddMinutes(-10) : now.AddMinutes(5),
+            signingCredentials: new SigningCredentials(provider.Key, SecurityAlgorithms.RsaSha256));
+        var encoded = new JwtSecurityTokenHandler().WriteToken(token);
+        return invalid == "signature" ? encoded[..(encoded.LastIndexOf('.') + 1)] + Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(256)) : encoded;
+    }
+
+    [Fact]
     public async Task UnknownIdentityAndInvalidState_DoNotProvisionOrAuthenticate()
     {
         await using var kit = new OidcKit(factory);
@@ -375,8 +470,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
     {
         await using var kit = new OidcKit(factory);
         using var browser = kit.CreateClient();
-        var options = kit.App.Services.GetRequiredService<IOptionsMonitor<OpenIdConnectOptions>>().Get(OidcAuthentication.Scheme);
-        options.ConfigurationManager = new UnavailableConfigurationManager();
+        kit.Provider.Unavailable = true;
         var response = await browser.GetAsync("/api/v1/auth/sso/login");
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.OriginalString.Should().Be("/login?ssoError=failed");
@@ -425,7 +519,10 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
                     builder.UseSetting("Auth:Oidc:Required", "true");
                     builder.UseSetting("Auth:Oidc:RecoveryUserIds:0", RecoveryId.ToString());
                 }
-                builder.ConfigureServices(services => services.PostConfigure<OpenIdConnectOptions>(OidcAuthentication.Scheme, options =>
+                builder.ConfigureServices(services =>
+                {
+                    services.AddScoped(sp => new AuthenticationConfiguration(SsoConfigurationValues.FromConfiguration(sp.GetRequiredService<IConfiguration>())));
+                    services.PostConfigure<OpenIdConnectOptions>(OidcAuthentication.Scheme, options =>
                 {
                     var configuration = new OpenIdConnectConfiguration
                     {
@@ -435,7 +532,8 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
                         PushedAuthorizationRequestEndpoint = par ? FakeProvider.Issuer + "par" : null,
                     };
                     configuration.SigningKeys.Add(Provider.Key);
-                    options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
+                    options.ConfigurationManager = Provider.Unavailable ? new UnavailableConfigurationManager()
+                        : new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
                     options.Backchannel = new HttpClient(Provider);
                     var failure = options.Events.OnRemoteFailure;
                     options.Events.OnRemoteFailure = async context =>
@@ -443,7 +541,8 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
                         Provider.LastFailure = context.Failure?.ToString();
                         await failure(context);
                     };
-                }));
+                });
+                });
             });
         }
 
@@ -499,7 +598,9 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         public const string Issuer = "https://identity.example/application/o/farm/";
         private readonly RSA _rsa = RSA.Create(2048);
         public RsaSecurityKey Key { get; }
-        private readonly Dictionary<string, (string Subject, string Nonce, string Challenge, string? Invalid)> _codes = [];
+        private readonly Dictionary<string, (string Subject, string Nonce, string Challenge, string? Invalid, DateTime Issued)> _codes = [];
+        public string? SessionId { get; set; }
+        public bool Unavailable { get; set; }
         public int Exchanges { get; private set; }
         public int Pushes { get; private set; }
         public Dictionary<string, Microsoft.Extensions.Primitives.StringValues>? PushedParameters { get; private set; }
@@ -510,7 +611,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         public string Issue(string subject, string nonce, string challenge, string? invalid)
         {
             var code = Guid.NewGuid().ToString();
-            _codes.Add(code, (subject, nonce, challenge, invalid));
+            _codes.Add(code, (subject, nonce, challenge, invalid, DateTime.UtcNow));
             return code;
         }
 
@@ -542,13 +643,14 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
                 {
                     "auth-time-stale" => now.AddMinutes(-10),
                     "auth-time-future" => now.AddMinutes(10),
-                    _ => now,
+                    _ => proof.Issued,
                 };
                 claims.Add(new("auth_time", proof.Invalid == "auth-time-malformed" ? "invalid"
                     : EpochTime.GetIntDate(authenticated).ToString(System.Globalization.CultureInfo.InvariantCulture),
                     proof.Invalid == "auth-time-malformed" ? ClaimValueTypes.String : ClaimValueTypes.Integer64));
                 if (proof.Invalid == "auth-time-duplicate") claims.Add(claims[^1]);
             }
+            if (SessionId is not null) claims.Add(new("sid", SessionId));
             if (Profile is { } profile)
             {
                 claims.Add(new("preferred_username", profile.Username!)); claims.Add(new("email", profile.Email!));

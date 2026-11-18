@@ -449,6 +449,80 @@ export interface UpdateMcpSettingsRequest {
   mode?: string;
 }
 
+export interface SsoGroupMapping {
+  externalGroup?: string;
+  localGroup?: string;
+}
+
+export interface SsoRecoveryAccount {
+  id?: string;
+  username?: string;
+}
+
+export interface GroupSummary {
+  id?: string;
+  name?: string;
+}
+
+export interface SsoSettingsResponse {
+  revision?: string;
+  enabled?: boolean;
+  required?: boolean;
+  displayName?: string;
+  /** @nullable */
+  authority?: string | null;
+  /** @nullable */
+  clientId?: string | null;
+  clientCredentialConfigured?: boolean;
+  sessionHours?: number;
+  recoveryUserIds?: string[];
+  jitEnabled?: boolean;
+  requireVerifiedEmail?: boolean;
+  scimEnabled?: boolean;
+  scimCredentialConfigured?: boolean;
+  scimRequestsPerMinute?: number;
+  defaultGroup?: string;
+  groupMappings?: SsoGroupMapping[];
+  recoveryAccounts?: SsoRecoveryAccount[];
+  groups?: GroupSummary[];
+  /** @nullable */
+  callbackUrl?: string | null;
+  /** @nullable */
+  logoutUrl?: string | null;
+  /** @nullable */
+  scimUrl?: string | null;
+  recoveryMode?: boolean;
+}
+
+export type SsoConfigurationValuesGroupMappings = { [key: string]: string };
+
+export interface SsoConfigurationValues {
+  enabled?: boolean;
+  required?: boolean;
+  displayName?: string;
+  /** @nullable */
+  authority?: string | null;
+  /** @nullable */
+  clientId?: string | null;
+  /** @nullable */
+  clientSecret?: string | null;
+  sessionHours?: number;
+  recoveryUserIds?: string[];
+  jitEnabled?: boolean;
+  requireVerifiedEmail?: boolean;
+  scimEnabled?: boolean;
+  /** @nullable */
+  scimToken?: string | null;
+  scimRequestsPerMinute?: number;
+  defaultGroup?: string;
+  groupMappings?: SsoConfigurationValuesGroupMappings;
+}
+
+export interface UpdateSsoSettingsRequest {
+  revision?: string;
+  settings?: SsoConfigurationValues;
+}
+
 export interface UpdateSlicingDefaultsRequest {
   engine?: string;
   version?: string;
@@ -2863,11 +2937,6 @@ export interface AccessTokenRequest {
 
 export interface UserAccessTokenRequest {
   [key: string]: unknown;
-}
-
-export interface GroupSummary {
-  id?: string;
-  name?: string;
 }
 
 export interface AccountResponse {

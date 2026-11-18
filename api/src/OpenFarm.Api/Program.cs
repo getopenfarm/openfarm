@@ -113,11 +113,14 @@ builder.Services.AddScoped(sp => new OpenFarm.Api.Hosting.PublicOrigin(
     sp.GetRequiredService<ServerConfiguration>().Current?.PublicUrl ?? deploymentPolicy.PublicUrl));
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton(TimeProvider.System);
-var oidcSettings = new OidcSettings(builder.Configuration);
-builder.Services.AddSingleton(oidcSettings);
+if (args.Contains("export-openapi"))
+    builder.Services.AddScoped(_ => new AuthenticationConfiguration(new SsoConfigurationValues()));
+else builder.Services.AddScoped<AuthenticationConfiguration>();
+builder.Services.AddScoped(sp => sp.GetRequiredService<AuthenticationConfiguration>().Oidc);
+builder.Services.AddScoped(sp => sp.GetRequiredService<AuthenticationConfiguration>().Provisioning);
+builder.Services.AddScoped<SsoSettingsService>();
 builder.Services.AddScoped<OidcAccountService>();
-var provisioningSettings = new ProvisioningSettings(builder.Configuration, oidcSettings);
-builder.Services.AddSingleton(provisioningSettings);
+builder.Services.AddScoped<OidcBackchannelLogout>();
 builder.Services.AddScoped<ExternalProvisioningService>();
 builder.Services.AddScoped<ScimService>();
 
@@ -248,7 +251,7 @@ builder.Services
     })
     .AddJwtBearer(McpAuthentication.OAuthScheme, _ => { })
     .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ScimAuthentication>(ScimAuthentication.SchemeName, _ => { })
-    .AddExternalOidc(oidcSettings);
+    .AddExternalOidc();
 builder.Services.AddOptions<JwtBearerOptions>(McpAuthentication.OAuthScheme)
     .Configure<IHttpContextAccessor>((options, accessor) => McpAuthentication.Configure(options, accessor, jwtKey));
 
@@ -261,7 +264,7 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddOpenFarmMcp();
 builder.Services.AddScoped<OAuthService>();
 builder.Services.AddOAuthRateLimits(builder.Configuration);
-builder.Services.AddScimRateLimits(builder.Configuration);
+builder.Services.AddScimRateLimits();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<BrowserSessionService>();
 builder.Services.AddHostedService<SessionCleanupService>();
@@ -595,7 +598,11 @@ app.Use(async (context, next) =>
     {
         var settings = context.RequestServices.GetRequiredService<ServerConfiguration>();
         await settings.InitializeAsync(context.RequestAborted);
-        if (path.StartsWithSegments("/scim") && !await ScimEndpoints.PrepareAsync(context, provisioningSettings)) return;
+        var authentication = context.RequestServices.GetRequiredService<AuthenticationConfiguration>();
+        await authentication.InitializeAsync(context.RequestAborted);
+        if (path.StartsWithSegments("/scim") && !await ScimEndpoints.PrepareAsync(context, authentication.Provisioning)) return;
+        if (path == OidcAuthentication.CallbackPath && !authentication.Oidc.Enabled)
+        { context.Response.StatusCode = StatusCodes.Status404NotFound; return; }
         if (protocol && !settings.Current.McpEnabled)
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
@@ -708,6 +715,29 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
+// Load saved authentication configuration before endpoint discovery constructs its scoped services.
+if (!args.Contains("export-openapi"))
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        await StartupMigrationRunner.RunAsync(dbContext, Log.ForContext<Program>());
+
+        var seeder = scope.ServiceProvider.GetRequiredService<FirstBootSeeder>();
+        await seeder.SeedAsync();
+        await scope.ServiceProvider.GetRequiredService<AuthenticationConfiguration>().ImportDeploymentAsync(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<AccountAdministrationService>().EnsureRecoveryAdministratorAsync(CancellationToken.None);
+        var settings = scope.ServiceProvider.GetRequiredService<ServerConfiguration>();
+        await settings.InitializeAsync(CancellationToken.None);
+        scope.ServiceProvider.GetRequiredService<OidcSettings>().ValidatePublicUrl(settings.Current.PublicUrl);
+        await scope.ServiceProvider.GetRequiredService<ExternalProvisioningService>().ValidateAsync(CancellationToken.None);
+        await scope.ServiceProvider.GetRequiredService<BrowserSessionService>().ApplyLoginPolicyAsync(CancellationToken.None);
+#pragma warning disable CA1848, CA1873
+        app.Logger.LogInformation("Public URL: {Origin}; MCP mode: {Mode}; MCP_ENABLED override: {Enabled}",
+            settings.Current.PublicUrl ?? "not set", settings.Current.McpMode, deploymentPolicy.Enabled);
+#pragma warning restore CA1848, CA1873
+    }
+
+
 app.UseFastEndpoints(c =>
 {
     c.Errors.UseProblemDetails();
@@ -747,24 +777,6 @@ if (args.Contains("export-openapi"))
     return;
 }
 
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-    await StartupMigrationRunner.RunAsync(dbContext, Log.ForContext<Program>());
-
-    var seeder = scope.ServiceProvider.GetRequiredService<FirstBootSeeder>();
-    await seeder.SeedAsync();
-    await scope.ServiceProvider.GetRequiredService<AccountAdministrationService>().EnsureRecoveryAdministratorAsync(CancellationToken.None);
-    var settings = scope.ServiceProvider.GetRequiredService<ServerConfiguration>();
-    await settings.InitializeAsync(CancellationToken.None);
-    oidcSettings.ValidatePublicUrl(settings.Current.PublicUrl);
-    await scope.ServiceProvider.GetRequiredService<ExternalProvisioningService>().ValidateAsync(CancellationToken.None);
-    await scope.ServiceProvider.GetRequiredService<BrowserSessionService>().ApplyLoginPolicyAsync(CancellationToken.None);
-#pragma warning disable CA1848, CA1873
-    app.Logger.LogInformation("Public URL: {Origin}; MCP mode: {Mode}; MCP_ENABLED override: {Enabled}",
-        settings.Current.PublicUrl ?? "not set", settings.Current.McpMode, deploymentPolicy.Enabled);
-#pragma warning restore CA1848, CA1873
-}
 
 // System Profile ingestion CLI entry point (009, contracts/system-profile-ingestion.md) — re-runnable
 // any time against the same bundle root BundledSlicerScanner already reads, not just at provisioning.

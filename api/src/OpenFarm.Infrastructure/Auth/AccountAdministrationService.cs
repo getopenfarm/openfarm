@@ -23,7 +23,7 @@ public sealed record ProfileInput(string? Name, string Email, string Username);
 
 public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManager<ApplicationUser> users,
     RoleManager<ApplicationRole> roles, PermissionService permissions, BrowserSessionService sessions, PersonalAccessTokenService tokens,
-    OidcSettings oidc)
+    OidcSettings oidc, AuthenticationConfiguration configuration)
 {
     public async Task<AccountResponse[]> ListUsersAsync(CancellationToken ct)
     {
@@ -58,8 +58,11 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
     }
 
     // A database lock serializes all administrator/membership edits across server processes.
-    private async Task LockAdministrationAsync(CancellationToken ct) =>
+    private async Task LockAdministrationAsync(CancellationToken ct)
+    {
         await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(71426499)", ct);
+        if (!await configuration.LockCurrentAsync(ct)) throw new ServerSettingsConflictException();
+    }
 
     private static void ValidateGrants(IEnumerable<string> grants)
     {
@@ -145,7 +148,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         var role = id is null ? new ApplicationRole() : await roles.FindByIdAsync(id.Value.ToString()) ?? throw new KeyNotFoundException("Group not found.");
         if (role.IsProtected) throw new ArgumentException("The Administrators group is protected.");
         if (permissions.IsProvisioningTarget(role.Name) && !string.Equals(role.Name, input.Name.Trim(), StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("This group is used by provisioning. Update the deployment configuration before renaming it.");
+            throw new ArgumentException("This group is used by provisioning. Update single sign-on settings before renaming it.");
         role.Name = input.Name.Trim(); role.Description = input.Description?.Trim() ?? string.Empty;
         Check(id is null ? await roles.CreateAsync(role) : await roles.UpdateAsync(role));
         var grants = await db.RoleClaims.Where(c => c.RoleId == role.Id && c.ClaimType == PermissionCatalog.GrantClaim).ToListAsync(ct);
@@ -162,7 +165,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         await LockAdministrationAsync(ct);
         var group = await roles.FindByIdAsync(id.ToString()) ?? throw new KeyNotFoundException("Group not found.");
         if (group.IsProtected || await db.UserRoles.AnyAsync(m => m.RoleId == id, ct)) throw new ArgumentException("Only an empty, unprotected group can be removed.");
-        if (permissions.IsProvisioningTarget(group.Name)) throw new ArgumentException("This group is used by provisioning. Update the deployment configuration before removing it.");
+        if (permissions.IsProvisioningTarget(group.Name)) throw new ArgumentException("This group is used by provisioning. Update single sign-on settings before removing it.");
         Check(await roles.DeleteAsync(group));
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

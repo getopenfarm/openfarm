@@ -45,6 +45,7 @@ export function Can({
 const settingsPaths = [
   '/settings',
   '/settings/server',
+  '/settings/single-sign-on',
   '/settings/integrations/ai-assistants',
   '/settings/fees',
   '/settings/printer-costs',
@@ -60,6 +61,7 @@ export function settingsPath(
       (path) =>
         (administrator ||
           (!path.startsWith('/settings/server') &&
+            !path.startsWith('/settings/single-sign-on') &&
             !path.startsWith('/settings/integrations'))) &&
         can(routePermission(path) ?? ''),
     ) ?? null
@@ -71,6 +73,7 @@ export function routePermission(path: string): string | null {
   if (path.startsWith('/settings')) {
     if (
       path.startsWith('/settings/server') ||
+      path.startsWith('/settings/single-sign-on') ||
       path.startsWith('/settings/integrations')
     )
       return 'users:manage';

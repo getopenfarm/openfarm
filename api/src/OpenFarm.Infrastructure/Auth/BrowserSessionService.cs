@@ -19,7 +19,7 @@ public sealed record AppGrant(string[] Scopes, string ClientName);
 /// states which kind it acts on: a browser session never acts as an app, and an app never as a browser session.
 /// </summary>
 public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService jwt, IDataProtectionProvider protection,
-    OAuthSettings oauth, TimeProvider time, OidcSettings oidc)
+    OAuthSettings oauth, TimeProvider time, OidcSettings oidc, AuthenticationConfiguration configuration)
 {
     public const string AppCredentialPrefix = "ofr_";
     public static readonly TimeSpan AppLifetime = TimeSpan.FromDays(30);
@@ -33,20 +33,24 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         && value.AsSpan(4).IndexOfAnyExcept(LowerHex) < 0;
 
     /// <summary>Permanently revoke incompatible browser sessions when deployment login policy changes.</summary>
-    public Task<int> ApplyLoginPolicyAsync(CancellationToken ct)
+    public async Task<int> ApplyLoginPolicyAsync(CancellationToken ct)
     {
+        await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (!await configuration.LockCurrentAsync(ct)) return 0;
         var identity = oidc.Enabled ? oidc.SessionIdentity : null;
         var enabled = oidc.Enabled;
         var required = oidc.Required;
         var recovery = oidc.RecoveryUserIds;
         var now = time.GetUtcNow();
-        return db.BrowserSessions.Where(s => s.ClientId == null && s.RevokedAtUtc == null
+        var affected = await db.BrowserSessions.Where(s => s.ClientId == null && s.RevokedAtUtc == null
             && ((s.OidcConfigurationIdentity != null && (!enabled || s.OidcConfigurationIdentity != identity))
                 || (s.OidcConfigurationIdentity == null && required && !recovery.Contains(s.UserId))))
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
+        return affected;
     }
 
-    public async Task<LoginResult> CreateAsync(Guid userId, string device, CancellationToken ct, bool external = false)
+    public async Task<LoginResult> CreateAsync(Guid userId, string device, CancellationToken ct, bool external = false, string? oidcSubject = null, string? oidcSessionId = null)
     {
         var now = time.GetUtcNow();
         var session = new BrowserSession
@@ -57,6 +61,8 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
             LastSeenAtUtc = now,
             ExpiresAtUtc = external ? now.AddHours(oidc.SessionHours) : now.AddDays(14),
             OidcConfigurationIdentity = external ? oidc.SessionIdentity : null,
+            OidcSubject = external ? oidcSubject : null,
+            OidcSessionId = external ? oidcSessionId : null,
             Device = device[..Math.Min(256, device.Length)],
         };
         var credential = NewCredential();

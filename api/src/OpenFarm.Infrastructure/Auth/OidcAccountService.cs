@@ -15,7 +15,7 @@ public sealed record OidcLinkTicket(Guid UserId, Guid SessionId, string Nonce, s
 /// <summary>Explicit linking and opt-in JIT creation. Existing identities are resolved only by issuer and subject.</summary>
 public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<ApplicationUser> users,
     BrowserSessionService sessions, OidcSettings settings, IDataProtectionProvider protection, TimeProvider time,
-    ExternalProvisioningService provisioning)
+    ExternalProvisioningService provisioning, AuthenticationConfiguration configuration)
 {
     private const string LinkTokenName = "PendingLink";
     private readonly IDataProtector _protector = protection.CreateProtector("OpenFarm.OidcLink.v1");
@@ -23,6 +23,8 @@ public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<Applica
     public async Task<string?> BeginLinkAsync(Guid userId, Guid sessionId, string password, string credential, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await provisioning.LockAsync(ct);
+        if (!await configuration.LockCurrentAsync(ct)) return null;
         await LockUserAsync(userId, ct);
         await LockSessionAsync(sessionId, ct);
         var user = await users.FindByIdAsync(userId.ToString());
@@ -66,6 +68,8 @@ public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<Applica
     {
         var ticket = ReadTicket(protectedTicket) ?? throw new ArgumentException("The linking request expired. Start again from My profile.");
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await provisioning.LockAsync(ct);
+        if (!await configuration.LockCurrentAsync(ct)) throw new ArgumentException("Single sign-on settings changed. Start linking again.");
         await LockUserAsync(ticket.UserId, ct);
         await LockSessionAsync(ticket.SessionId, ct);
         var user = await users.FindByIdAsync(ticket.UserId.ToString());
@@ -84,16 +88,24 @@ public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<Applica
         await transaction.CommitAsync(ct);
     }
 
-    public async Task<LoginResult?> SignInAsync(string subject, string device, CancellationToken ct, ExternalProfile? profile = null)
+    public async Task<LoginResult?> SignInAsync(string subject, string device, CancellationToken ct, ExternalProfile? profile = null,
+        string? providerSessionId = null, DateTimeOffset? authorizationStartedAt = null)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await provisioning.LockAsync(ct);
+        if (!settings.Enabled || !await configuration.LockCurrentAsync(ct)) return null;
         var user = profile is null ? await users.FindByLoginAsync(settings.ProviderKey, subject)
             : await provisioning.ResolveJitAsync(subject, profile, ct);
         if (user is null) return null;
         await LockUserAsync(user.Id, ct);
         await db.Entry(user).ReloadAsync(ct);
         if (db.Entry(user).State == EntityState.Detached || !user.IsEnabled) return null;
-        var result = await sessions.CreateAsync(user.Id, device, ct, external: true);
+        var now = time.GetUtcNow();
+        var authorizationTime = authorizationStartedAt ?? now;
+        if (await db.OidcLogoutReceipts.AnyAsync(r => r.Provider == settings.SessionIdentity && r.ExpiresAtUtc > now
+            && ((providerSessionId != null && r.SessionId == providerSessionId && (r.Subject == null || r.Subject == subject))
+                || (r.SessionId == null && r.Subject == subject && r.ReceivedAtUtc >= authorizationTime)), ct)) return null;
+        var result = await sessions.CreateAsync(user.Id, device, ct, external: true, oidcSubject: subject, oidcSessionId: providerSessionId);
         Audit(user.Id, "OidcSignedIn");
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

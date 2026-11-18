@@ -1,6 +1,8 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using OpenFarm.Api.Hosting;
 using OpenFarm.Infrastructure.Auth;
@@ -25,19 +27,21 @@ public static class OidcAuthentication
         }
     }
 
-    public static void AddExternalOidc(this AuthenticationBuilder builder, OidcSettings settings)
+    public static void AddExternalOidc(this AuthenticationBuilder builder)
     {
-        if (!settings.Enabled) return;
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IPostConfigureOptions<OpenIdConnectOptions>, OpenIdConnectPostConfigureOptions>());
+        builder.Services.AddMemoryCache();
+        builder.Services.AddSingleton<OidcMetadataCache>();
+        builder.Services.AddHttpClient("OidcMetadata");
         // The handler requires a sign-in scheme. OnTicketReceived always handles the response;
         // no external authentication cookie is issued or accepted by API authorization.
         builder.AddCookie("OidcExternal", options => options.ExpireTimeSpan = TimeSpan.FromMinutes(5))
-            .AddOpenIdConnect(Scheme, options =>
+            .AddScheme<OpenIdConnectOptions, DynamicOidcHandler>(Scheme, options =>
             {
                 options.SignInScheme = "OidcExternal";
-                options.Authority = settings.Authority;
-                options.ClientId = settings.ClientId;
-                options.ClientSecret = settings.ClientSecret;
-                options.RequireHttpsMetadata = !new Uri(settings.Authority!).IsLoopback;
+                // Valid baseline for the disabled scheme. DynamicOidcHandler creates request-local options.
+                options.Authority = "https://oidc.invalid/";
+                options.ClientId = "disabled";
                 options.CallbackPath = CallbackPath;
                 options.RemoteSignOutPath = PathString.Empty;
                 options.ResponseType = OpenIdConnectResponseType.Code;
@@ -65,10 +69,16 @@ public static class OidcAuthentication
                 {
                     OnRedirectToIdentityProvider = context =>
                     {
+                        var settings = context.HttpContext.RequestServices.GetRequiredService<OidcSettings>();
                         var origin = context.HttpContext.RequestServices.GetRequiredService<PublicOrigin>().Value
                             ?? throw new InvalidOperationException("OIDC needs a configured public URL.");
                         settings.ValidatePublicUrl(origin);
                         context.ProtocolMessage.RedirectUri = origin + CallbackPath;
+                        context.Properties.Items["openfarm.oidc.configuration"] = settings.SessionIdentity;
+                        context.Properties.Items["openfarm.oidc.revision"] = context.HttpContext.RequestServices
+                            .GetRequiredService<AuthenticationConfiguration>().Revision.ToString();
+                        context.Properties.Items["openfarm.oidc.started"] = context.HttpContext.RequestServices
+                            .GetRequiredService<TimeProvider>().GetUtcNow().ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
                         if (context.Properties.Items.ContainsKey("link"))
                         {
                             context.Properties.Items[LinkStarted] = context.HttpContext.RequestServices
@@ -97,8 +107,16 @@ public static class OidcAuthentication
         var settings = http.RequestServices.GetRequiredService<OidcSettings>();
         var subjects = context.Principal?.FindAll("sub").ToArray() ?? [];
         var issuers = context.Principal?.FindAll("iss").ToArray() ?? [];
-        if (subjects.Length != 1 || string.IsNullOrWhiteSpace(subjects[0].Value) || subjects[0].Value.Length > 255
+        if (!settings.Enabled || subjects.Length != 1 || string.IsNullOrWhiteSpace(subjects[0].Value) || subjects[0].Value.Length > 255
             || issuers.Length != 1 || issuers[0].Value != settings.Authority)
+        {
+            http.Response.Redirect("/login?ssoError=failed");
+            return;
+        }
+        if (context.Properties?.Items.TryGetValue("openfarm.oidc.configuration", out var challengedIdentity) != true
+            || challengedIdentity != settings.SessionIdentity
+            || context.Properties.Items.TryGetValue("openfarm.oidc.revision", out var revision) != true
+            || revision != http.RequestServices.GetRequiredService<AuthenticationConfiguration>().Revision.ToString())
         {
             http.Response.Redirect("/login?ssoError=failed");
             return;
@@ -136,7 +154,14 @@ public static class OidcAuthentication
         {
             var profile = new ExternalProfile(Claim("preferred_username"), Claim("email"), Claim("name"),
                 string.Equals(Claim("email_verified"), "true", StringComparison.OrdinalIgnoreCase));
-            result = await accounts.SignInAsync(subjects[0].Value, http.Request.Headers.UserAgent.ToString(), ct, profile);
+            var providerSessionId = Claim("sid");
+            if (providerSessionId is { Length: > 255 } || providerSessionId is not null && string.IsNullOrWhiteSpace(providerSessionId))
+                throw new ArgumentException("Invalid provider session identifier.");
+            if (context.Properties?.Items.TryGetValue("openfarm.oidc.started", out var start) != true
+                || !long.TryParse(start, NumberStyles.None, CultureInfo.InvariantCulture, out var milliseconds))
+                throw new ArgumentException("Missing authorization start time.");
+            result = await accounts.SignInAsync(subjects[0].Value, http.Request.Headers.UserAgent.ToString(), ct, profile,
+                providerSessionId, DateTimeOffset.FromUnixTimeMilliseconds(milliseconds));
         }
         catch (ArgumentException) { result = null; }
         catch (InvalidOperationException) { result = null; }

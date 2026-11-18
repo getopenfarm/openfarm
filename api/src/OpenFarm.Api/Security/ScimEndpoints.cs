@@ -14,14 +14,17 @@ public static class ScimEndpoints
 {
     private const int MaxBody = 262144;
 
-    public static void AddScimRateLimits(this IServiceCollection services, IConfiguration configuration)
+    public static void AddScimRateLimits(this IServiceCollection services)
     {
-        var limit = configuration.GetValue("Auth:Scim:RequestsPerMinute", 300);
-        if (limit is < 1 or > 10000) throw new InvalidOperationException("SCIM RequestsPerMinute must be 1–10000.");
         services.AddRateLimiter(options =>
         {
-            options.AddFixedWindowLimiter("Scim", limiter =>
-            { limiter.PermitLimit = limit; limiter.Window = TimeSpan.FromMinutes(1); limiter.QueueLimit = 0; });
+            options.AddPolicy("Scim", http =>
+            {
+                var configuration = http.RequestServices.GetRequiredService<AuthenticationConfiguration>();
+                var limit = configuration.Values.ScimRequestsPerMinute;
+                return RateLimitPartition.GetFixedWindowLimiter($"{configuration.Revision}:{limit}", _ => new FixedWindowRateLimiterOptions
+                { PermitLimit = limit, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 });
+            });
             var previous = options.OnRejected;
             options.OnRejected = async (context, ct) =>
             {

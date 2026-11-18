@@ -34,10 +34,12 @@ import type {
   ResetAccountPasswordRequest,
   ServerSettingsResponse,
   SessionResponse,
+  SsoSettingsResponse,
   UpdateAccountRequest,
   UpdateGroupRequest,
   UpdateMcpSettingsRequest,
   UpdatePublicUrlRequest,
+  UpdateSsoSettingsRequest,
 } from '../endpoints.schemas';
 
 const withQueryKey = <T extends object, K>(
@@ -786,6 +788,367 @@ export const useOpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpoint = <
 > => {
   return useMutation(
     getOpenFarmApiEndpointsSettingsUpdateMcpSettingsEndpointMutationOptions(
+      options,
+    ),
+    queryClient,
+  );
+};
+export type openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponse200 = {
+  data: SsoSettingsResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponseError = (
+  | openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponse401
+  | openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponse403
+) & {
+  headers: Headers;
+};
+
+export type openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponse =
+  | openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsGetSsoSettingsEndpointUrl = () => {
+  return `/api/v1/admin/settings/sso`;
+};
+
+export const openFarmApiEndpointsSettingsGetSsoSettingsEndpoint = async (
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsGetSsoSettingsEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsGetSsoSettingsEndpointUrl(),
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsGetSsoSettingsEndpointQueryKey =
+  () => {
+    return [`/api/v1/admin/settings/sso`] as const;
+  };
+
+export const getOpenFarmApiEndpointsSettingsGetSsoSettingsEndpointQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+    >,
+    TError = void,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getOpenFarmApiEndpointsSettingsGetSsoSettingsEndpointQueryKey();
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+      >
+    > = ({ signal }) =>
+      openFarmApiEndpointsSettingsGetSsoSettingsEndpoint({ signal });
+
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type OpenFarmApiEndpointsSettingsGetSsoSettingsEndpointQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsGetSsoSettingsEndpointQueryError = void;
+
+export function useOpenFarmApiEndpointsSettingsGetSsoSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetSsoSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useOpenFarmApiEndpointsSettingsGetSsoSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useOpenFarmApiEndpointsSettingsGetSsoSettingsEndpoint<
+  TData = Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+  >,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof openFarmApiEndpointsSettingsGetSsoSettingsEndpoint>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions =
+    getOpenFarmApiEndpointsSettingsGetSsoSettingsEndpointQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export type openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponse200 = {
+  data: SsoSettingsResponse;
+  status: 200;
+};
+
+export type openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponse401 = {
+  data: void;
+  status: 401;
+};
+
+export type openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponse403 = {
+  data: void;
+  status: 403;
+};
+
+export type openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponseSuccess =
+  openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponse200 & {
+    headers: Headers;
+  };
+export type openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponseError =
+  (
+    | openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponse401
+    | openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponse403
+  ) & {
+    headers: Headers;
+  };
+
+export type openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponse =
+  | openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponseSuccess
+  | openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponseError;
+
+export const getOpenFarmApiEndpointsSettingsUpdateSsoSettingsEndpointUrl =
+  () => {
+    return `/api/v1/admin/settings/sso`;
+  };
+
+export const openFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint = async (
+  updateSsoSettingsRequest: UpdateSsoSettingsRequest,
+  options?: RequestInit,
+): Promise<openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponse> => {
+  return httpClient<openFarmApiEndpointsSettingsUpdateSsoSettingsEndpointResponse>(
+    getOpenFarmApiEndpointsSettingsUpdateSsoSettingsEndpointUrl(),
+    {
+      ...options,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(updateSsoSettingsRequest),
+    },
+  );
+};
+
+export const getOpenFarmApiEndpointsSettingsUpdateSsoSettingsEndpointMutationOptions =
+  <TError = void, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint>
+      >,
+      TError,
+      { data: UpdateSsoSettingsRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint>
+    >,
+    TError,
+    { data: UpdateSsoSettingsRequest },
+    TContext
+  > => {
+    const mutationKey = [
+      'openFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation &&
+        'mutationKey' in options.mutation &&
+        options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint>
+      >,
+      { data: UpdateSsoSettingsRequest }
+    > = (props) => {
+      const { data } = props ?? {};
+
+      return openFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint(data);
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type OpenFarmApiEndpointsSettingsUpdateSsoSettingsEndpointMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof openFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint>
+    >
+  >;
+export type OpenFarmApiEndpointsSettingsUpdateSsoSettingsEndpointMutationBody =
+  UpdateSsoSettingsRequest;
+export type OpenFarmApiEndpointsSettingsUpdateSsoSettingsEndpointMutationError =
+  void;
+
+export const useOpenFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof openFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint>
+      >,
+      TError,
+      { data: UpdateSsoSettingsRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof openFarmApiEndpointsSettingsUpdateSsoSettingsEndpoint>
+  >,
+  TError,
+  { data: UpdateSsoSettingsRequest },
+  TContext
+> => {
+  return useMutation(
+    getOpenFarmApiEndpointsSettingsUpdateSsoSettingsEndpointMutationOptions(
       options,
     ),
     queryClient,

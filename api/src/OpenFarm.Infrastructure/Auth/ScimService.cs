@@ -9,7 +9,7 @@ using OpenFarm.Infrastructure.Persistence;
 namespace OpenFarm.Infrastructure.Auth;
 
 public sealed class ScimService(OpenFarmDbContext db, UserManager<ApplicationUser> users, OidcSettings oidc,
-    ExternalProvisioningService provisioning, TimeProvider time)
+    ExternalProvisioningService provisioning, TimeProvider time, AuthenticationConfiguration configuration)
 {
     private IQueryable<ApplicationUser> UserQuery => db.Users.Where(u => u.ProvisioningProvider == oidc.ProviderKey && !u.IsScimDeleted);
     private IQueryable<ProvisioningGroup> GroupQuery => db.ProvisioningGroups.Where(g => g.Provider == oidc.ProviderKey);
@@ -59,6 +59,7 @@ public sealed class ScimService(OpenFarmDbContext db, UserManager<ApplicationUse
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await provisioning.LockAsync(ct);
+        if (!await configuration.LockCurrentAsync(ct)) throw new ScimException(409, "Provisioning settings changed. Retry the request.");
         JsonObject? result;
         if (group) result = await WriteGroupAsync(method, id, body, ifMatch, origin, ct);
         else result = await WriteUserAsync(method, id, body, ifMatch, origin, ct);

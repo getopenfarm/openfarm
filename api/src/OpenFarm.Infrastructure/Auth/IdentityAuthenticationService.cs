@@ -10,11 +10,12 @@ public sealed class IdentityAuthenticationService(
     UserManager<ApplicationUser> userManager,
     BrowserSessionService sessions,
     PermissionService permissions,
-    OpenFarmDbContext db, OidcSettings oidc) : IAuthenticationService
+    OpenFarmDbContext db, OidcSettings oidc, AuthenticationConfiguration configuration) : IAuthenticationService
 {
     public async Task<LoginResult?> AuthenticateAsync(string username, string password, CancellationToken cancellationToken)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        if (!await configuration.LockCurrentAsync(cancellationToken)) return null;
         var user = await userManager.FindByNameAsync(username);
         if (user is null) return null;
         // Serialize password verification/session creation with password resets and account edits.

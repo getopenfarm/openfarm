@@ -1,148 +1,172 @@
 ---
 title: Single sign-on with authentik
-description: Connect existing OpenFarm accounts to authentik with OpenID Connect.
+description: Configure OpenID Connect sign-in and central session logout in Settings.
 ---
 
 OpenFarm supports single sign-on (SSO) through OpenID Connect (OIDC).
 Authentik verifies the user's identity. OpenFarm controls the user's permissions.
-The same OpenFarm account can have a local password and a linked authentik identity.
+A local account can keep its password and use an explicitly linked provider identity.
 
 ## Prepare the installation
 
 Use one HTTPS hostname for OpenFarm, including `/api` and `/hubs`.
-Set the public URL under **Settings → Server**, or supply the `ORIGIN` deployment override.
-See [installation configuration](../installation/configuration.md).
-OpenFarm must be able to reach authentik's discovery, token, and signing-key endpoints.
-The browser must also be able to reach authentik.
+Set **Settings → Server → Public URL**, or supply the `ORIGIN` deployment override.
+OpenFarm and the browser must be able to reach authentik.
+Authentik must be able to reach OpenFarm's back-channel logout URL and its SCIM API, if enabled.
 
-Back up the database and persistent keys before upgrading.
-The upgrade adds a nullable column to browser sessions. Existing password sessions continue to work while OIDC is optional.
+Back up the database and persistent data-protection keys before upgrading.
+OpenFarm encrypts saved provider credentials with those keys.
+Use the same persistent keys on all OpenFarm replicas.
+Do not remove the keys when replacing a container.
+
+This upgrade ends older SSO sessions so new sessions can record the provider's session identifier.
+Users must sign in again. Local password sessions remain available while SSO is optional.
 
 ## Configure authentik
 
-1. Create an OAuth2/OpenID provider in authentik.
+1. Create an OAuth2/OpenID provider and application for OpenFarm.
 2. Choose a confidential client and a signing key.
 3. Enable the **Authorization Code** grant type.
-4. Register this exact redirect URI with **Strict** matching, replacing the hostname:
-
-   ```text
-   https://farm.example.com/api/v1/auth/sso/callback
-   ```
-
-5. Configure scope mappings for `openid`, `profile`, and `email`. Include the claims in the ID token.
-6. Under **Advanced protocol settings**, keep the default per-application issuer mode: **Each provider has a different issuer, based on the application slug**.
+4. Register a **Strict** redirect URI: `https://farm.example.com/api/v1/auth/sso/callback`.
+5. Configure `openid`, `profile`, and `email` scope mappings. Include their claims in the ID token.
+6. Keep the per-application issuer mode: **Each provider has a different issuer, based on the application slug**.
 7. Keep the subject mode **Based on the User's hashed ID** when using SCIM with its default external ID.
-8. Create an authentik application and attach the provider.
-9. Apply the required access policy and MFA policy in authentik.
-10. Record the client ID, client credential, and issuer URL from the provider configuration.
+8. Apply the application-access policy and MFA policy that your users need.
+9. Record the client ID, client credential, and exact issuer URL, including its trailing slash.
 
-Keep the provider's subject identifier stable. Changing it prevents existing identity links from matching.
+Keep the subject identifier stable. Changing it prevents existing identity links from matching.
 OpenFarm requires the discovery authority and token issuer to match exactly.
 Authentik's global issuer mode, **Same identifier is used for all providers**, is not supported.
-Do not change issuer mode for an existing installation without an identity migration plan.
 
-OpenFarm exchanges the authorization code on the server and uses PKCE.
+OpenFarm exchanges authorization codes on the server and uses PKCE.
 It uses Pushed Authorization Requests (PAR) when the provider advertises support.
 It requests `openid`, `profile`, and `email`; it does not need `offline_access` or retain provider tokens.
 
 ## Enable optional OIDC
 
-Add these values to the installation's deployment environment. The URLs and credentials below are placeholders.
+1. Sign in to OpenFarm as an administrator.
+2. Open **Settings → Single sign-on**.
+3. Turn on **Single sign-on**.
+4. Enter the **Provider name**, **Issuer URL**, **Client ID**, and **Client credential**.
+5. Set **Session duration (hours)**. The default is eight hours; the range is 1 through 24.
+6. Keep **Require single sign-on** off while enrolling existing accounts.
+7. Select **Save**.
+8. Test sign-in in a separate browser session.
 
-```dotenv
-ORIGIN=https://farm.example.com
-Auth__Oidc__Enabled=true
-Auth__Oidc__DisplayName=authentik
-Auth__Oidc__Authority=https://auth.example.com/application/o/openfarm/
-Auth__Oidc__ClientId=replace-with-client-id
-Auth__Oidc__ClientSecret=replace-with-client-credential
-Auth__Oidc__Required=false
-Auth__Oidc__SessionHours=8
-```
+Changes apply immediately across OpenFarm replicas. No container restart is required.
+Enabling SSO adds the provider's sign-in button and keeps local login available.
+HTTP is allowed only for localhost development.
 
-Use the exact issuer URL, including its trailing slash, for `Authority`.
-Protect the environment file because it contains credentials.
-Recreate the OpenFarm container after changing these settings.
-
-OIDC is disabled by default. Enabling it adds **Sign in with authentik** and keeps local login available.
-HTTP is permitted only for localhost development. Prefer the Vite proxy for local development so the browser uses one origin.
+The settings page shows the exact **Redirect URI**, **Back-channel logout URI**, and **SCIM base URL** for your public address.
+Saved credentials are never returned to the browser.
+Leave a credential field blank to retain its saved value. Enter a new value to replace it.
+Changing the issuer or client ID also requires entering the provider's client credential.
 
 ## Link an existing account
 
 1. Sign in to OpenFarm with your local username and password.
 2. Open **My profile → Security**.
 3. Enter your current password under **Confirm local password**.
-4. Select **Link authentik**.
-5. Authenticate with the intended authentik account.
+4. Select **Link authentik**, or the configured provider name.
+5. Authenticate with the intended provider account.
 6. Return to OpenFarm and check the linked status.
 
-You can now select **Sign in with authentik** on the login page.
-Linking keeps your existing groups, permissions, history, and account details.
+Linking keeps the account's groups, permissions, history, and details.
 Matching email addresses do not link accounts automatically.
-An authentik identity can belong to only one OpenFarm account.
+An external identity can belong to only one OpenFarm account.
 Linking requests expire after five minutes and require the original browser session.
-Linking also requires fresh provider authentication and a signed `auth_time` claim.
+Linking requires fresh provider authentication and a signed `auth_time` claim.
 OpenFarm allows one minute of clock skew. Keep both servers' clocks synchronized.
 
-Automatic account creation through JIT and lifecycle/group synchronization through SCIM are optional.
-See [account provisioning](account-provisioning.md) to enable them.
+JIT account creation and SCIM synchronization are optional.
+See [account provisioning](account-provisioning.md).
 Self-service unlinking is not available.
 
 ## Require OIDC
 
-First link all regular accounts and test OIDC sign-in in a separate browser session.
-Keep a separate local administrator for recovery. Test its password before enforcing OIDC.
-Use that account's OpenFarm user ID, rather than its username, in the configuration.
-Administrators can read the ID from the account page URL under **Users & groups**.
+First link regular accounts and test provider sign-in in a separate browser session.
+Keep a separate local administrator for recovery and test its password.
 
-```dotenv
-Auth__Oidc__Required=true
-Auth__Oidc__RecoveryUserIds__0=replace-with-recovery-administrator-uuid
-```
+1. Open **Settings → Single sign-on**.
+2. Turn on **Require single sign-on**.
+3. Select at least one local administrator under **Login policy**.
+4. Select **Save**.
 
-Only explicitly listed recovery accounts can use password login when OIDC is required.
-Regular users' existing password sessions stop working. Password changes and administrator password resets are blocked for those accounts.
-The login page shows **Use recovery account** for the designated accounts.
-Startup and account administration require at least one enabled recovery administrator with a password.
+Only selected recovery accounts can use local passwords when SSO is required.
+The settings page lists enabled local administrators with a password.
+To enforce SSO from a local session, select your current administrator as a recovery account first.
+You can also make the change while signed in through the configured provider.
 
-JIT or SCIM can enroll new managed accounts while OIDC is required.
-Optional mode is still needed to link an existing local account through its local login.
-Do not give normal users recovery exemptions to bypass enrollment.
+Regular users' existing password sessions stop working.
+Password changes and administrator password resets are blocked for those accounts.
+Account administration requires at least one enabled recovery administrator to remain.
+The login page provides **Use recovery account**.
+
+JIT and SCIM can enroll new managed accounts while SSO is required.
+Existing local accounts must use optional mode to link their identities.
 
 ## Sessions and revocation
 
-SSO browser sessions last eight hours by default. `SessionHours` accepts values from 1 through 24.
-Refreshing access does not extend the deadline. After expiry, sign in through authentik again.
-Changing the OIDC authority or client ID invalidates existing SSO sessions.
-Disabling OIDC also invalidates those sessions. Changing the authority requires new account links.
+Refreshing access does not extend an SSO session's deadline.
+After expiry, the user must sign in through the provider again.
+Changing the provider, client credential, or session duration ends existing SSO sessions.
+Disabling SSO ends those sessions too. Changing the issuer requires an identity migration plan.
 
 Signing out of OpenFarm ends the current OpenFarm browser session.
-It does not sign you out of authentik or disconnect personal tokens and connected apps.
-An active authentik session can let you sign in again without entering your password.
+It does not sign the user out of authentik or revoke personal tokens and connected apps.
+An active authentik session can let the user sign in again without entering a password.
 
-Disabling a user only in authentik does not immediately end their existing OpenFarm sessions.
-To remove access immediately, disable the OpenFarm account as well.
-That action revokes browser sessions, personal tokens, and connected-app access.
-SCIM deactivation can revoke OpenFarm access centrally when [account provisioning](account-provisioning.md) is enabled.
-OIDC back-channel logout and provider-wide logout are not included.
+### Configure back-channel logout
+
+1. Copy **Back-channel logout URI** from **Settings → Single sign-on**.
+2. Open the OpenFarm OAuth2/OIDC provider in authentik.
+3. Set **Logout URI** to the copied address.
+4. Set **Logout Method** to **Back-channel**.
+5. Save the provider and test termination of a user's authentik session.
+
+Authentik sends a signed logout token to OpenFarm.
+OpenFarm validates the issuer, audience, signature, logout event, and recent issuance time.
+A token with `sid` ends matching provider sessions.
+Providers that send session-specific logout tokens must include the same `sid` in ID tokens.
+A token with only `sub` ends that user's SSO sessions for the configured provider.
+Repeated notifications are safe, and an in-flight login cannot restore the terminated session.
+Users need a new sign-in after their session ends.
+
+Back-channel logout leaves local password sessions, personal tokens, and connected-app grants active.
+Use [SCIM deactivation](account-provisioning.md) or disable the OpenFarm account to revoke account access through all methods.
+Provider-wide logout initiated from OpenFarm is not included.
+A central change takes effect after authentik successfully delivers its logout or provisioning request.
 
 ## Recover access
 
-If authentik is unavailable, select **Use recovery account** and use the designated local administrator.
-If the provider configuration is incorrect, set `Required=false` and `Enabled=false`, then recreate the container.
-Existing local account passwords remain available in optional mode.
-Never rely on the initial account seed to overwrite an existing password.
+If authentik is unavailable, select **Use recovery account** and use a designated local administrator.
+If a configuration mistake prevents access, set this temporary deployment override and recreate the container:
 
-If sign-in fails, check the exact issuer, redirect URI, signing key, public URL, and authentik access policies.
-Use the HTTPS OpenFarm hostname so the browser sends the required cookies.
+```dotenv
+Auth__Oidc__RecoveryMode=true
+```
+
+Recovery mode temporarily disables SSO and provisioning and allows existing local password accounts to sign in.
+Use a local administrator. Passwordless managed accounts cannot use local login.
+The settings page is read-only while recovery mode is active.
+Remove the override and recreate the container to restore the saved configuration.
+Then use a tested recovery administrator to correct the settings.
+
+## Upgrade from environment configuration
+
+At the first start after this upgrade, OpenFarm imports existing `Auth__Oidc__*`, `Auth__Scim__*`, and `Auth__Provisioning__*` values.
+It encrypts the imported configuration in the database.
+After import, **Settings → Single sign-on** controls these values.
+Later changes to the old environment variables do not replace saved settings.
+Remove them from deployment files after you confirm the imported settings.
+The public URL's `ORIGIN` override and the emergency `RecoveryMode` override remain available.
 
 ## References
 
-These authentik guides explain the provider settings and integration patterns used here:
-
-- [OAuth2/OIDC provider and issuer modes](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/)
-- [Immich integration](https://integrations.goauthentik.io/media/immich/) for strict redirects and per-application discovery.
+- [Authentik OAuth2/OIDC provider](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/)
+- [Authentik back-channel logout](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/frontchannel_and_backchannel_logout/)
+- [Immich integration](https://integrations.goauthentik.io/media/immich/) for strict redirects and back-channel logout.
 - [Outline integration](https://integrations.goauthentik.io/documentation/outline/) for verified-email requirements.
 
 Use OpenFarm's callback, stable subject mode, and provisioning settings from this guide.
-The other applications' subject modes, role mappings, and logout endpoints are application-specific.
+Other applications' role mappings and logout endpoints are application-specific.

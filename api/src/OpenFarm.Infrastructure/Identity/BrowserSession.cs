@@ -12,6 +12,8 @@ public sealed class BrowserSession
 
     /// <summary>Null for password login; otherwise the OIDC authority/client configuration identity.</summary>
     public string? OidcConfigurationIdentity { get; set; }
+    public string? OidcSubject { get; set; }
+    public string? OidcSessionId { get; set; }
 
     /// <summary>Set for a connected app (an OAuth grant); null for a browser sign-in. Every query states which kind it wants.</summary>
     public string? ClientId { get; set; }

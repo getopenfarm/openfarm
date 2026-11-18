@@ -69,6 +69,10 @@ export const apiQueryPermissions = [
     permissions: ['users:manage'],
   },
   {
+    pattern: '^/api/v1/admin/settings/sso$',
+    permissions: ['users:manage'],
+  },
+  {
     pattern: '^/api/v1/admin/permissions$',
     permissions: ['users:manage'],
   },

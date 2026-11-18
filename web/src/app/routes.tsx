@@ -14,6 +14,7 @@ import {
   AiAssistantsSettingsPage,
   ServerSettingsPage,
 } from '@/features/settings/ServerSettingsPage';
+import { SsoSettingsPage } from '@/features/settings/SsoSettingsPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
 import { AssemblyDetailPage } from '../features/assemblies/AssemblyDetailPage';
 import { AssemblyFormPage } from '../features/assemblies/AssemblyFormPage';
@@ -358,6 +359,11 @@ const routes: RouteObject[] = [
                 path: 'server',
                 element: <ServerSettingsPage />,
                 handle: { title: 'Server' },
+              },
+              {
+                path: 'single-sign-on',
+                element: <SsoSettingsPage />,
+                handle: { title: 'Single sign-on' },
               },
               {
                 path: 'integrations/ai-assistants',

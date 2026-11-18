@@ -351,6 +351,8 @@ public class ScimProvisioningTests(CustomWebApplicationFactory factory) : IClass
         public ScimKit(CustomWebApplicationFactory parent, string defaultGroup = "Viewers", int limit = 300) => App = parent.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ORIGIN", "https://farm.example");
+            builder.ConfigureServices(services => services.AddScoped(sp => new AuthenticationConfiguration(
+                SsoConfigurationValues.FromConfiguration(sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()))));
             builder.UseSetting("Auth:Oidc:Enabled", "true");
             builder.UseSetting("Auth:Oidc:Authority", "https://identity.example/application/o/farm/");
             builder.UseSetting("Auth:Oidc:ClientId", "farm");

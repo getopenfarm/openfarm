@@ -11,14 +11,14 @@ public sealed class ProvisioningSettings
     public string DefaultGroup { get; }
     public IReadOnlyDictionary<string, string> GroupMappings { get; }
 
-    public ProvisioningSettings(IConfiguration configuration, OidcSettings oidc)
+    public ProvisioningSettings(IConfiguration configuration, OidcSettings oidc, IReadOnlyDictionary<string, string>? groupMappings = null)
     {
         JitEnabled = configuration.GetValue("Auth:Oidc:Jit:Enabled", false);
         RequireVerifiedEmail = configuration.GetValue("Auth:Oidc:Jit:RequireVerifiedEmail", true);
         ScimEnabled = configuration.GetValue("Auth:Scim:Enabled", false);
         ScimToken = configuration["Auth:Scim:BearerToken"];
         DefaultGroup = configuration["Auth:Provisioning:DefaultGroup"] ?? "Viewers";
-        GroupMappings = new Dictionary<string, string>(configuration.GetSection("Auth:Scim:GroupMappings")
+        GroupMappings = new Dictionary<string, string>(groupMappings ?? configuration.GetSection("Auth:Scim:GroupMappings")
             .Get<Dictionary<string, string>>() ?? [], StringComparer.OrdinalIgnoreCase);
         if ((JitEnabled || ScimEnabled) && !oidc.Enabled)
             throw new InvalidOperationException("JIT and SCIM provisioning require an enabled OIDC provider.");

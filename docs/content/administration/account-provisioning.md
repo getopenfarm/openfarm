@@ -26,13 +26,13 @@ Protected groups, including **Administrators**, cannot be provisioning targets.
 
 ## Enable JIT
 
-Add these settings to the deployment environment, then recreate the OpenFarm container:
+1. Open **Settings → Single sign-on** as an administrator.
+2. Turn on **Create accounts at first sign-in**.
+3. Keep **Require verified email** on.
+4. Select the **Default group** for new accounts.
+5. Select **Save**.
 
-```dotenv
-Auth__Oidc__Jit__Enabled=true
-Auth__Oidc__Jit__RequireVerifiedEmail=true
-Auth__Provisioning__DefaultGroup=Viewers
-```
+Changes apply immediately. No container restart is required.
 
 The OIDC ID token must contain `sub`, `preferred_username`, and a valid `email`.
 The default policy also requires `email_verified=true`.
@@ -84,43 +84,30 @@ Do not change subject mode for existing users without an identity migration plan
 
 ## Enable SCIM
 
-1. Generate a separate provisioning credential:
+1. Open **Settings → Single sign-on**.
+2. Turn on **SCIM provisioning**.
+3. Select **Generate credential**, then **Copy new credential**.
+4. Add the required external-to-OpenFarm group mappings under **SCIM group mappings**.
+5. Select **Save**. OpenFarm stores the credential encrypted and does not show it again.
+6. Create an authentik SCIM provider with the **SCIM base URL** shown in OpenFarm.
+7. Choose token authentication and enter the credential you copied.
+8. Select user and group property mappings. Map one account email, `userName`, `active`, and the aligned `externalId`.
+9. Attach the SCIM provider as a backchannel provider to the authentik application used for OpenFarm.
+10. Bind the intended users or an access group to the authentik application. Without user bindings, authentik can synchronize all users.
+11. Set group synchronization filters separately. Group filters do not restrict which users synchronize.
+12. Exclude service accounts unless they need OpenFarm accounts.
+13. Synchronize a test user and verify their OpenFarm account, group access, and sign-in.
 
-   ```sh
-   openssl rand -hex 32
-   ```
-
-2. Add the credential and configuration to the deployment environment:
-
-   ```dotenv
-   Auth__Scim__Enabled=true
-   Auth__Scim__BearerToken=replace-with-generated-credential
-   Auth__Scim__RequestsPerMinute=300
-   Auth__Provisioning__DefaultGroup=Viewers
-   Auth__Scim__GroupMappings__openfarm-viewers=Viewers
-   Auth__Scim__GroupMappings__openfarm-operators=Operators
-   ```
-
-3. Recreate the OpenFarm container.
-4. Create an authentik SCIM provider with the base URL `https://farm.example.com/scim/v2`.
-5. Choose token authentication and enter the same provisioning credential.
-6. Select the user and group property mappings. Map one account email, `userName`, `active`, and the aligned `externalId`.
-7. Attach the SCIM provider as a backchannel provider to the authentik application used for OpenFarm.
-8. Bind the intended users or an access group to the authentik application. Without user bindings, authentik can synchronize all users.
-9. Set group synchronization filters separately. Group filters do not restrict which users synchronize.
-10. Exclude service accounts unless they need OpenFarm accounts.
-11. Synchronize a test user and verify their OpenFarm account, group access, and sign-in.
-
-Keep the environment file private. The provisioning credential grants lifecycle access to provisioned accounts.
+Keep the provisioning credential private. It grants lifecycle access to provisioned accounts.
 It is separate from the OIDC client credential, personal tokens, and browser sessions.
 It cannot authenticate ordinary OpenFarm API requests.
 Keep certificate verification enabled in authentik and route `/scim` to OpenFarm over HTTPS.
 
-Replace `openfarm-viewers` and `openfarm-operators` with your actual authentik group names.
+Enter your actual authentik group names in each mapping.
 The mappings are case-insensitive and point to existing, unprotected OpenFarm groups.
 Unmapped external groups are stored but grant no permissions.
-Changing deployment mappings requires container recreation.
-Update the configuration before renaming or removing a local group used by provisioning.
+Saved mapping changes apply immediately to OpenFarm permission checks.
+Update the mappings in Settings before renaming or removing a local group used by provisioning.
 
 ## Understand permissions and lifecycle changes
 
@@ -165,7 +152,8 @@ Updates accept optional `If-Match` headers with the returned ETag. A stale versi
 
 Limits are 256 KiB per request, 100 PATCH operations per request, and 1,000 members per group.
 Bulk requests, sorting, nested groups, arbitrary filter expressions, enterprise schema extensions, and password provisioning are not supported.
-Use a dedicated SCIM token and the capability-discovery endpoint when configuring another provisioning client.
+Use a dedicated SCIM credential and the capability-discovery endpoint when configuring another provisioning client.
+Set **Requests per minute** in Settings to adjust the provisioning rate limit.
 
 ## Verify before rollout
 

@@ -1,0 +1,170 @@
+using System.Net;
+using System.Net.Http.Json;
+using FluentAssertions;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using OpenFarm.Api.Endpoints.Auth;
+using OpenFarm.Api.IntegrationTests.Mcp;
+using OpenFarm.Api.IntegrationTests.Production;
+using OpenFarm.Application.Auth;
+using OpenFarm.Infrastructure.Auth;
+using OpenFarm.Infrastructure.Identity;
+using OpenFarm.Infrastructure.Persistence;
+
+namespace OpenFarm.Api.IntegrationTests.Settings;
+
+public sealed class SsoSettingsTests(ProductionTestFactory factory) : IClassFixture<ProductionTestFactory>
+{
+    private const string Path = "/api/v1/admin/settings/sso";
+    private static Task<SsoSettingsResponse?> ReadAsync(HttpClient browser) => browser.GetFromJsonAsync<SsoSettingsResponse>(Path);
+    private static SsoConfigurationValues Values(SsoSettingsResponse saved) => new()
+    {
+        Enabled = saved.Enabled,
+        Required = saved.Required,
+        DisplayName = saved.DisplayName,
+        Authority = saved.Authority,
+        ClientId = saved.ClientId,
+        SessionHours = saved.SessionHours,
+        RecoveryUserIds = saved.RecoveryUserIds,
+        JitEnabled = saved.JitEnabled,
+        RequireVerifiedEmail = saved.RequireVerifiedEmail,
+        ScimEnabled = saved.ScimEnabled,
+        ScimRequestsPerMinute = saved.ScimRequestsPerMinute,
+        DefaultGroup = saved.DefaultGroup,
+        GroupMappings = saved.GroupMappings.ToDictionary(m => m.ExternalGroup, m => m.LocalGroup),
+    };
+
+    [Fact]
+    public async Task RuntimeSettings_AreEncryptedRedactedAndVisibleOnOtherHosts_WithoutRestart()
+    {
+        using var browser = await McpTestClient.BrowserAsync(factory);
+        var server = (await browser.GetFromJsonAsync<ServerSettingsResponse>("/api/v1/admin/settings/server"))!;
+        (await browser.PutAsJsonAsync("/api/v1/admin/settings/server", new { server.Revision, PublicUrl = "https://farm.example" })).EnsureSuccessStatusCode();
+        var saved = (await ReadAsync(browser))!;
+        await using var replica = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            services.PostConfigure<OpenIdConnectOptions>(OpenFarm.Api.Security.OidcAuthentication.Scheme, options =>
+                options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(new()
+                { Issuer = "https://identity.example/application/o/farm/", AuthorizationEndpoint = "https://identity.example/authorize", TokenEndpoint = "https://identity.example/token" }))));
+        using var other = replica.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        (await other.GetFromJsonAsync<LoginProvidersResponse>("/api/v1/auth/providers"))!.OidcEnabled.Should().BeFalse();
+        const string credential = "client-credential-for-runtime-settings";
+        const string scim = "provisioning-credential-for-runtime-settings-123456789";
+        var values = Values(saved) with
+        {
+            Enabled = true,
+            Authority = "https://identity.example/application/o/farm/",
+            ClientId = "runtime-client",
+            ClientSecret = credential,
+            ScimEnabled = true,
+            ScimToken = scim,
+            JitEnabled = true,
+            GroupMappings = new() { ["farm:operators"] = "Operators" }
+        };
+        using var response = await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(saved.Revision, values));
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var json = await response.Content.ReadAsStringAsync();
+        json.Should().NotContain(credential).And.NotContain(scim);
+        var changed = (await response.Content.ReadFromJsonAsync<SsoSettingsResponse>())!;
+        changed.ClientCredentialConfigured.Should().BeTrue(); changed.ScimCredentialConfigured.Should().BeTrue();
+        (await other.GetFromJsonAsync<LoginProvidersResponse>("/api/v1/auth/providers"))!.OidcEnabled.Should().BeTrue();
+        using var challenge = await other.GetAsync("/api/v1/auth/sso/login");
+        QueryHelpers.ParseQuery(challenge.Headers.Location!.Query)["client_id"].ToString().Should().Be("runtime-client");
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            var ciphertext = (await db.SsoConfigurations.AsNoTracking().SingleAsync()).ProtectedConfiguration;
+            ciphertext.Should().NotContain(credential).And.NotContain(scim);
+            var settings = scope.ServiceProvider.GetRequiredService<AuthenticationConfiguration>();
+            settings.Values.ClientSecret.Should().Be(credential);
+            var audit = System.Text.Json.JsonSerializer.Serialize(await db.ActivityLogEntries.Where(e => e.EntityType == "SsoConfiguration").ToArrayAsync());
+            audit.Should().NotContain(credential).And.NotContain(scim).And.NotContain(ciphertext);
+            settings.Provisioning.GroupMappings.Should().ContainKey("farm:operators");
+        }
+        // Empty credential inputs mean retain. A stale editor cannot replace newer settings.
+        var retained = Values(changed) with { DisplayName = "Farm identity" };
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(changed.Revision, retained))).EnsureSuccessStatusCode();
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(changed.Revision, retained))).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var latest = (await ReadAsync(browser))!;
+        var who = (await browser.GetFromJsonAsync<WhoAmIResult>("/api/v1/auth/whoami"))!;
+        Guid sid;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var session = await scope.ServiceProvider.GetRequiredService<BrowserSessionService>().CreateAsync(who.UserId, "SSO session", CancellationToken.None, external: true);
+            sid = Guid.Parse(new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(session.Token).Claims.Single(c => c.Type == "sid").Value);
+        }
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(latest.Revision, Values(latest) with { ClientSecret = "rotated-client-credential" }))).EnsureSuccessStatusCode();
+        using (var scope = factory.Services.CreateScope())
+            (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().BrowserSessions.AsNoTracking().SingleAsync(s => s.Id == sid)).RevokedAtUtc.Should().NotBeNull();
+        (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
+        latest = (await ReadAsync(browser))!;
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(latest.Revision, Values(latest) with { Enabled = false, JitEnabled = false, ScimEnabled = false }))).EnsureSuccessStatusCode();
+        (await other.GetFromJsonAsync<LoginProvidersResponse>("/api/v1/auth/providers"))!.OidcEnabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RecoveryAndProvisioningValidation_PreventLockoutAndProtectedRoleMapping()
+    {
+        using var browser = await McpTestClient.BrowserAsync(factory);
+        var server = (await browser.GetFromJsonAsync<ServerSettingsResponse>("/api/v1/admin/settings/server"))!;
+        (await browser.PutAsJsonAsync("/api/v1/admin/settings/server", new { server.Revision, PublicUrl = "https://farm.example" })).EnsureSuccessStatusCode();
+        var saved = (await ReadAsync(browser))!;
+        var values = Values(saved) with { Enabled = true, Authority = "https://identity.example/application/o/farm/", ClientId = "validation-client", ClientSecret = "validation-client-credential", Required = true };
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(saved.Revision, values))).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        values = values with { RecoveryUserIds = [Guid.NewGuid()] };
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(saved.Revision, values))).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        values = values with { Required = false, RecoveryUserIds = [], JitEnabled = true, DefaultGroup = "Administrators" };
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(saved.Revision, values))).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var who = (await browser.GetFromJsonAsync<WhoAmIResult>("/api/v1/auth/whoami"))!;
+        values = values with { Required = true, RecoveryUserIds = [who.UserId], DefaultGroup = "Viewers" };
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(saved.Revision, values))).EnsureSuccessStatusCode();
+        (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
+        saved = (await ReadAsync(browser))!;
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(saved.Revision, Values(saved) with { Enabled = false, Required = false, JitEnabled = false, ScimEnabled = false }))).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task StaleSnapshots_CannotAuthenticateOrMutateAccountsAfterAPolicyChange()
+    {
+        using var browser = await McpTestClient.BrowserAsync(factory);
+        var saved = (await ReadAsync(browser))!;
+        using var old = factory.Services.CreateScope();
+        await old.ServiceProvider.GetRequiredService<AuthenticationConfiguration>().InitializeAsync(CancellationToken.None);
+        var authentication = old.ServiceProvider.GetRequiredService<IAuthenticationService>();
+        var accounts = old.ServiceProvider.GetRequiredService<AccountAdministrationService>();
+        var scim = old.ServiceProvider.GetRequiredService<ScimService>();
+        (await browser.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(saved.Revision, Values(saved) with { DisplayName = Guid.NewGuid().ToString("N") }))).EnsureSuccessStatusCode();
+        (await authentication.AuthenticateAsync("admin", "admin-openfarm", CancellationToken.None)).Should().BeNull();
+        await Assert.ThrowsAsync<ServerSettingsConflictException>(() => accounts.SaveGroupAsync(null,
+            new GroupInput("stale-group", "", []), Guid.NewGuid(), CancellationToken.None));
+        var failure = await Assert.ThrowsAsync<ScimException>(() => scim.WriteAsync(false, "POST", null,
+            new System.Text.Json.Nodes.JsonObject(), null, "https://farm.example", CancellationToken.None));
+        failure.Status.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task Settings_RequireAnActualAdministratorBrowserSession()
+    {
+        using var browser = await McpTestClient.BrowserAsync(factory);
+        var token = await McpTestClient.TokenAsync(browser, "printers:list");
+        using var native = factory.CreateClient(); native.DefaultRequestHeaders.Authorization = new("Bearer", token.Credential);
+        (await native.GetAsync(Path)).StatusCode.Should().BeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden);
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var name = "sso-manager-" + Guid.NewGuid().ToString("N");
+        var user = new ApplicationUser { UserName = name, Email = name + "@example.test" };
+        (await users.CreateAsync(user, "test-password")).Succeeded.Should().BeTrue();
+        (await users.AddClaimAsync(user, new(PermissionCatalog.GrantClaim, "users:manage"))).Succeeded.Should().BeTrue();
+        using var delegated = factory.CreateClient();
+        var login = await delegated.PostAsJsonAsync("/api/v1/auth/login", new LoginCommand(name, "test-password")); login.EnsureSuccessStatusCode();
+        delegated.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<LoginResponse>())!.Token);
+        (await delegated.GetAsync(Path)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await delegated.PutAsJsonAsync(Path, new UpdateSsoSettingsRequest(Guid.NewGuid(), new()))).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+}
