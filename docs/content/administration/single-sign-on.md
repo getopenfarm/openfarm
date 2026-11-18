@@ -22,18 +22,28 @@ The upgrade adds a nullable column to browser sessions. Existing password sessio
 
 1. Create an OAuth2/OpenID provider in authentik.
 2. Choose a confidential client and a signing key.
-3. Register this exact redirect URI, replacing the hostname:
+3. Enable the **Authorization Code** grant type.
+4. Register this exact redirect URI with **Strict** matching, replacing the hostname:
 
    ```text
    https://farm.example.com/api/v1/auth/sso/callback
    ```
 
-4. Configure scope mappings for `openid`, `profile`, and `email`.
-5. Create an authentik application and attach the provider.
-6. Apply the required access policy and MFA policy in authentik.
-7. Record the client ID, client credential, and issuer URL from the provider configuration.
+5. Configure scope mappings for `openid`, `profile`, and `email`. Include the claims in the ID token.
+6. Under **Advanced protocol settings**, keep the default per-application issuer mode: **Each provider has a different issuer, based on the application slug**.
+7. Keep the subject mode **Based on the User's hashed ID** when using SCIM with its default external ID.
+8. Create an authentik application and attach the provider.
+9. Apply the required access policy and MFA policy in authentik.
+10. Record the client ID, client credential, and issuer URL from the provider configuration.
 
 Keep the provider's subject identifier stable. Changing it prevents existing identity links from matching.
+OpenFarm requires the discovery authority and token issuer to match exactly.
+Authentik's global issuer mode, **Same identifier is used for all providers**, is not supported.
+Do not change issuer mode for an existing installation without an identity migration plan.
+
+OpenFarm exchanges the authorization code on the server and uses PKCE.
+It uses Pushed Authorization Requests (PAR) when the provider advertises support.
+It requests `openid`, `profile`, and `email`; it does not need `offline_access` or retain provider tokens.
 
 ## Enable optional OIDC
 
@@ -71,6 +81,8 @@ Linking keeps your existing groups, permissions, history, and account details.
 Matching email addresses do not link accounts automatically.
 An authentik identity can belong to only one OpenFarm account.
 Linking requests expire after five minutes and require the original browser session.
+Linking also requires fresh provider authentication and a signed `auth_time` claim.
+OpenFarm allows one minute of clock skew. Keep both servers' clocks synchronized.
 
 Automatic account creation through JIT and lifecycle/group synchronization through SCIM are optional.
 See [account provisioning](account-provisioning.md) to enable them.
@@ -123,3 +135,14 @@ Never rely on the initial account seed to overwrite an existing password.
 
 If sign-in fails, check the exact issuer, redirect URI, signing key, public URL, and authentik access policies.
 Use the HTTPS OpenFarm hostname so the browser sends the required cookies.
+
+## References
+
+These authentik guides explain the provider settings and integration patterns used here:
+
+- [OAuth2/OIDC provider and issuer modes](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/)
+- [Immich integration](https://integrations.goauthentik.io/media/immich/) for strict redirects and per-application discovery.
+- [Outline integration](https://integrations.goauthentik.io/documentation/outline/) for verified-email requirements.
+
+Use OpenFarm's callback, stable subject mode, and provisioning settings from this guide.
+The other applications' subject modes, role mappings, and logout endpoints are application-specific.

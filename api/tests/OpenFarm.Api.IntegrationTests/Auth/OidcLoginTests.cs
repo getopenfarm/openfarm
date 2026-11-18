@@ -141,6 +141,41 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         (cookies ?? []).Should().NotContain(c => c.StartsWith("openfarm.refresh=", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("auth-time-missing")]
+    [InlineData("auth-time-stale")]
+    [InlineData("auth-time-future")]
+    [InlineData("auth-time-malformed")]
+    [InlineData("auth-time-duplicate")]
+    public async Task Linking_RejectsInvalidAuthenticationTime(string invalid)
+    {
+        await using var kit = new OidcKit(factory);
+        using var browser = kit.CreateClient();
+        await kit.AuthenticateAsync(browser);
+        await BeginLinkAsync(browser);
+        var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/link", Guid.NewGuid().ToString(), invalid);
+        var response = await browser.GetAsync(callback);
+        response.Headers.Location!.OriginalString.Should().BeOneOf("/profile?tab=security&sso=failed", "/login?ssoError=failed");
+        (await browser.GetFromJsonAsync<OidcIdentityResponse>("/api/v1/auth/sso/identity"))!.Linked.Should().BeFalse();
+        (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task PushedAuthorization_PreservesLinkingProofAndLogin()
+    {
+        await using var kit = new OidcKit(factory, par: true);
+        using var browser = kit.CreateClient();
+        await kit.AuthenticateAsync(browser);
+        await BeginLinkAsync(browser);
+        var subject = Guid.NewGuid().ToString();
+        var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/link", subject);
+        (await browser.GetAsync(callback)).Headers.Location!.OriginalString.Should().Be("/profile?tab=security&sso=linked");
+        using var next = kit.CreateClient();
+        callback = await kit.CallbackAsync(next, "/api/v1/auth/sso/login", subject);
+        (await next.GetAsync(callback)).Headers.Location!.OriginalString.Should().StartWith("/auth/complete");
+        kit.Provider.Pushes.Should().Be(2);
+    }
+
     [Fact]
     public async Task UnknownIdentityAndInvalidState_DoNotProvisionOrAuthenticate()
     {
@@ -292,16 +327,32 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         (await owner.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact]
-    public async Task HttpBackend_UsesConfiguredHttpsCallbackAndSecureCorrelationCookies()
+    [Theory]
+    [InlineData(FakeProvider.Issuer)]
+    [InlineData("http://localhost:9000/application/o/farm/")]
+    public async Task HttpBackend_UsesConfiguredHttpsCallbackAndSecureCorrelationCookies(string authority)
     {
-        await using var kit = new OidcKit(factory);
+        await using var kit = new OidcKit(factory, authority: authority);
         using var browser = kit.App.CreateClient(new WebApplicationFactoryClientOptions
         { BaseAddress = new Uri("http://internal:6868"), AllowAutoRedirect = false });
         var challenge = await browser.GetAsync("/api/v1/auth/sso/login");
         challenge.StatusCode.Should().Be(HttpStatusCode.Redirect);
         QueryHelpers.ParseQuery(challenge.Headers.Location!.Query)["redirect_uri"].ToString().Should().Be("https://farm.example" + OidcAuthentication.CallbackPath);
         challenge.Headers.GetValues("Set-Cookie").Should().OnlyContain(c => c.Contains("secure", StringComparison.OrdinalIgnoreCase)
+            && c.Contains("httponly", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task LocalHttpApplication_CanUseRemoteHttpsProvider()
+    {
+        await using var kit = new OidcKit(factory, origin: "http://localhost:6868");
+        using var browser = kit.App.CreateClient(new WebApplicationFactoryClientOptions
+        { BaseAddress = new Uri("http://localhost:6868"), AllowAutoRedirect = false });
+        var challenge = await browser.GetAsync("/api/v1/auth/sso/login");
+        challenge.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        QueryHelpers.ParseQuery(challenge.Headers.Location!.Query)["redirect_uri"].ToString()
+            .Should().Be("http://localhost:6868" + OidcAuthentication.CallbackPath);
+        challenge.Headers.GetValues("Set-Cookie").Should().OnlyContain(c => !c.Contains("; secure", StringComparison.OrdinalIgnoreCase)
             && c.Contains("httponly", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -353,7 +404,8 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         public FakeProvider Provider { get; } = new();
         public Guid RecoveryId { get; }
 
-        public OidcKit(CustomWebApplicationFactory parent, bool required = false, bool jit = false)
+        public OidcKit(CustomWebApplicationFactory parent, bool required = false, bool jit = false, bool par = false,
+            string authority = FakeProvider.Issuer, string origin = "https://farm.example")
         {
             if (required)
             {
@@ -362,9 +414,9 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
             }
             App = parent.WithWebHostBuilder(builder =>
             {
-                builder.UseSetting("ORIGIN", "https://farm.example");
+                builder.UseSetting("ORIGIN", origin);
                 builder.UseSetting("Auth:Oidc:Enabled", "true");
-                builder.UseSetting("Auth:Oidc:Authority", FakeProvider.Issuer);
+                builder.UseSetting("Auth:Oidc:Authority", authority);
                 builder.UseSetting("Auth:Oidc:ClientId", "farm");
                 builder.UseSetting("Auth:Oidc:ClientSecret", "test-client-credential");
                 if (jit) builder.UseSetting("Auth:Oidc:Jit:Enabled", "true");
@@ -380,6 +432,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
                         Issuer = FakeProvider.Issuer,
                         AuthorizationEndpoint = FakeProvider.Issuer + "authorize",
                         TokenEndpoint = FakeProvider.Issuer + "token",
+                        PushedAuthorizationRequestEndpoint = par ? FakeProvider.Issuer + "par" : null,
                     };
                     configuration.SigningKeys.Add(Provider.Key);
                     options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
@@ -416,6 +469,17 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
             var response = await browser.GetAsync(path);
             response.StatusCode.Should().Be(HttpStatusCode.Redirect);
             var query = QueryHelpers.ParseQuery(response.Headers.Location!.Query);
+            if (query.TryGetValue("request_uri", out var requestUri))
+            {
+                requestUri.ToString().Should().Be("urn:example:request:" + Provider.Pushes);
+                query.Should().NotContainKey("state");
+                query = Provider.PushedParameters!;
+            }
+            if (path == "/api/v1/auth/sso/link")
+            {
+                query["prompt"].ToString().Should().Be("login");
+                query["max_age"].ToString().Should().Be("0");
+            }
             query["redirect_uri"].ToString().Should().Be("https://farm.example" + OidcAuthentication.CallbackPath);
             query["code_challenge_method"].ToString().Should().Be("S256");
             var code = Provider.Issue(subject, query["nonce"]!, query["code_challenge"]!, invalid);
@@ -437,6 +501,8 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         public RsaSecurityKey Key { get; }
         private readonly Dictionary<string, (string Subject, string Nonce, string Challenge, string? Invalid)> _codes = [];
         public int Exchanges { get; private set; }
+        public int Pushes { get; private set; }
+        public Dictionary<string, Microsoft.Extensions.Primitives.StringValues>? PushedParameters { get; private set; }
         public string? LastFailure { get; set; }
         public ExternalProfile? Profile { get; set; }
         public FakeProvider() => Key = new(_rsa) { KeyId = "test-key" };
@@ -450,8 +516,18 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            request.RequestUri!.AbsoluteUri.Should().Be(Issuer + "token");
             var form = QueryHelpers.ParseQuery(await request.Content!.ReadAsStringAsync(cancellationToken));
+            if (request.RequestUri!.AbsoluteUri == Issuer + "par")
+            {
+                form["client_secret"].ToString().Should().Be("test-client-credential");
+                PushedParameters = form;
+                Pushes++;
+                return new(HttpStatusCode.Created)
+                {
+                    Content = JsonContent.Create(new { request_uri = "urn:example:request:" + Pushes, expires_in = 90 })
+                };
+            }
+            request.RequestUri.AbsoluteUri.Should().Be(Issuer + "token");
             form["client_secret"].ToString().Should().Be("test-client-credential");
             form["redirect_uri"].ToString().Should().Be("https://farm.example" + OidcAuthentication.CallbackPath);
             if (!_codes.Remove(form["code"]!, out var proof)) return new(HttpStatusCode.BadRequest) { Content = JsonContent.Create(new { error = "invalid_grant" }) };
@@ -460,6 +536,19 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
             var now = DateTime.UtcNow;
             var claims = new List<Claim> { new("sub", proof.Subject), new("nonce", proof.Invalid == "nonce" ? "wrong" : proof.Nonce),
                 new("iat", EpochTime.GetIntDate(now).ToString(System.Globalization.CultureInfo.InvariantCulture), ClaimValueTypes.Integer64) };
+            if (proof.Invalid != "auth-time-missing")
+            {
+                var authenticated = proof.Invalid switch
+                {
+                    "auth-time-stale" => now.AddMinutes(-10),
+                    "auth-time-future" => now.AddMinutes(10),
+                    _ => now,
+                };
+                claims.Add(new("auth_time", proof.Invalid == "auth-time-malformed" ? "invalid"
+                    : EpochTime.GetIntDate(authenticated).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    proof.Invalid == "auth-time-malformed" ? ClaimValueTypes.String : ClaimValueTypes.Integer64));
+                if (proof.Invalid == "auth-time-duplicate") claims.Add(claims[^1]);
+            }
             if (Profile is { } profile)
             {
                 claims.Add(new("preferred_username", profile.Username!)); claims.Add(new("email", profile.Email!));

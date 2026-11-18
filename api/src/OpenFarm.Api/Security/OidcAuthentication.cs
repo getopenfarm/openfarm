@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -11,6 +12,7 @@ public static class OidcAuthentication
     public const string Scheme = "ExternalOidc";
     public const string CallbackPath = "/api/v1/auth/sso/callback";
     public const string LinkCookie = "openfarm.oidc.link";
+    private const string LinkStarted = "openfarm.link.started";
 
     public static async Task StartChallengeAsync(HttpContext http, AuthenticationProperties properties)
     {
@@ -46,7 +48,7 @@ public static class OidcAuthentication
                 options.ClaimActions.Clear();
                 options.SaveTokens = false;
                 options.GetClaimsFromUserInfoEndpoint = false;
-                options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.Disable;
+                options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.UseIfAvailable;
                 options.Scope.Clear();
                 options.Scope.Add("openid");
                 options.Scope.Add("profile");
@@ -55,13 +57,10 @@ public static class OidcAuthentication
                 // A GET callback permits Lax cookies, including the existing refresh cookie used for linking.
                 options.CorrelationCookie.SameSite = SameSiteMode.Lax;
                 options.NonceCookie.SameSite = SameSiteMode.Lax;
-                options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-                options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
-                if (new Uri(settings.Authority!).IsLoopback)
-                {
-                    options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-                    options.NonceCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-                }
+                // Resolve the public URL per request, including deployments with TLS termination.
+                // Wrap the framework builders to preserve nonce expiration and cookie paths.
+                options.CorrelationCookie = new PublicOriginCookieBuilder(options.CorrelationCookie);
+                options.NonceCookie = new PublicOriginCookieBuilder(options.NonceCookie);
                 options.Events = new OpenIdConnectEvents
                 {
                     OnRedirectToIdentityProvider = context =>
@@ -72,6 +71,8 @@ public static class OidcAuthentication
                         context.ProtocolMessage.RedirectUri = origin + CallbackPath;
                         if (context.Properties.Items.ContainsKey("link"))
                         {
+                            context.Properties.Items[LinkStarted] = context.HttpContext.RequestServices
+                                .GetRequiredService<TimeProvider>().GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
                             context.ProtocolMessage.Prompt = "login";
                             context.ProtocolMessage.MaxAge = "0";
                         }
@@ -111,6 +112,16 @@ public static class OidcAuthentication
             try
             {
                 if (string.IsNullOrEmpty(ticket) || cookie != ticket) throw new ArgumentException("Missing linking proof.");
+                var times = context.Principal!.FindAll("auth_time").ToArray();
+                var now = http.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow().ToUnixTimeSeconds();
+                // max_age is a request, not proof. Check the signed authentication time against
+                // the challenge time carried in protected state, allowing one minute of clock skew.
+                if (!context.Properties.Items.TryGetValue(LinkStarted, out var start)
+                    || !long.TryParse(start, NumberStyles.None, CultureInfo.InvariantCulture, out var started)
+                    || times.Length != 1
+                    || !long.TryParse(times[0].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var authenticated)
+                    || authenticated < started - 60 || authenticated > now + 60)
+                    throw new ArgumentException("Fresh authentication is required to link an identity.");
                 await accounts.CompleteLinkAsync(ticket, http.Request.Cookies[SessionCookies.RefreshName] ?? "", subjects[0].Value, ct);
                 http.Response.Redirect("/profile?tab=security&sso=linked");
             }
@@ -138,6 +149,24 @@ public static class OidcAuthentication
         SessionCookies.Set(http, result);
         var target = context.Properties?.Items.TryGetValue("returnTo", out var value) == true ? value : null;
         http.Response.Redirect("/auth/complete?returnTo=" + Uri.EscapeDataString(LocalReturnTo(target)));
+    }
+
+    private sealed class PublicOriginCookieBuilder : CookieBuilder
+    {
+        private readonly CookieBuilder _original;
+
+        public PublicOriginCookieBuilder(CookieBuilder original)
+        {
+            _original = original;
+            Name = original.Name;
+        }
+
+        public override CookieOptions Build(HttpContext context, DateTimeOffset expiresFrom)
+        {
+            var cookie = _original.Build(context, expiresFrom);
+            cookie.Secure = context.Request.IsHttps || context.RequestServices.GetRequiredService<PublicOrigin>().IsHttps;
+            return cookie;
+        }
     }
 
     public static CookieOptions LinkCookieOptions(HttpContext http) => new()

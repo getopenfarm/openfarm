@@ -36,12 +36,40 @@ Auth__Provisioning__DefaultGroup=Viewers
 
 The OIDC ID token must contain `sub`, `preferred_username`, and a valid `email`.
 The default policy also requires `email_verified=true`.
-Configure authentik's `profile` and `email` scope mappings to supply these claims.
 The display name comes from the optional `name` claim.
+Configure authentik's `profile` and `email` scope mappings to supply these claims in the ID token.
+Since authentik 2025.10, the default email mapping returns `email_verified=false`.
+JIT account creation fails until the provider supplies a verified address.
+Existing linked accounts can still sign in.
 
 OpenFarm rejects username and email collisions. An existing local account must use explicit linking instead.
 JIT never re-enables a disabled or deleted account. Existing account details are not overwritten on subsequent logins.
 Use SCIM to keep those details synchronized.
+
+### Configure verified email in authentik
+
+First configure an email-verification process.
+Follow authentik's [Verify email addresses guide](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/verify-email-address/).
+If you store the confirmed address in the `email_verified_address` user attribute, use this custom scope mapping:
+
+```python
+email = request.user.email
+verified_address = request.user.attributes.get("email_verified_address")
+return {
+    "email": email,
+    "email_verified": bool(email and verified_address == email),
+}
+```
+
+1. Open **Customization → Property Mappings** and create a **Scope Mapping**.
+2. Set **Scope name** to `email` and enter the expression above.
+3. Open the OpenFarm OAuth2/OIDC provider.
+4. Replace the default `email` mapping with the custom mapping. Do not select both mappings.
+5. Confirm that the ID token contains the expected email and `email_verified=true` for a verified test user.
+
+Set `email_verified_address` only after the user confirms that address.
+Clear it when the address changes, including changes from administrators or synchronized sources.
+Do not return `True` unconditionally unless another trusted process verifies every current address.
 
 ## Align SCIM and OIDC identities
 
@@ -49,7 +77,7 @@ For each user, the SCIM `externalId` must equal the OIDC `sub` exactly.
 OpenFarm also binds the identity to the configured OIDC issuer.
 An email address or a username must not be used as an identity-matching shortcut.
 
-With authentik, use the OIDC **Hashed User ID** subject mode and the same `user.uid` value for SCIM `externalId`.
+With authentik, use the OIDC subject mode **Based on the User's hashed ID** and the same `user.uid` value for SCIM `externalId`.
 The current authentik SCIM client uses `user.uid` when no property mapping supplies an external ID.
 If you use another subject mode or a custom property mapping, check that both values match before synchronizing real users.
 Do not change subject mode for existing users without an identity migration plan.
@@ -78,8 +106,10 @@ Do not change subject mode for existing users without an identity migration plan
 5. Choose token authentication and enter the same provisioning credential.
 6. Select the user and group property mappings. Map one account email, `userName`, `active`, and the aligned `externalId`.
 7. Attach the SCIM provider as a backchannel provider to the authentik application used for OpenFarm.
-8. Limit synchronization to the intended users and groups through authentik application policies and synchronization settings.
-9. Synchronize a test user and verify their OpenFarm account, group access, and sign-in.
+8. Bind the intended users or an access group to the authentik application. Without user bindings, authentik can synchronize all users.
+9. Set group synchronization filters separately. Group filters do not restrict which users synchronize.
+10. Exclude service accounts unless they need OpenFarm accounts.
+11. Synchronize a test user and verify their OpenFarm account, group access, and sign-in.
 
 Keep the environment file private. The provisioning credential grants lifecycle access to provisioned accounts.
 It is separate from the OIDC client credential, personal tokens, and browser sessions.
@@ -118,6 +148,8 @@ Deleting a user does not allow JIT to recreate or restore that identity.
 Only an explicit SCIM creation restores a deleted account.
 Central changes take effect when authentik successfully sends the provisioning request, not when an administrator first changes authentik.
 Monitor authentik synchronization failures during offboarding.
+An authentik group-filter change does not remove previously synchronized groups or memberships.
+Verify the resulting OpenFarm permissions when changing synchronization scope.
 
 ## Supported SCIM operations
 
@@ -141,3 +173,11 @@ Test a new JIT login, a SCIM-created user, profile updates, and mapped group rem
 Disable a user and check that their existing browser session and personal token stop working.
 Re-enable the user and check that a fresh login works while old credentials remain invalid.
 Keep a tested local recovery administrator before requiring OIDC.
+
+## References
+
+- [Authentik SCIM provider](https://docs.goauthentik.io/add-secure-apps/providers/scim/) explains identity matching, synchronization scope, and update behavior.
+- [Create an authentik SCIM provider](https://docs.goauthentik.io/add-secure-apps/providers/scim/create-scim-provider/) explains token authentication and backchannel attachment.
+
+For other providers, verify their claim mappings and provisioning operations against the supported operations above.
+OpenFarm currently accepts one account email and requires an immutable `externalId` equal to the OIDC subject.
