@@ -122,7 +122,6 @@ builder.Services.AddScoped<AuthenticationSettingsService>();
 builder.Services.AddScoped<OidcAccountService>();
 builder.Services.AddScoped<OidcBackchannelLogout>();
 builder.Services.AddScoped<ExternalProvisioningService>();
-builder.Services.AddScoped<ScimService>();
 
 builder.Host.UseSerilog((ctx, cfg) => cfg
     .ReadFrom.Configuration(ctx.Configuration)
@@ -250,13 +249,11 @@ builder.Services
         options.ForwardChallenge = McpAuthentication.OAuthScheme;
     })
     .AddJwtBearer(McpAuthentication.OAuthScheme, _ => { })
-    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ScimAuthentication>(ScimAuthentication.SchemeName, _ => { })
     .AddExternalOidc();
 builder.Services.AddOptions<JwtBearerOptions>(McpAuthentication.OAuthScheme)
     .Configure<IHttpContextAccessor>((options, accessor) => McpAuthentication.Configure(options, accessor, jwtKey));
 
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("Scim", p => p.AddAuthenticationSchemes(ScimAuthentication.SchemeName).RequireAuthenticatedUser())
     .AddPolicy("Permission", p => p.Requirements.Add(new PermissionRequirement()))
     .AddPolicy("BrowserSession", p => p.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser().RequireClaim("sid"))
     // MCP accepts personal access tokens and app access tokens; a browser JWT on /mcp gets the MCP challenge.
@@ -264,7 +261,6 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddOpenFarmMcp();
 builder.Services.AddScoped<OAuthService>();
 builder.Services.AddOAuthRateLimits(builder.Configuration);
-builder.Services.AddScimRateLimits();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<BrowserSessionService>();
 builder.Services.AddHostedService<SessionCleanupService>();
@@ -594,13 +590,12 @@ app.Use(async (context, next) =>
 {
     var path = context.Request.Path;
     var protocol = path.StartsWithSegments("/mcp") || path.StartsWithSegments("/oauth") || path.StartsWithSegments("/.well-known");
-    if (protocol || path.StartsWithSegments("/api") || path.StartsWithSegments("/hubs") || path.StartsWithSegments("/scim"))
+    if (protocol || path.StartsWithSegments("/api") || path.StartsWithSegments("/hubs"))
     {
         var settings = context.RequestServices.GetRequiredService<ServerConfiguration>();
         await settings.InitializeAsync(context.RequestAborted);
         var authentication = context.RequestServices.GetRequiredService<AuthenticationConfiguration>();
         await authentication.InitializeAsync(context.RequestAborted);
-        if (path.StartsWithSegments("/scim") && !await ScimEndpoints.PrepareAsync(context, authentication.Provisioning)) return;
         if (path == OidcAuthentication.CallbackPath && !authentication.Oidc.Enabled)
         { context.Response.StatusCode = StatusCodes.Status404NotFound; return; }
         if (protocol && !settings.Current.McpEnabled)
@@ -754,7 +749,6 @@ app.MapMcp("/mcp").RequireAuthorization("Mcp")
     .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(McpSetup.MaxRequestBytes))
     .ExcludeFromDescription();
 app.MapOAuthProtocol();
-app.MapScim();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready");
@@ -762,7 +756,7 @@ app.MapHealthChecks("/health/ready");
 // Only extensionless client routes get the shell; server namespaces retain real errors.
 if (serveSpa)
 {
-    app.MapFallbackToFile("{*path:nonfile:regex(^(?!(api|hubs|health|assets|mcp|oauth|scim|\\.well-known)(/|$)).*)}", "index.html", spaFileOptions);
+    app.MapFallbackToFile("{*path:nonfile:regex(^(?!(api|hubs|health|assets|mcp|oauth|\\.well-known)(/|$)).*)}", "index.html", spaFileOptions);
 }
 
 // Generate contracts without a database or starting printer/background services.

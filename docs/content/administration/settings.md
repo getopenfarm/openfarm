@@ -21,7 +21,7 @@ The change applies without restarting and disconnects signed-in AI assistants. A
 
 Administrators choose **Internal authentication**, **OIDC authentication**, or both.
 Configure the provider, test sign-in, and select recovery administrators before disabling internal authentication.
-JIT and SCIM provisioning are optional. Changes apply without a restart.
+JIT provisioning is optional. Changes apply without a restart.
 See [single sign-on with authentik](single-sign-on.md) for the setup procedure.
 
 ## Integrations

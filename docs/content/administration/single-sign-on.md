@@ -12,7 +12,7 @@ A local account can keep its password and use an explicitly linked provider iden
 Use one HTTPS hostname for OpenFarm, including `/api` and `/hubs`.
 Set **Settings → Server → Public URL**, or supply the `ORIGIN` deployment override.
 OpenFarm and the browser must be able to reach authentik.
-Authentik must be able to reach OpenFarm's back-channel logout URL and its SCIM API, if enabled.
+Authentik must be able to reach OpenFarm's back-channel logout URL.
 
 Back up the database and persistent data-protection keys before upgrading.
 OpenFarm encrypts saved provider credentials with those keys.
@@ -27,7 +27,7 @@ Do not remove the keys when replacing a container.
 4. Register a **Strict** redirect URI: `https://farm.example.com/api/v1/auth/sso/callback`.
 5. Configure `openid`, `profile`, and `email` scope mappings. Include their claims in the ID token.
 6. Keep the per-application issuer mode: **Each provider has a different issuer, based on the application slug**.
-7. Keep the subject mode **Based on the User's hashed ID** when using SCIM with its default external ID.
+7. Keep the subject mode stable after users enroll.
 8. Apply the application-access policy and MFA policy that your users need.
 9. Record the client ID, client credential, and exact issuer URL, including its trailing slash.
 
@@ -59,7 +59,7 @@ The test checks your linked administrator identity and preserves your current Op
 It does not create an account or replace your session. Save changes before starting the test.
 
 Changes apply immediately across OpenFarm replicas. No container restart is required.
-New installations enable internal authentication and disable OIDC, JIT, and SCIM.
+New installations enable internal authentication and disable OIDC and JIT.
 Enabling OIDC adds the provider's sign-in button. Keep internal authentication on to allow both login methods.
 OpenFarm rejects configurations that disable both methods.
 Changing the public URL, issuer, client ID, or client credential requires another successful test before disabling internal authentication.
@@ -67,10 +67,10 @@ HTTP is allowed only for localhost development.
 
 Provider configuration and account provisioning appear while **OIDC authentication** is on.
 Turning it off and on before saving preserves your draft.
-Saving it off ends OIDC sessions and disables JIT and SCIM provisioning.
+Saving it off ends OIDC sessions and disables JIT provisioning.
 Settings in disabled sections keep their saved values; unsaved edits to those sections are not applied.
 
-The settings page shows the exact **Redirect URI**, **Back-channel logout URI**, and **SCIM base URL** for your public address.
+The settings page shows the exact **Redirect URI** and **Back-channel logout URI** for your public address.
 Saved credentials are never returned to the browser.
 Leave a credential field blank to retain its saved value. Enter a new value to replace it.
 Changing the issuer or client ID also requires entering the provider's client credential.
@@ -91,7 +91,7 @@ Linking requests expire after five minutes and require the original browser sess
 Linking requires fresh provider authentication and a signed `auth_time` claim.
 OpenFarm allows one minute of clock skew. Keep both servers' clocks synchronized.
 
-JIT account creation and SCIM synchronization are optional.
+JIT account creation is optional.
 See [account provisioning](account-provisioning.md).
 Self-service unlinking is not available.
 
@@ -116,7 +116,7 @@ Password changes and administrator password resets are blocked for those account
 Account administration requires at least one enabled recovery administrator to remain.
 The login page provides **Use recovery account**.
 
-JIT and SCIM can enroll new managed accounts while SSO is required.
+JIT can enroll new managed accounts while SSO is required.
 Existing local accounts must use optional mode to link their identities.
 
 ## Sessions and revocation
@@ -148,9 +148,9 @@ Repeated notifications are safe, and an in-flight login cannot restore the termi
 Users need a new sign-in after their session ends.
 
 Back-channel logout leaves local password sessions, personal tokens, and connected-app grants active.
-Use [SCIM deactivation](account-provisioning.md) or disable the OpenFarm account to revoke account access through all methods.
+Disable the OpenFarm account to revoke account access through all methods.
 Provider-wide logout initiated from OpenFarm is not included.
-A central change takes effect after authentik successfully delivers its logout or provisioning request.
+Provider logout takes effect after authentik successfully delivers its logout notification.
 
 ## Troubleshoot provider setup
 

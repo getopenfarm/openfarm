@@ -97,7 +97,8 @@ describe('UsersGroupsPage', () => {
 });
 
 describe('UserFormPage', () => {
-  it('keeps externally managed identity fields read-only and exposes SCIM groups separately', async () => {
+  it('keeps externally managed identity fields read-only', async () => {
+    const user = userEvent.setup();
     http.mockImplementation(async (url: string, init?: RequestInit) =>
       init?.method
         ? undefined
@@ -108,7 +109,6 @@ describe('UserFormPage', () => {
                     {
                       ...(data[url] as Record<string, unknown>[])[0],
                       isExternallyManaged: true,
-                      managedGroups: [{ id: 'g2', name: 'Viewers' }],
                     },
                   ]
                 : data[url],
@@ -121,15 +121,14 @@ describe('UserFormPage', () => {
     expect(screen.getByLabelText('Email')).toHaveAttribute('readonly');
     expect(screen.getByLabelText('Username')).toHaveAttribute('readonly');
     expect(screen.queryByLabelText('Reset password')).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Remove' }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/Groups managed by SCIM: Viewers/),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled();
     expect(
       screen.getByRole('switch', { name: 'Account enabled' }),
     ).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'Disable the account instead to block access.',
+    );
   });
   it('opens the add form from the keyboard and creates a user', async () => {
     const user = userEvent.setup();

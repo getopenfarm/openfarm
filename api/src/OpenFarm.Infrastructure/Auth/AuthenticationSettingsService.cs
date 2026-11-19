@@ -8,12 +8,11 @@ using OpenFarm.Infrastructure.Persistence;
 namespace OpenFarm.Infrastructure.Auth;
 
 public sealed record AuthenticationRecoveryAccount(Guid Id, string Username);
-public sealed record AuthenticationGroupMapping(string ExternalGroup, string LocalGroup);
 public sealed record AuthenticationSettingsResponse(Guid Revision, bool OidcEnabled, bool InternalAuthenticationEnabled, string DisplayName, string? Authority,
     string? ClientId, bool ClientCredentialConfigured, int SessionHours, Guid[] RecoveryUserIds, bool JitEnabled,
-    bool RequireVerifiedEmail, bool ScimEnabled, bool ScimCredentialConfigured, int ScimRequestsPerMinute,
-    string DefaultGroup, AuthenticationGroupMapping[] GroupMappings, AuthenticationRecoveryAccount[] RecoveryAccounts,
-    GroupSummary[] Groups, string? CallbackUrl, string? LogoutUrl, string? ScimUrl, bool RecoveryMode, bool OidcTested);
+    bool RequireVerifiedEmail,
+    string DefaultGroup, AuthenticationRecoveryAccount[] RecoveryAccounts,
+    GroupSummary[] Groups, string? CallbackUrl, string? LogoutUrl, bool RecoveryMode, bool OidcTested);
 public sealed record UpdateAuthenticationSettingsRequest(Guid Revision, AuthenticationSettingsValues Settings);
 
 public sealed class AuthenticationSettingsService(OpenFarmDbContext db, AuthenticationConfiguration configuration,
@@ -37,17 +36,14 @@ public sealed class AuthenticationSettingsService(OpenFarmDbContext db, Authenti
         if (saved.Revision != input.Revision) throw new ServerSettingsConflictException();
         var previous = configuration.Unprotect(saved);
         var value = input.Settings;
-        if (value.GroupMappings is null || value.RecoveryUserIds is null || value.GroupMappings.Count > 100
+        if (value.RecoveryUserIds is null
             || value.DisplayName is null || value.DefaultGroup is null || value.Authority?.Length > 2048
-            || value.ClientId?.Length > 256 || value.ClientSecret?.Length > 4096
-            || value.ScimRequestsPerMinute is < 1 or > 10000)
+            || value.ClientId?.Length > 256 || value.ClientSecret?.Length > 4096)
             throw new ArgumentException("Enter valid authentication settings.");
         if ((previous.Authority != value.Authority || previous.ClientId != value.ClientId)
             && previous.ClientSecret is not null && string.IsNullOrWhiteSpace(value.ClientSecret))
             throw new ArgumentException("Enter the provider's client credential when changing its issuer or client ID.");
-        try { value = value with { GroupMappings = new(value.GroupMappings, StringComparer.OrdinalIgnoreCase) }; }
-        catch (ArgumentException) { throw new ArgumentException("External group names must be unique."); }
-        value = value with { ClientSecret = value.ClientSecret ?? previous.ClientSecret, ScimToken = value.ScimToken ?? previous.ScimToken };
+        value = value with { ClientSecret = value.ClientSecret ?? previous.ClientSecret };
         OidcSettings oidc;
         var origin = policy.Resolve(await db.ServerSettings.AsNoTracking().SingleAsync(ct)).PublicUrl;
         try
@@ -66,11 +62,11 @@ public sealed class AuthenticationSettingsService(OpenFarmDbContext db, Authenti
             && !await db.BrowserSessions.AnyAsync(s => s.Id == sessionId && s.UserId == actor
                 && s.OidcConfigurationIdentity == oidc.SessionIdentity && s.RevokedAtUtc == null, ct))
             throw new ArgumentException("Sign in through this provider or select your current administrator as a recovery account before requiring SSO.");
-        if (value.JitEnabled || value.ScimEnabled)
+        if (value.JitEnabled)
         {
             var allowedGroups = await db.Roles.Where(r => !r.IsProtected && r.Name != PermissionCatalog.Administrators)
                 .Select(r => r.Name!).ToArrayAsync(ct);
-            if (value.GroupMappings.Values.Append(value.DefaultGroup).Any(name => !allowedGroups.Contains(name, StringComparer.OrdinalIgnoreCase)))
+            if (!allowedGroups.Contains(value.DefaultGroup, StringComparer.OrdinalIgnoreCase))
                 throw new ArgumentException("Provisioning groups must be existing, unprotected OpenFarm groups.");
         }
         if (JsonSerializer.Serialize(previous) != JsonSerializer.Serialize(value))
@@ -95,9 +91,7 @@ public sealed class AuthenticationSettingsService(OpenFarmDbContext db, Authenti
                     value.Authority,
                     value.ClientId,
                     value.JitEnabled,
-                    value.ScimEnabled,
-                    ClientCredentialChanged = previous.ClientSecret != value.ClientSecret,
-                    ScimCredentialChanged = previous.ScimToken != value.ScimToken
+                    ClientCredentialChanged = previous.ClientSecret != value.ClientSecret
                 }))));
             await db.SaveChangesAsync(ct);
         }
@@ -118,13 +112,13 @@ public sealed class AuthenticationSettingsService(OpenFarmDbContext db, Authenti
         var origin = server.Current.PublicUrl;
         return new(revision, value.OidcEnabled, value.InternalAuthenticationEnabled, value.DisplayName, value.Authority, value.ClientId,
             !string.IsNullOrEmpty(value.ClientSecret), value.SessionHours, value.RecoveryUserIds, value.JitEnabled,
-            value.RequireVerifiedEmail, value.ScimEnabled, !string.IsNullOrEmpty(value.ScimToken), value.ScimRequestsPerMinute,
-            value.DefaultGroup, value.GroupMappings.Select(m => new AuthenticationGroupMapping(m.Key, m.Value)).ToArray(),
+            value.RequireVerifiedEmail,
+            value.DefaultGroup,
             await RecoveryAccountsAsync(ct), await db.Roles.Where(r => !r.IsProtected && r.Name != PermissionCatalog.Administrators)
                 .OrderBy(r => r.Name).Select(r => new GroupSummary(r.Id, r.Name!)).ToArrayAsync(ct),
             origin is null ? null : origin + "/api/v1/auth/sso/callback",
             origin is null ? null : origin + "/api/v1/auth/sso/backchannel-logout",
-            origin is null ? null : origin + "/scim/v2", configuration.RecoveryMode,
+            configuration.RecoveryMode,
             value.OidcEnabled && await db.AuthenticationSettings.AnyAsync(s => s.TestedProviderIdentity == new OidcSettings(value).TestIdentity(origin), ct));
     }
 }

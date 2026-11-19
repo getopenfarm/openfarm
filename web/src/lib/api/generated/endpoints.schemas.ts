@@ -300,11 +300,6 @@ export interface GetSlicingReadinessRequest {
   [key: string]: unknown;
 }
 
-export interface AuthenticationGroupMapping {
-  externalGroup?: string;
-  localGroup?: string;
-}
-
 export interface AuthenticationRecoveryAccount {
   id?: string;
   username?: string;
@@ -329,26 +324,16 @@ export interface AuthenticationSettingsResponse {
   recoveryUserIds?: string[];
   jitEnabled?: boolean;
   requireVerifiedEmail?: boolean;
-  scimEnabled?: boolean;
-  scimCredentialConfigured?: boolean;
-  scimRequestsPerMinute?: number;
   defaultGroup?: string;
-  groupMappings?: AuthenticationGroupMapping[];
   recoveryAccounts?: AuthenticationRecoveryAccount[];
   groups?: GroupSummary[];
   /** @nullable */
   callbackUrl?: string | null;
   /** @nullable */
   logoutUrl?: string | null;
-  /** @nullable */
-  scimUrl?: string | null;
   recoveryMode?: boolean;
   oidcTested?: boolean;
 }
-
-export type AuthenticationSettingsValuesGroupMappings = {
-  [key: string]: string;
-};
 
 export interface AuthenticationSettingsValues {
   oidcEnabled?: boolean;
@@ -364,12 +349,7 @@ export interface AuthenticationSettingsValues {
   recoveryUserIds?: string[];
   jitEnabled?: boolean;
   requireVerifiedEmail?: boolean;
-  scimEnabled?: boolean;
-  /** @nullable */
-  scimToken?: string | null;
-  scimRequestsPerMinute?: number;
   defaultGroup?: string;
-  groupMappings?: AuthenticationSettingsValuesGroupMappings;
 }
 
 export interface UpdateAuthenticationSettingsRequest {
@@ -2960,7 +2940,6 @@ export interface AccountResponse {
   isAdministrator?: boolean;
   sessionCount?: number;
   isExternallyManaged?: boolean;
-  managedGroups?: GroupSummary[];
 }
 
 export interface GroupResponse {

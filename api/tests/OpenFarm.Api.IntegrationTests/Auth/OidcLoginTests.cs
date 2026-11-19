@@ -123,6 +123,33 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
     }
 
     [Fact]
+    public async Task JitAccounts_CanBeRemovedLocally_AndEnrollAgainWithBaselineAccess()
+    {
+        await using var kit = new OidcKit(factory, jit: true);
+        var subject = "jit-remove-" + Guid.NewGuid().ToString("N");
+        kit.Provider.Profile = new(subject, subject + "@example.test", "New colleague", true);
+        using var browser = kit.CreateClient();
+        var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/login", subject);
+        (await browser.GetAsync(callback)).Headers.Location!.OriginalString.Should().StartWith("/auth/complete");
+        using var scope = kit.App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var original = await db.Users.AsNoTracking().SingleAsync(u => u.ProvisioningExternalId == subject);
+        using var administrator = kit.CreateClient();
+        await kit.AuthenticateAsync(administrator, administrator: true);
+        (await administrator.DeleteAsync("/api/v1/admin/users/" + original.Id)).EnsureSuccessStatusCode();
+        (await db.UserLogins.AnyAsync(l => l.UserId == original.Id)).Should().BeFalse();
+        using var next = kit.CreateClient();
+        callback = await kit.CallbackAsync(next, "/api/v1/auth/sso/login", subject);
+        (await next.GetAsync(callback)).Headers.Location!.OriginalString.Should().StartWith("/auth/complete");
+        var replacement = await db.Users.AsNoTracking().SingleAsync(u => u.ProvisioningExternalId == subject);
+        replacement.Id.Should().NotBe(original.Id);
+        replacement.PasswordHash.Should().BeNull();
+        var access = await scope.ServiceProvider.GetRequiredService<PermissionService>().ResolveAsync(replacement.Id, CancellationToken.None);
+        access.Groups.Should().Equal("Viewers");
+        access.IsAdministrator.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Jit_RejectsUnverifiedEmailAndAccountCollisions()
     {
         await using var kit = new OidcKit(factory, jit: true);

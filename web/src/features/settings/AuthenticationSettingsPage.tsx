@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CopyIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Controller, useFieldArray, useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -10,7 +10,7 @@ import { ErrorState } from '@/components/empty-state/EmptyState';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Field, FieldError, FieldLabel, FieldSet } from '@/components/ui/field';
+import { FieldError, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -50,18 +50,7 @@ const schema = z
     recoveryUserIds: z.array(z.string()),
     jitEnabled: z.boolean(),
     requireVerifiedEmail: z.boolean(),
-    scimEnabled: z.boolean(),
-    scimCredential: z.string().max(512),
-    scimRequestsPerMinute: z.number().int().min(1).max(10000),
     defaultGroup: z.string().min(1),
-    groupMappings: z
-      .array(
-        z.object({
-          externalGroup: z.string().trim().min(1).max(256),
-          localGroup: z.string().min(1),
-        }),
-      )
-      .max(100),
   })
   .superRefine((value, ctx) => {
     if (!value.oidcEnabled && !value.internalAuthenticationEnabled)
@@ -107,13 +96,6 @@ const schema = z
         path: ['recoveryUserIds'],
         message: 'Select at least one local recovery administrator.',
       });
-    const names = value.groupMappings.map((m) => m.externalGroup.toLowerCase());
-    if (new Set(names).size !== names.length)
-      ctx.addIssue({
-        code: 'custom',
-        path: ['groupMappings'],
-        message: 'External group names must be unique.',
-      });
   });
 type Values = z.infer<typeof schema>;
 function defaults(data: AuthenticationSettingsResponse): Values {
@@ -130,14 +112,7 @@ function defaults(data: AuthenticationSettingsResponse): Values {
     ),
     jitEnabled: data.jitEnabled ?? false,
     requireVerifiedEmail: data.requireVerifiedEmail ?? true,
-    scimEnabled: data.scimEnabled ?? false,
-    scimCredential: '',
-    scimRequestsPerMinute: data.scimRequestsPerMinute ?? 300,
     defaultGroup: data.defaultGroup ?? 'Viewers',
-    groupMappings: (data.groupMappings ?? []).map((m) => ({
-      externalGroup: m.externalGroup ?? '',
-      localGroup: m.localGroup ?? '',
-    })),
   };
 }
 
@@ -149,23 +124,16 @@ function activeValues(
   const saved = defaults(data);
   const active = draft.oidcEnabled ? draft : saved;
   const jit = draft.oidcEnabled && draft.jitEnabled;
-  const scim = draft.oidcEnabled && draft.scimEnabled;
   return {
     ...active,
     oidcEnabled: draft.oidcEnabled,
     internalAuthenticationEnabled: draft.internalAuthenticationEnabled,
     recoveryUserIds: draft.recoveryUserIds,
     jitEnabled: jit,
-    scimEnabled: scim,
     requireVerifiedEmail: jit
       ? draft.requireVerifiedEmail
       : saved.requireVerifiedEmail,
-    defaultGroup: jit || scim ? draft.defaultGroup : saved.defaultGroup,
-    scimCredential: scim ? draft.scimCredential : '',
-    scimRequestsPerMinute: scim
-      ? draft.scimRequestsPerMinute
-      : saved.scimRequestsPerMinute,
-    groupMappings: scim ? draft.groupMappings : saved.groupMappings,
+    defaultGroup: jit ? draft.defaultGroup : saved.defaultGroup,
   };
 }
 
@@ -240,35 +208,9 @@ function AuthenticationForm({
               path: ['clientCredential'],
               message: 'Enter the provider client credential.',
             });
-          if (
-            draft.scimEnabled &&
-            !draft.scimCredential &&
-            !data.scimCredentialConfigured
-          )
-            ctx.addIssue({
-              code: 'custom',
-              path: ['scimCredential'],
-              message: 'Enter or generate a provisioning credential.',
-            });
-          if (
-            draft.scimEnabled &&
-            draft.scimCredential &&
-            (draft.scimCredential.length < 32 ||
-              /[\s.]/.test(draft.scimCredential))
-          )
-            ctx.addIssue({
-              code: 'custom',
-              path: ['scimCredential'],
-              message:
-                'Use a credential of at least 32 characters without whitespace or dots.',
-            });
         }),
       )(activeValues(draft, data), context, options),
     defaultValues: defaults(data),
-  });
-  const mappings = useFieldArray({
-    control: form.control,
-    name: 'groupMappings',
   });
   const { ConfirmLeaveDialog } = useUnsavedChangesPrompt(
     form.formState.isDirty,
@@ -291,13 +233,7 @@ function AuthenticationForm({
             recoveryUserIds: draft.recoveryUserIds,
             jitEnabled: draft.jitEnabled,
             requireVerifiedEmail: draft.requireVerifiedEmail,
-            scimEnabled: draft.scimEnabled,
-            scimToken: draft.scimCredential || null,
-            scimRequestsPerMinute: draft.scimRequestsPerMinute,
             defaultGroup: draft.defaultGroup,
-            groupMappings: Object.fromEntries(
-              draft.groupMappings.map((m) => [m.externalGroup, m.localGroup]),
-            ),
           },
         }),
       }),
@@ -336,8 +272,7 @@ function AuthenticationForm({
       | 'oidcEnabled'
       | 'internalAuthenticationEnabled'
       | 'jitEnabled'
-      | 'requireVerifiedEmail'
-      | 'scimEnabled',
+      | 'requireVerifiedEmail',
     label: string,
     help: string,
   ) {
@@ -372,9 +307,7 @@ function AuthenticationForm({
       | 'authority'
       | 'clientId'
       | 'clientCredential'
-      | 'sessionHours'
-      | 'scimCredential'
-      | 'scimRequestsPerMinute',
+      | 'sessionHours',
     label: string,
     help?: string,
     type = 'text',
@@ -399,13 +332,7 @@ function AuthenticationForm({
           autoComplete={type === 'password' ? 'new-password' : 'off'}
           disabled={disabled}
           min={type === 'number' ? 1 : undefined}
-          max={
-            name === 'sessionHours'
-              ? 24
-              : name === 'scimRequestsPerMinute'
-                ? 10000
-                : undefined
-          }
+          max={name === 'sessionHours' ? 24 : undefined}
           aria-invalid={!!errors[name]}
           aria-describedby={`authentication-${name}-help authentication-${name}-error`}
           {...form.register(name, { valueAsNumber: type === 'number' })}
@@ -416,10 +343,7 @@ function AuthenticationForm({
       </SettingsRow>
     );
   }
-  function groupSelect(
-    name: 'defaultGroup' | `groupMappings.${number}.localGroup`,
-    id: string,
-  ) {
+  function groupSelect(name: 'defaultGroup', id: string) {
     const error = form.getFieldState(name, form.formState).error;
     return (
       <>
@@ -533,9 +457,9 @@ function AuthenticationForm({
       {data.oidcEnabled && !values.oidcEnabled && (
         <Alert role="status">
           <AlertDescription>
-            Saving will end existing OIDC sessions and disable JIT and SCIM
-            provisioning. Saved provider credentials and group mappings will be
-            retained. Unsaved edits to hidden settings will not be applied.
+            Saving will end existing OIDC sessions and disable JIT provisioning.
+            Saved provider credentials will be retained. Unsaved edits to hidden
+            settings will not be applied.
           </AlertDescription>
         </Alert>
       )}
@@ -635,149 +559,7 @@ function AuthenticationForm({
                 'Require email_verified=true when creating an account at first sign-in.',
               )}
           </SettingsRows>
-          <SettingsRows>
-            {toggle(
-              'scimEnabled',
-              'Directory provisioning (SCIM)',
-              'Let the provider create, update, disable, and restore managed accounts.',
-            )}
-            {values.scimEnabled && (
-              <>
-                {input(
-                  'scimCredential',
-                  'Provisioning credential',
-                  data.scimCredentialConfigured
-                    ? 'Configured. Leave blank to keep it. Enter a new credential to rotate it.'
-                    : 'Generate a separate credential and copy it into the provider.',
-                  'password',
-                )}
-                <SettingsRow label="Provisioning credential actions" wide>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={disabled}
-                      onClick={() =>
-                        form.setValue(
-                          'scimCredential',
-                          Array.from(
-                            crypto.getRandomValues(new Uint8Array(32)),
-                            (b) => b.toString(16).padStart(2, '0'),
-                          ).join(''),
-                          { shouldDirty: true },
-                        )
-                      }
-                    >
-                      Generate credential
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={disabled || !values.scimCredential}
-                      onClick={() => {
-                        void navigator.clipboard
-                          .writeText(values.scimCredential)
-                          .then(
-                            () => toast.success('Credential copied.'),
-                            () => toast.error('Could not copy credential.'),
-                          );
-                      }}
-                    >
-                      Copy new credential
-                    </Button>
-                  </div>
-                </SettingsRow>
-                {address('SCIM base URL', data.scimUrl)}
-                {input(
-                  'scimRequestsPerMinute',
-                  'Requests per minute',
-                  'Maximum provisioning requests accepted each minute.',
-                  'number',
-                )}
-              </>
-            )}
-          </SettingsRows>
-          {values.scimEnabled && (
-            <>
-              <SettingsSubhead>SCIM group mappings</SettingsSubhead>
-              <SettingsHint>
-                Map provider groups to existing OpenFarm groups. Unmapped groups
-                grant no permissions. Local grants remain independent.
-              </SettingsHint>
-              {!!mappings.fields.length && (
-                <SettingsRows>
-                  {mappings.fields.map((mapping, i) => (
-                    <SettingsRow
-                      key={mapping.id}
-                      label={`Group mapping ${i + 1}`}
-                      wide
-                      disabled={disabled}
-                    >
-                      <div className="flex flex-col gap-2">
-                        <Field>
-                          <FieldLabel htmlFor={`external-group-${i}`}>
-                            External group
-                          </FieldLabel>
-                          <Input
-                            id={`external-group-${i}`}
-                            disabled={disabled}
-                            aria-invalid={
-                              !!errors.groupMappings?.[i]?.externalGroup
-                            }
-                            aria-describedby={`external-group-${i}-error`}
-                            {...form.register(
-                              `groupMappings.${i}.externalGroup`,
-                            )}
-                          />
-                          <FieldError id={`external-group-${i}-error`}>
-                            {errors.groupMappings?.[i]?.externalGroup?.message}
-                          </FieldError>
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor={`local-group-${i}`}>
-                            OpenFarm group
-                          </FieldLabel>
-                          {groupSelect(
-                            `groupMappings.${i}.localGroup`,
-                            `local-group-${i}`,
-                          )}
-                        </Field>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={disabled}
-                          onClick={() => mappings.remove(i)}
-                          aria-label={`Remove group mapping ${i + 1}`}
-                        >
-                          Remove mapping
-                        </Button>
-                      </div>
-                    </SettingsRow>
-                  ))}
-                </SettingsRows>
-              )}
-              <FieldError>
-                {errors.groupMappings?.message ??
-                  errors.groupMappings?.root?.message}
-              </FieldError>
-              <div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={disabled || mappings.fields.length >= 100}
-                  onClick={() =>
-                    mappings.append({
-                      externalGroup: '',
-                      localGroup: values.defaultGroup,
-                    })
-                  }
-                >
-                  Add group mapping
-                </Button>
-              </div>
-            </>
-          )}
-          {(values.jitEnabled || values.scimEnabled) && (
+          {values.jitEnabled && (
             <SettingsRows>
               <SettingsRow
                 label="Default group"
@@ -847,8 +629,7 @@ function AuthenticationForm({
           <>
             {' '}
             Changing the provider, client credential, or session duration ends
-            existing SSO sessions. Provisioning changes take effect on the
-            provider's next synchronization.
+            existing SSO sessions. JIT changes apply to new account creation.
           </>
         )}
       </SettingsHint>

@@ -2133,9 +2133,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsScimDeleted")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -2163,23 +2160,9 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<string>("ProvisioningFamilyName")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("ProvisioningGivenName")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<DateTimeOffset?>("ProvisioningModifiedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("ProvisioningProvider")
                         .HasMaxLength(69)
                         .HasColumnType("character varying(69)");
-
-                    b.Property<Guid>("ProvisioningRevision")
-                        .HasColumnType("uuid");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
@@ -2416,66 +2399,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasFilter("\"RevokedAtUtc\" IS NULL");
 
                     b.ToTable("PersonalAccessTokens");
-                });
-
-            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.ProvisioningGroup", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("ExternalId")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<DateTimeOffset>("ModifiedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("NormalizedDisplayName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(69)
-                        .HasColumnType("character varying(69)");
-
-                    b.Property<Guid>("Revision")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Provider", "ExternalId")
-                        .IsUnique();
-
-                    b.HasIndex("Provider", "NormalizedDisplayName")
-                        .IsUnique();
-
-                    b.ToTable("ProvisioningGroups");
-                });
-
-            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.ProvisioningGroupMember", b =>
-                {
-                    b.Property<Guid>("GroupId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("GroupId", "UserId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("ProvisioningGroupMembers");
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.SessionCredential", b =>
@@ -2971,21 +2894,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.PersonalAccessToken", b =>
                 {
-                    b.HasOne("OpenFarm.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.ProvisioningGroupMember", b =>
-                {
-                    b.HasOne("OpenFarm.Infrastructure.Identity.ProvisioningGroup", null)
-                        .WithMany()
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("OpenFarm.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")

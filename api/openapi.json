@@ -10371,24 +10371,8 @@
           "requireVerifiedEmail": {
             "type": "boolean"
           },
-          "scimEnabled": {
-            "type": "boolean"
-          },
-          "scimCredentialConfigured": {
-            "type": "boolean"
-          },
-          "scimRequestsPerMinute": {
-            "type": "integer",
-            "format": "int32"
-          },
           "defaultGroup": {
             "type": "string"
-          },
-          "groupMappings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AuthenticationGroupMapping"
-            }
           },
           "recoveryAccounts": {
             "type": "array",
@@ -10410,27 +10394,11 @@
             "type": "string",
             "nullable": true
           },
-          "scimUrl": {
-            "type": "string",
-            "nullable": true
-          },
           "recoveryMode": {
             "type": "boolean"
           },
           "oidcTested": {
             "type": "boolean"
-          }
-        }
-      },
-      "AuthenticationGroupMapping": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "externalGroup": {
-            "type": "string"
-          },
-          "localGroup": {
-            "type": "string"
           }
         }
       },
@@ -10515,25 +10483,8 @@
           "requireVerifiedEmail": {
             "type": "boolean"
           },
-          "scimEnabled": {
-            "type": "boolean"
-          },
-          "scimToken": {
-            "type": "string",
-            "nullable": true
-          },
-          "scimRequestsPerMinute": {
-            "type": "integer",
-            "format": "int32"
-          },
           "defaultGroup": {
             "type": "string"
-          },
-          "groupMappings": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
           }
         }
       },
@@ -17403,12 +17354,6 @@
           },
           "isExternallyManaged": {
             "type": "boolean"
-          },
-          "managedGroups": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/GroupSummary"
-            }
           }
         }
       },

@@ -31,8 +31,6 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
     public DbSet<SessionCredential> SessionCredentials => Set<SessionCredential>();
 
     public DbSet<OAuthClient> OAuthClients => Set<OAuthClient>();
-    public DbSet<ProvisioningGroup> ProvisioningGroups => Set<ProvisioningGroup>();
-    public DbSet<ProvisioningGroupMember> ProvisioningGroupMembers => Set<ProvisioningGroupMember>();
 
     public DbSet<FarmSettings> FarmSettings => Set<FarmSettings>();
 

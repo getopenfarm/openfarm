@@ -19,11 +19,7 @@ public sealed record AuthenticationSettingsValues
     public Guid[] RecoveryUserIds { get; init; } = [];
     public bool JitEnabled { get; init; }
     public bool RequireVerifiedEmail { get; init; } = true;
-    public bool ScimEnabled { get; init; }
-    public string? ScimToken { get; init; }
-    public int ScimRequestsPerMinute { get; init; } = 300;
     public string DefaultGroup { get; init; } = "Viewers";
-    public Dictionary<string, string> GroupMappings { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>One database snapshot per request. The fixed-value constructor supports isolated protocol hosts.</summary>
@@ -47,11 +43,11 @@ public sealed class AuthenticationConfiguration
     {
         get
         {
-            var value = RecoveryMode ? Values with { OidcEnabled = false, InternalAuthenticationEnabled = true, JitEnabled = false, ScimEnabled = false } : Values;
+            var value = RecoveryMode ? Values with { OidcEnabled = false, InternalAuthenticationEnabled = true, JitEnabled = false } : Values;
             return new(value);
         }
     }
-    public ProvisioningSettings Provisioning => new(RecoveryMode ? Values with { JitEnabled = false, ScimEnabled = false } : Values, Oidc);
+    public ProvisioningSettings Provisioning => new(RecoveryMode ? Values with { JitEnabled = false } : Values, Oidc);
 
     public AuthenticationConfiguration(OpenFarmDbContext db, IDataProtectionProvider protection, IConfiguration deployment)
     {

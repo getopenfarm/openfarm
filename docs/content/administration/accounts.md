@@ -7,7 +7,7 @@ Administrators create accounts under **Users & groups**. There is no public self
 
 Existing accounts can also sign in through authentik after explicit linking. See [single sign-on](single-sign-on.md) for setup and login policies.
 
-For centralized account creation and offboarding, enable [JIT or SCIM provisioning](account-provisioning.md).
+For automatic account creation at first sign-in, enable [JIT provisioning](account-provisioning.md).
 Managed accounts use OIDC without a local password. Their identity details are read-only in OpenFarm.
 
 ## Add a user

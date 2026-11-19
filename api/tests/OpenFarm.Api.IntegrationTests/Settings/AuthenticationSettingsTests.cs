@@ -35,10 +35,7 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
         RecoveryUserIds = saved.RecoveryUserIds,
         JitEnabled = saved.JitEnabled,
         RequireVerifiedEmail = saved.RequireVerifiedEmail,
-        ScimEnabled = saved.ScimEnabled,
-        ScimRequestsPerMinute = saved.ScimRequestsPerMinute,
         DefaultGroup = saved.DefaultGroup,
-        GroupMappings = saved.GroupMappings.ToDictionary(m => m.ExternalGroup, m => m.LocalGroup),
     };
 
     [Fact]
@@ -55,24 +52,20 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
         using var other = replica.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         (await other.GetFromJsonAsync<LoginProvidersResponse>("/api/v1/auth/providers"))!.OidcEnabled.Should().BeFalse();
         const string credential = "client-credential-for-runtime-settings";
-        const string scim = "provisioning-credential-for-runtime-settings-123456789";
         var values = Values(saved) with
         {
             OidcEnabled = true,
             Authority = "https://identity.example/application/o/farm/",
             ClientId = "runtime-client",
             ClientSecret = credential,
-            ScimEnabled = true,
-            ScimToken = scim,
-            JitEnabled = true,
-            GroupMappings = new() { ["farm:operators"] = "Operators" }
+            JitEnabled = true
         };
         using var response = await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, values));
         response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         var json = await response.Content.ReadAsStringAsync();
-        json.Should().NotContain(credential).And.NotContain(scim);
+        json.Should().NotContain(credential);
         var changed = (await response.Content.ReadFromJsonAsync<AuthenticationSettingsResponse>())!;
-        changed.ClientCredentialConfigured.Should().BeTrue(); changed.ScimCredentialConfigured.Should().BeTrue();
+        changed.ClientCredentialConfigured.Should().BeTrue();
         (await other.GetFromJsonAsync<LoginProvidersResponse>("/api/v1/auth/providers"))!.OidcEnabled.Should().BeTrue();
         using var challenge = await other.GetAsync("/api/v1/auth/sso/login");
         QueryHelpers.ParseQuery(challenge.Headers.Location!.Query)["client_id"].ToString().Should().Be("runtime-client");
@@ -80,12 +73,11 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
         {
             var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
             var ciphertext = (await db.AuthenticationSettings.AsNoTracking().SingleAsync()).ProtectedConfiguration;
-            ciphertext.Should().NotContain(credential).And.NotContain(scim);
+            ciphertext.Should().NotContain(credential);
             var settings = scope.ServiceProvider.GetRequiredService<AuthenticationConfiguration>();
             settings.Values.ClientSecret.Should().Be(credential);
             var audit = System.Text.Json.JsonSerializer.Serialize(await db.ActivityLogEntries.Where(e => e.EntityType == "AuthenticationSettingsRecord").ToArrayAsync());
-            audit.Should().NotContain(credential).And.NotContain(scim).And.NotContain(ciphertext);
-            settings.Provisioning.GroupMappings.Should().ContainKey("farm:operators");
+            audit.Should().NotContain(credential).And.NotContain(ciphertext);
         }
         // Empty credential inputs mean retain. A stale editor cannot replace newer settings.
         var retained = Values(changed) with { DisplayName = "Farm identity" };
@@ -104,7 +96,7 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
             (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().BrowserSessions.AsNoTracking().SingleAsync(s => s.Id == sid)).RevokedAtUtc.Should().NotBeNull();
         (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
         latest = (await ReadAsync(browser))!;
-        (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(latest.Revision, Values(latest) with { OidcEnabled = false, JitEnabled = false, ScimEnabled = false }))).EnsureSuccessStatusCode();
+        (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(latest.Revision, Values(latest) with { OidcEnabled = false, JitEnabled = false }))).EnsureSuccessStatusCode();
         (await other.GetFromJsonAsync<LoginProvidersResponse>("/api/v1/auth/providers"))!.OidcEnabled.Should().BeFalse();
     }
 
@@ -140,7 +132,7 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
         saved.OidcTested.Should().BeTrue();
         (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision,
             Values(saved) with { ClientSecret = "rotated-untested-client-credential" }))).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, Values(saved) with { OidcEnabled = false, InternalAuthenticationEnabled = true, JitEnabled = false, ScimEnabled = false }))).EnsureSuccessStatusCode();
+        (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, Values(saved) with { OidcEnabled = false, InternalAuthenticationEnabled = true, JitEnabled = false }))).EnsureSuccessStatusCode();
     }
 
     [Fact]
@@ -152,14 +144,10 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
         await old.ServiceProvider.GetRequiredService<AuthenticationConfiguration>().InitializeAsync(CancellationToken.None);
         var authentication = old.ServiceProvider.GetRequiredService<IAuthenticationService>();
         var accounts = old.ServiceProvider.GetRequiredService<AccountAdministrationService>();
-        var scim = old.ServiceProvider.GetRequiredService<ScimService>();
         (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, Values(saved) with { DisplayName = Guid.NewGuid().ToString("N") }))).EnsureSuccessStatusCode();
         (await authentication.AuthenticateAsync("admin", "admin-openfarm", CancellationToken.None)).Should().BeNull();
         await Assert.ThrowsAsync<ServerSettingsConflictException>(() => accounts.SaveGroupAsync(null,
             new GroupInput("stale-group", "", []), Guid.NewGuid(), CancellationToken.None));
-        var failure = await Assert.ThrowsAsync<ScimException>(() => scim.WriteAsync(false, "POST", null,
-            new System.Text.Json.Nodes.JsonObject(), null, "https://farm.example", CancellationToken.None));
-        failure.Status.Should().Be(409);
     }
 
     [Fact]

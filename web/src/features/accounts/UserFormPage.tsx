@@ -251,8 +251,7 @@ function UserForm({
         title={id ? name || user?.email || 'Unnamed user' : 'Add user'}
         description={id ? user?.email : undefined}
         action={
-          user &&
-          !user.isExternallyManaged && (
+          user && (
             <Button
               type="button"
               variant="destructive"
@@ -321,13 +320,6 @@ function UserForm({
 
           <section className="flex flex-col gap-3">
             <div className={sectionLabel}>Group membership</div>
-            {(user?.managedGroups?.length ?? 0) > 0 && (
-              <p className="text-sm text-muted-foreground">
-                Groups managed by SCIM:{' '}
-                {user?.managedGroups?.map((group) => group.name).join(', ')}.
-                The choices below manage additional local memberships.
-              </p>
-            )}
             {groupIds.length === 0 && (
               <Alert role="status">
                 <TriangleAlertIcon />
@@ -459,7 +451,11 @@ function UserForm({
           open={removeOpen}
           onOpenChange={setRemoveOpen}
           title={`Remove ${user.name || user.email}?`}
-          description="This cannot be undone."
+          description={
+            user?.isExternallyManaged
+              ? 'This cannot be undone. If JIT is enabled and the provider still allows access, this user can create a new account at sign-in. Disable the account instead to block access.'
+              : 'This cannot be undone.'
+          }
           confirmLabel="Remove"
           destructive
           isPending={removeUser.isPending}

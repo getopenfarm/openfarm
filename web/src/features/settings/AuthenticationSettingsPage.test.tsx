@@ -29,13 +29,7 @@ function setup({
     recoveryUserIds: [] as string[],
     jitEnabled: configured,
     requireVerifiedEmail: true,
-    scimEnabled: configured,
-    scimCredentialConfigured: configured,
-    scimRequestsPerMinute: 300,
     defaultGroup: 'Viewers',
-    groupMappings: (configured
-      ? [{ externalGroup: 'farm-operators', localGroup: 'Operators' }]
-      : []) as { externalGroup: string; localGroup: string }[],
     recoveryAccounts: [{ id: 'admin-id', username: 'admin' }],
     groups: [
       { id: 'viewers', name: 'Viewers' },
@@ -43,7 +37,6 @@ function setup({
     ],
     callbackUrl: 'https://farm.example/api/v1/auth/sso/callback',
     logoutUrl: 'https://farm.example/api/v1/auth/sso/backchannel-logout',
-    scimUrl: 'https://farm.example/scim/v2',
     recoveryMode: false,
   };
   let failSave = false;
@@ -62,17 +55,8 @@ function setup({
         ...data,
         ...body.settings,
         clientSecret: undefined,
-        scimToken: undefined,
         revision: 'second',
         clientCredentialConfigured: true,
-        scimCredentialConfigured:
-          !!body.settings.scimToken || data.scimCredentialConfigured,
-        groupMappings: Object.entries(body.settings.groupMappings).map(
-          ([externalGroup, localGroup]) => ({
-            externalGroup,
-            localGroup: String(localGroup),
-          }),
-        ),
       };
     }
     return Response.json(data);
@@ -133,7 +117,6 @@ it('uses settings navigation and retains stored credentials on save', async () =
   expect(writes[0].settings).toMatchObject({
     oidcEnabled: true,
     clientSecret: null,
-    scimToken: null,
   });
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
@@ -170,33 +153,6 @@ it('requires a recovery administrator before enforcing SSO', async () => {
     internalAuthenticationEnabled: false,
     recoveryUserIds: ['admin-id'],
   });
-});
-
-it('generates a separate SCIM credential and saves group mappings', async () => {
-  const user = userEvent.setup();
-  const { writes } = setup();
-  await user.click(
-    await screen.findByRole('switch', { name: 'OIDC authentication' }),
-  );
-  await user.click(
-    screen.getByRole('switch', { name: 'Directory provisioning (SCIM)' }),
-  );
-  await user.click(screen.getByRole('button', { name: 'Generate credential' }));
-  expect(
-    (screen.getByLabelText('Provisioning credential') as HTMLInputElement)
-      .value,
-  ).toMatch(/^[a-f0-9]{64}$/);
-  await user.click(screen.getByRole('button', { name: 'Add group mapping' }));
-  await user.type(screen.getByLabelText('External group'), 'farm-operators');
-  await user.click(screen.getByRole('button', { name: 'Save' }));
-  await waitFor(() => expect(writes).toHaveLength(1));
-  expect(writes[0].settings.scimToken).toMatch(/^[a-f0-9]{64}$/);
-  expect(writes[0].settings.groupMappings).toEqual({
-    'farm-operators': 'Viewers',
-  });
-  await waitFor(() =>
-    expect(screen.getByLabelText('Provisioning credential')).toHaveValue(''),
-  );
 });
 
 it('preserves edits after a save conflict and clears draft credentials on reset', async () => {
@@ -247,9 +203,6 @@ it('reveals OIDC and provisioning controls only while their features are enabled
     screen.queryByText('Account provisioning', { exact: true }),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByRole('switch', { name: 'Directory provisioning (SCIM)' }),
-  ).not.toBeInTheDocument();
-  expect(
     screen.queryByLabelText('Session duration (hours)'),
   ).not.toBeInTheDocument();
   await user.click(oidc);
@@ -280,13 +233,6 @@ it('reveals OIDC and provisioning controls only while their features are enabled
   expect(
     screen.queryByText('Advanced provisioning settings'),
   ).not.toBeInTheDocument();
-  await user.click(
-    screen.getByRole('switch', { name: 'Directory provisioning (SCIM)' }),
-  );
-  expect(screen.getByLabelText('Requests per minute')).toHaveValue(300);
-  expect(
-    screen.getByRole('button', { name: 'Copy scim base url' }),
-  ).toBeEnabled();
   await user.click(oidc);
   expect(
     screen.queryByText('Account provisioning', { exact: true }),
@@ -308,52 +254,26 @@ it('preserves the complete provisioning draft across an unsaved OIDC off/on cycl
       name: 'Create accounts on first sign-in (JIT)',
     }),
   );
-  await user.click(
-    screen.getByRole('switch', { name: 'Directory provisioning (SCIM)' }),
-  );
   await user.type(
     screen.getByLabelText('Client credential'),
     'draft-client-credential',
   );
-  await user.click(screen.getByRole('button', { name: 'Generate credential' }));
-  const credential = (
-    screen.getByLabelText('Provisioning credential') as HTMLInputElement
-  ).value;
-  await user.clear(screen.getByLabelText('Requests per minute'));
-  await user.type(screen.getByLabelText('Requests per minute'), '450');
-  await user.click(screen.getByRole('button', { name: 'Add group mapping' }));
-  await user.type(screen.getByLabelText('External group'), 'draft-operators');
   await user.click(oidc);
-  expect(screen.queryByLabelText('External group')).not.toBeInTheDocument();
   await user.click(oidc);
   expect(
     screen.getByRole('switch', {
       name: 'Create accounts on first sign-in (JIT)',
     }),
   ).toBeChecked();
-  expect(
-    screen.getByRole('switch', { name: 'Directory provisioning (SCIM)' }),
-  ).toBeChecked();
   expect(screen.getByLabelText('Client credential')).toHaveValue(
     'draft-client-credential',
-  );
-  expect(screen.getByLabelText('Provisioning credential')).toHaveValue(
-    credential,
-  );
-  expect(screen.getByLabelText('Requests per minute')).toHaveValue(450);
-  expect(screen.getByLabelText('External group')).toHaveValue(
-    'draft-operators',
   );
   await user.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0].settings).toMatchObject({
     oidcEnabled: true,
     jitEnabled: true,
-    scimEnabled: true,
     clientSecret: 'draft-client-credential',
-    scimToken: credential,
-    scimRequestsPerMinute: 450,
-    groupMappings: { 'draft-operators': 'Viewers' },
   });
 });
 
@@ -365,10 +285,8 @@ it('warns when disabling saved OIDC and saves disabled provisioning without hidd
   });
   await user.clear(screen.getByLabelText('Client ID'));
   await user.clear(screen.getByLabelText('Session duration (hours)'));
-  await user.type(screen.getByLabelText('Provisioning credential'), 'short');
-  await user.click(screen.getByRole('button', { name: 'Add group mapping' }));
   await user.click(oidc);
-  expect(screen.getByRole('status')).toHaveTextContent('disable JIT and SCIM');
+  expect(screen.getByRole('status')).toHaveTextContent('disable JIT');
   expect(
     screen.queryByText('Account provisioning', { exact: true }),
   ).not.toBeInTheDocument();
@@ -378,51 +296,20 @@ it('warns when disabling saved OIDC and saves disabled provisioning without hidd
     oidcEnabled: false,
     internalAuthenticationEnabled: true,
     jitEnabled: false,
-    scimEnabled: false,
     clientId: 'farm',
     sessionHours: 8,
     clientSecret: null,
-    scimToken: null,
-    groupMappings: { 'farm-operators': 'Operators' },
   });
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
   );
 });
 
-it('retains saved SCIM settings when disabling SCIM while JIT stays enabled', async () => {
-  const user = userEvent.setup();
-  const { writes } = setup({ configured: true });
-  await screen.findByRole('switch', { name: 'OIDC authentication' });
-  await user.type(screen.getByLabelText('Provisioning credential'), 'short');
-  await user.clear(screen.getByLabelText('Requests per minute'));
-  await user.click(screen.getByRole('button', { name: 'Add group mapping' }));
-  await user.click(
-    screen.getByRole('switch', { name: 'Directory provisioning (SCIM)' }),
-  );
-  expect(
-    screen.getByRole('switch', { name: 'Require verified email' }),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByLabelText('Provisioning credential'),
-  ).not.toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'Save' }));
-  await waitFor(() => expect(writes).toHaveLength(1));
-  expect(writes[0].settings).toMatchObject({
-    oidcEnabled: true,
-    jitEnabled: true,
-    scimEnabled: false,
-    scimToken: null,
-    scimRequestsPerMinute: 300,
-    groupMappings: { 'farm-operators': 'Operators' },
-  });
-});
-
 it('resets the hidden draft and restores the saved enabled features', async () => {
   const user = userEvent.setup();
   setup({ configured: true });
   await user.type(
-    await screen.findByLabelText('Provisioning credential'),
+    await screen.findByLabelText('Client credential'),
     'draft-credential',
   );
   await user.click(screen.getByRole('switch', { name: 'OIDC authentication' }));
@@ -430,10 +317,6 @@ it('resets the hidden draft and restores the saved enabled features', async () =
   expect(
     screen.getByRole('switch', { name: 'OIDC authentication' }),
   ).toBeChecked();
-  expect(
-    screen.getByRole('switch', { name: 'Directory provisioning (SCIM)' }),
-  ).toBeChecked();
-  expect(screen.getByLabelText('Provisioning credential')).toHaveValue('');
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 });
 

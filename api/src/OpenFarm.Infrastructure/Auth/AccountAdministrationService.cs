@@ -12,7 +12,6 @@ public sealed record AccountResponse(Guid Id, string Username, string Email, str
     DateTimeOffset CreatedAtUtc, GroupSummary[] Groups, string[] ExtraGrants, string[] EffectivePermissions, bool IsAdministrator, int SessionCount)
 {
     public bool IsExternallyManaged { get; init; }
-    public GroupSummary[] ManagedGroups { get; init; } = [];
 }
 public sealed record GroupResponse(Guid Id, string Name, string Description, bool IsProtected, string[] Grants, int MemberCount);
 public sealed record AccountInput(string Username, string Email, string? Name, Guid[] GroupIds, string[] ExtraGrants, bool IsEnabled, string? Password);
@@ -41,7 +40,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
             var count = await db.BrowserSessions.CountAsync(s => s.UserId == user.Id && s.ClientId == null && s.RevokedAtUtc == null && s.ExpiresAtUtc > DateTimeOffset.UtcNow, ct);
             result.Add(new(user.Id, user.UserName!, user.Email!, user.DisplayName, user.IsEnabled, user.CreatedAtUtc,
                 groups, grants, access.Permissions, access.IsAdministrator, count)
-            { IsExternallyManaged = user.ProvisioningProvider is not null, ManagedGroups = await permissions.ManagedGroupsAsync(user.Id, ct) });
+            { IsExternallyManaged = user.ProvisioningProvider is not null });
         }
         return result.ToArray();
     }
@@ -53,7 +52,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         foreach (var role in all)
             result.Add(new(role.Id, role.Name!, role.Description, role.IsProtected,
                 PermissionCatalog.Sort((await db.RoleClaims.Where(c => c.RoleId == role.Id && c.ClaimType == PermissionCatalog.GrantClaim).Select(c => c.ClaimValue!).ToArrayAsync(ct)).Where(PermissionCatalog.IsGrantable)),
-                await permissions.MemberCountAsync(role.Id, role.Name, ct)));
+                await permissions.MemberCountAsync(role.Id, ct)));
         return result.ToArray();
     }
 
@@ -89,14 +88,11 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         var user = id is null ? new ApplicationUser() : await users.FindByIdAsync(id.Value.ToString()) ?? throw new KeyNotFoundException("User not found.");
         if (user.ProvisioningProvider is not null && (user.UserName != input.Username.Trim() || user.Email != input.Email.Trim() || (user.DisplayName?.Trim() ?? "") != (input.Name?.Trim() ?? "")))
             throw new ArgumentException("Account details are managed by the identity provider.");
-        if (user.IsScimDeleted) throw new ArgumentException("This account was deleted by provisioning and cannot be edited locally.");
         if (id is null && string.IsNullOrWhiteSpace(input.Password)) throw new ArgumentException("A temporary password is required.");
         if (id is not null && input.Password is not null) throw new ArgumentException("Use Reset password to change another user's password.");
         if (user.ProvisioningProvider is null)
         { user.UserName = input.Username.Trim(); user.Email = input.Email.Trim(); user.DisplayName = input.Name?.Trim(); }
         user.IsEnabled = input.IsEnabled;
-        if (user.ProvisioningProvider is not null)
-        { user.ProvisioningRevision = Guid.NewGuid(); user.ProvisioningModifiedAtUtc = DateTimeOffset.UtcNow; }
         Check(id is null ? await users.CreateAsync(user, input.Password!) : await users.UpdateAsync(user));
         var memberships = await db.UserRoles.Where(m => m.UserId == user.Id).ToListAsync(ct);
         db.UserRoles.RemoveRange(memberships.Where(m => !groupIds.Contains(m.RoleId)));
@@ -177,7 +173,6 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await LockAdministrationAsync(ct);
         var user = await users.FindByIdAsync(id.ToString()) ?? throw new KeyNotFoundException("User not found.");
-        if (user.ProvisioningProvider is not null) throw new ArgumentException("Remove externally managed accounts through SCIM. Disable the account locally for emergency access removal.");
         // Sessions, memberships and grants cascade with the user row.
         Check(await users.DeleteAsync(user));
         await EnsureAdministratorAsync(ct);

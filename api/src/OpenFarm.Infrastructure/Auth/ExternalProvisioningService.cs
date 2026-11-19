@@ -18,12 +18,11 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
 
     public async Task ValidateAsync(CancellationToken ct)
     {
-        if (!settings.JitEnabled && !settings.ScimEnabled) return;
-        foreach (var name in settings.GroupMappings.Values.Append(settings.DefaultGroup).Distinct(StringComparer.OrdinalIgnoreCase))
-            _ = await FindAllowedRoleAsync(name, ct);
+        if (!settings.JitEnabled) return;
+        _ = await FindAllowedRoleAsync(settings.DefaultGroup, ct);
     }
 
-    public async Task<ApplicationRole> FindAllowedRoleAsync(string name, CancellationToken ct)
+    private async Task<ApplicationRole> FindAllowedRoleAsync(string name, CancellationToken ct)
     {
         var normalized = name.ToUpperInvariant();
         var role = await db.Roles.SingleOrDefaultAsync(r => r.NormalizedName == normalized, ct);
@@ -32,7 +31,7 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
         return role;
     }
 
-    /// <summary>Caller owns the transaction. A disabled or deleted subject is never recreated.</summary>
+    /// <summary>Caller owns the transaction. A disabled account is never re-enabled.</summary>
     public async Task<ApplicationUser?> ResolveJitAsync(string subject, ExternalProfile profile, CancellationToken ct)
     {
         await LockAsync(ct);
@@ -43,11 +42,10 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
         if (string.IsNullOrEmpty(username) || username.Length > 256 || string.IsNullOrWhiteSpace(profile.Email)
             || profile.Email.Length > 256 || !System.Net.Mail.MailAddress.TryCreate(profile.Email, out _)
             || profile.DisplayName?.Length > 256) return null;
-        return await CreateAsync(subject, username, profile.Email.Trim(), profile.DisplayName, true, "JitAccountCreated", ct);
+        return await CreateAsync(subject, username, profile.Email.Trim(), profile.DisplayName, ct);
     }
 
-    public async Task<ApplicationUser> CreateAsync(string subject, string username, string email, string? displayName,
-        bool active, string action, CancellationToken ct)
+    private async Task<ApplicationUser> CreateAsync(string subject, string username, string email, string? displayName, CancellationToken ct)
     {
         if (await db.UserLogins.AnyAsync(l => l.LoginProvider == oidc.ProviderKey && l.ProviderKey == subject, ct)
             || await db.Users.AnyAsync(u => u.ProvisioningProvider == oidc.ProviderKey && u.ProvisioningExternalId == subject, ct))
@@ -58,36 +56,15 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
             UserName = username,
             Email = email,
             DisplayName = displayName,
-            IsEnabled = active,
+            IsEnabled = true,
             ProvisioningProvider = oidc.ProviderKey,
             ProvisioningExternalId = subject,
-            ProvisioningModifiedAtUtc = time.GetUtcNow(),
-            ProvisioningRevision = Guid.NewGuid(),
             CreatedAtUtc = time.GetUtcNow(),
         };
         Check(await users.CreateAsync(user)); // No password or local login credential is created.
         Check(await users.AddLoginAsync(user, new UserLoginInfo(oidc.ProviderKey, subject, oidc.DisplayName)));
         Check(await users.AddToRoleAsync(user, role.Name!));
-        db.ActivityLogEntries.Add(ActivityLogEntry.Create("User", user.Id.ToString(), action, null, ActorType.System));
-        await db.SaveChangesAsync(ct);
-        return user;
-    }
-
-    public async Task<ApplicationUser?> RestoreScimAsync(string subject, string username, string email, string? displayName,
-        bool active, CancellationToken ct)
-    {
-        var user = await db.Users.SingleOrDefaultAsync(u => u.ProvisioningProvider == oidc.ProviderKey
-            && u.ProvisioningExternalId == subject && u.IsScimDeleted, ct);
-        if (user is null) return null;
-        if (oidc.RecoveryUserIds.Contains(user.Id)) throw new ArgumentException("Recovery accounts cannot be provisioned.");
-        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM \"AspNetUsers\" WHERE \"Id\" = {user.Id} FOR UPDATE", ct);
-        var role = await FindAllowedRoleAsync(settings.DefaultGroup, ct);
-        user.UserName = username; user.Email = email; user.DisplayName = displayName;
-        user.IsScimDeleted = false; user.IsEnabled = active; user.PasswordHash = null;
-        user.SecurityStamp = Guid.NewGuid().ToString();
-        Check(await users.UpdateAsync(user));
-        Check(await users.AddToRoleAsync(user, role.Name!));
-        db.ActivityLogEntries.Add(ActivityLogEntry.Create("User", user.Id.ToString(), "ScimUserRestored", null, ActorType.System));
+        db.ActivityLogEntries.Add(ActivityLogEntry.Create("User", user.Id.ToString(), "JitAccountCreated", null, ActorType.System));
         await db.SaveChangesAsync(ct);
         return user;
     }

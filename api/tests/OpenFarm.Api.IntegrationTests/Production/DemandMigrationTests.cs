@@ -41,7 +41,6 @@ public class DemandMigrationTests(ProductionTestFactory factory) : ProductionTes
             authentication.Values.InternalAuthenticationEnabled.Should().BeTrue();
             authentication.Values.OidcEnabled.Should().BeFalse();
             authentication.Values.JitEnabled.Should().BeFalse();
-            authentication.Values.ScimEnabled.Should().BeFalse();
             var settings = await db.ServerSettings.SingleAsync(s => s.Id == ServerSettings.SingletonId);
             settings.McpMode.Should().Be(McpAccessMode.Disabled);
         }
