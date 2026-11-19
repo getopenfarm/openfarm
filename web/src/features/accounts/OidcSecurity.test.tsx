@@ -40,13 +40,29 @@ describe('OIDC account security', () => {
     });
     setup('&sso=linked');
     expect(await screen.findByText('Linked to authentik.')).toBeInTheDocument();
-    expect(screen.getByText('Sign-in provider linked.')).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText('Confirm local password'),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText('Account linked.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument();
     expect(
       screen.queryByText('Local password controls'),
     ).not.toBeInTheDocument();
+  });
+
+  it('uses the neutral label the server sends for an unnamed provider', async () => {
+    http.mockResolvedValue({
+      data: {
+        enabled: true,
+        displayName: 'SSO',
+        linked: false,
+        passwordAllowed: true,
+      },
+    });
+    setup();
+    expect(
+      await screen.findByRole('button', { name: 'Link SSO' }),
+    ).toBeEnabled();
+    expect(
+      screen.getByText('Link this account to SSO. Permissions do not change.'),
+    ).toBeInTheDocument();
   });
 
   it('keeps local password controls when OIDC is disabled', async () => {
@@ -76,18 +92,18 @@ describe('OIDC account security', () => {
     });
     http.mockResolvedValueOnce({ data: { token: 'csrf-proof' } });
     http.mockRejectedValueOnce(
-      new Response(JSON.stringify({ detail: 'Check your current password.' }), {
+      new Response(JSON.stringify({ detail: 'Check the current password.' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       }),
     );
     setup();
-    const password = await screen.findByLabelText('Confirm local password');
+    const password = await screen.findByLabelText('Current password');
     const user = userEvent.setup();
     await user.type(password, 'incorrect-password');
     await user.click(screen.getByRole('button', { name: 'Link authentik' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Check your current password.',
+      'Check the current password.',
     );
     expect(http).toHaveBeenLastCalledWith('/api/v1/auth/sso/link', {
       method: 'POST',
@@ -114,9 +130,9 @@ describe('OIDC account security', () => {
     });
     setup('&sso=failed&ssoReason=provider_configuration');
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Check the Issuer URL',
+      'Check the issuer URL',
     );
-    expect(screen.getByRole('alert')).toHaveTextContent('OpenFarm server logs');
+    expect(screen.getByRole('alert')).toHaveTextContent('see the server log');
     expect(
       screen.getByRole('button', { name: 'Link authentik' }),
     ).toBeEnabled();
@@ -125,32 +141,26 @@ describe('OIDC account security', () => {
 
   it.each([
     ['fresh_authentication', 'The provider did not confirm a recent sign-in.'],
-    ['auth_time_missing', 'The provider did not send a usable sign-in time'],
+    ['auth_time_missing', 'The provider did not send auth_time.'],
     ['provider_denied', 'The provider refused the sign-in.'],
     ['issuer_mismatch', 'The provider issuer does not match'],
     [
       'browser_proof',
-      'The linking browser proof is missing or does not match.',
+      'The browser proof for linking is missing or does not match.',
     ],
-    ['session_changed', 'Your original OpenFarm session changed or expired.'],
-    ['expired', 'The linking request expired or could not be read.'],
-    ['request_replaced', 'The linking request was already used or replaced.'],
-    ['configuration_changed', 'The sign-in settings changed during linking.'],
-    [
-      'already_linked',
-      'This OpenFarm account is already linked to the provider.',
-    ],
+    ['session_changed', 'Your OpenFarm session changed or ended.'],
+    ['expired', 'The linking request expired.'],
+    ['request_replaced', 'The linking request was used or replaced.'],
+    ['configuration_changed', 'The sign-in settings changed.'],
+    ['already_linked', 'This account is already linked to the provider.'],
     [
       'identity_conflict',
-      'This provider identity is already linked to an OpenFarm account.',
+      'Another OpenFarm account already uses this provider identity.',
     ],
-    [
-      'provider_response',
-      'The provider sign-in response could not be verified.',
-    ],
-    ['unknown', 'Could not link this identity.'],
-    ['__proto__', 'Could not link this identity.'],
-    ['toString', 'Could not link this identity.'],
+    ['provider_response', 'The provider response failed verification.'],
+    ['unknown', 'Link failed.'],
+    ['__proto__', 'Link failed.'],
+    ['toString', 'Link failed.'],
   ])(
     'explains %s without removing retry or local password controls',
     async (reason, message) => {
@@ -182,9 +192,7 @@ describe('OIDC account security', () => {
       },
     });
     setup();
-    expect(
-      await screen.findByText('Could not load sign-in methods'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Load failed')).toBeInTheDocument();
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: 'Retry' }));

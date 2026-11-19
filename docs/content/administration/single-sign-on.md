@@ -48,21 +48,16 @@ It requests `openid`, `profile`, and `email`; it does not need `offline_access` 
 1. Sign in to OpenFarm as an administrator.
 2. Open **Settings → Authentication**.
 3. Turn on **OIDC authentication**.
-4. Enter the **Provider name**, **Issuer URL**, **Client ID**, and **Client credential**.
-5. Set **Session duration (hours)** under **OpenID Connect**. The default is eight hours; the range is 1 through 24.
-6. Keep **Internal authentication** on while enrolling existing accounts.
-7. Select **Save**.
-8. Link your administrator account as described below.
-9. Return to **Authentication** and select **Test sign-in**.
-
-The test checks your linked administrator identity and preserves your current OpenFarm session.
-It does not create an account or replace your session. Save changes before starting the test.
+4. Enter the **Issuer URL**, **Client ID**, and **Client credential**. Optional: enter a **Provider name** for the sign-in button. Blank shows **SSO**.
+5. Keep **Internal authentication** on while enrolling existing accounts.
+6. Select **Save**.
+7. Link your administrator account as described below.
 
 Changes apply immediately across OpenFarm replicas. No container restart is required.
 New installations enable internal authentication and disable OIDC and JIT.
-Enabling OIDC adds the provider's sign-in button. Keep internal authentication on to allow both login methods.
+Enabling OIDC adds the provider's sign-in button. Keep internal authentication on to allow both sign-in methods.
+The login page shows the provider button first. The username and password form opens with **Use username and password**.
 OpenFarm rejects configurations that disable both methods.
-Changing the public URL, issuer, client ID, or client credential requires another successful test before disabling internal authentication.
 HTTP is allowed only for localhost development.
 
 Provider configuration and account provisioning appear while **OIDC authentication** is on.
@@ -79,8 +74,8 @@ Changing the issuer or client ID also requires entering the provider's client cr
 
 1. Sign in to OpenFarm with your local username and password.
 2. Open **My profile → Security**.
-3. Enter your current password under **Confirm local password**.
-4. Select **Link authentik**, or the configured provider name.
+3. Enter your current password under **Current password**.
+4. Select **Link** with the provider name. With no provider name, select **Link SSO**.
 5. Authenticate with the intended provider account.
 6. Return to OpenFarm and check the linked status.
 
@@ -101,10 +96,9 @@ First link regular accounts and test provider sign-in in a separate browser sess
 Keep a separate local administrator for recovery and test its password.
 
 1. Open **Settings → Authentication**.
-2. Complete **Test sign-in** for the saved provider configuration.
-3. Turn off **Internal authentication**.
-4. Select at least one local administrator under **Recovery access**.
-5. Select **Save**.
+2. Turn off **Internal authentication**.
+3. Select at least one local administrator under **Recovery access**.
+4. Select **Save**.
 
 Only selected recovery accounts can use local passwords when SSO is required.
 The settings page lists enabled local administrators with a password.
@@ -121,9 +115,14 @@ Existing local accounts must use optional mode to link their identities.
 
 ## Sessions and revocation
 
-Refreshing access does not extend an SSO session's deadline.
-After expiry, the user must sign in through the provider again.
-Changing the provider, client credential, or session duration ends existing SSO sessions.
+An SSO session stays signed in while it is used. Each refresh extends it by three days, up to 14 days after sign-in.
+A session unused for three days, or 14 days old, expires, and the user must sign in through the provider again.
+These limits are fixed.
+
+OpenFarm does not poll the provider. A user removed or disabled there keeps access until their session expires
+or the provider sends [back-channel logout](#configure-back-channel-logout). Disable the OpenFarm account to revoke access at once.
+
+Changing the provider or client credential ends existing SSO sessions.
 Disabling SSO ends those sessions too. Changing the issuer requires an identity migration plan.
 
 Signing out of OpenFarm ends the current OpenFarm browser session.
@@ -154,7 +153,7 @@ Provider logout takes effect after authentik successfully delivers its logout no
 
 ## Troubleshoot provider setup
 
-If linking or testing returns to OpenFarm before authentik opens, check the saved **Issuer URL**.
+If linking returns to OpenFarm before authentik opens, check the saved **Issuer URL**.
 OpenFarm loads the issuer's `.well-known/openid-configuration` document from its backend.
 That address must return an OpenID configuration document, not a sign-in page or an authorization endpoint.
 Check connectivity and TLS trust from the OpenFarm server or container, as well as proxy and firewall rules.

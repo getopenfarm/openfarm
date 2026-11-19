@@ -24,6 +24,19 @@ public class OidcSettingsTests
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void BlankProviderName_FallsBackToANeutralLabel(string name) =>
+        new OidcSettings(Enabled with { DisplayName = name }).DisplayName.Should().Be("SSO");
+
+    [Fact]
+    public void ProviderName_IsOptionalAndTrimmed()
+    {
+        new AuthenticationSettingsValues().DisplayName.Should().BeEmpty();
+        new OidcSettings(Enabled with { DisplayName = "  Corporate login " }).DisplayName.Should().Be("Corporate login");
+    }
+
+    [Theory]
     [InlineData("http://idp.example/application/o/farm/")]
     [InlineData("https://user:password@idp.example/")]
     [InlineData("https://idp.example/?x=1")]
@@ -61,27 +74,51 @@ public class OidcSettingsTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(25)]
-    public void RejectsUnboundedExternalSessionLifetimes(int hours) =>
-        ((Action)(() => _ = new OidcSettings(Enabled with { SessionHours = hours }))).Should().Throw<InvalidOperationException>();
-
-    [Theory]
     [InlineData(null)]
     [InlineData("http://farm.example")]
     public void Enabled_RequiresASecurePublicUrl(string? value) =>
         ((Action)(() => new OidcSettings(Enabled).ValidatePublicUrl(value))).Should().Throw<InvalidOperationException>();
 
     [Fact]
-    public void ProviderTest_IsBoundToCredentialsClientIssuerAndCallbackOrigin()
+    public void GroupsClaim_DefaultsToGroups_SoSettingsSavedBeforeTheFieldKeepWorking() =>
+        new AuthenticationSettingsValues().GroupsClaim.Should().Be("groups");
+
+    [Theory]
+    [InlineData("groups")]
+    [InlineData("entitlements")]
+    [InlineData("roles")]
+    [InlineData("https://farm.example/claims/roles")]
+    public void Jit_AcceptsAnyProviderClaimName(string claim)
     {
-        const string origin = "https://farm.example";
-        var settings = new OidcSettings(Enabled);
-        var identity = settings.TestIdentity(origin);
-        settings.TestIdentity("https://other.example").Should().NotBe(identity);
-        new OidcSettings(Enabled with { ClientSecret = "rotated" }).TestIdentity(origin).Should().NotBe(identity);
-        new OidcSettings(Enabled with { ClientId = "replacement" }).TestIdentity(origin).Should().NotBe(identity);
-        new OidcSettings(Enabled with { Authority = "https://other.example/" }).TestIdentity(origin).Should().NotBe(identity);
-        new OidcSettings(Enabled with { DisplayName = "New name", JitEnabled = true }).TestIdentity(origin).Should().Be(identity);
+        var values = Enabled with { JitEnabled = true, GroupsClaim = claim };
+        new ProvisioningSettings(values, new OidcSettings(values)).GroupsClaim.Should().Be(claim);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("two words")]
+    [InlineData("tab\tseparated")]
+    [InlineData("sub")]
+    [InlineData("Email")]
+    [InlineData("NAME")]
+    [InlineData("preferred_username")]
+    public void Jit_RejectsABlankSpacedOrIdentityGroupsClaim(string claim)
+    {
+        var values = Enabled with { JitEnabled = true, GroupsClaim = claim };
+        ((Action)(() => _ = new ProvisioningSettings(values, new OidcSettings(values)))).Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Jit_RejectsAGroupsClaimOver256Characters()
+    {
+        var values = Enabled with { JitEnabled = true, GroupsClaim = new string('a', 257) };
+        ((Action)(() => _ = new ProvisioningSettings(values, new OidcSettings(values)))).Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void GroupsClaim_IsNotCheckedWhileJitIsOff()
+    {
+        var values = Enabled with { GroupsClaim = "sub" };
+        ((Action)(() => _ = new ProvisioningSettings(values, new OidcSettings(values)))).Should().NotThrow();
     }
 }

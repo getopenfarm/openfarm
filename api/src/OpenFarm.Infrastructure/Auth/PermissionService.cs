@@ -9,10 +9,22 @@ public sealed record UserAccess(bool IsAdministrator, string[] Groups, string[] 
 public sealed class PermissionService(OpenFarmDbContext db, ProvisioningSettings provisioning)
 {
     public bool IsProvisioningTarget(string? name) => provisioning.JitEnabled
-        && string.Equals(name, provisioning.DefaultGroup, StringComparison.OrdinalIgnoreCase);
+        && (string.Equals(name, provisioning.DefaultGroup, StringComparison.OrdinalIgnoreCase)
+            || provisioning.GroupMappings.Any(m => string.Equals(name, m.Group, StringComparison.OrdinalIgnoreCase)));
 
     public Task<int> MemberCountAsync(Guid roleId, CancellationToken ct) =>
         db.UserRoles.CountAsync(m => m.RoleId == roleId, ct);
+
+    /// <summary>
+    /// The one definition of "an administrator remains": every path that can remove an administrator (account edits and
+    /// removal, the OIDC group sync) writes its change and then asks this, inside the administration lock.
+    /// </summary>
+    public Task<bool> HasEnabledAdministratorAsync(CancellationToken ct) =>
+        (from user in db.Users
+         join membership in db.UserRoles on user.Id equals membership.UserId
+         join role in db.Roles on membership.RoleId equals role.Id
+         where user.IsEnabled && role.IsProtected && role.Name == PermissionCatalog.Administrators
+         select user.Id).AnyAsync(ct);
 
     public async Task<UserAccess> ResolveAsync(Guid userId, CancellationToken ct)
     {

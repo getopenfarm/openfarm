@@ -69,10 +69,7 @@ export function ProfilePage() {
         (identity.data ? (
           <ProfileTab user={identity.data} />
         ) : identity.isError ? (
-          <ErrorState
-            title="Could not load profile"
-            onRetry={() => identity.refetch()}
-          />
+          <ErrorState title="Load failed" onRetry={() => identity.refetch()} />
         ) : (
           <Skeleton className="h-48 max-w-[640px]" />
         ))}
@@ -99,7 +96,7 @@ export function ProfilePage() {
       {tab === 'sessions' && (
         <SettingsSection
           title="Sessions"
-          description="Browsers signed in as you. Password sessions last up to 14 days; your administrator configures the SSO session limit."
+          description="Browsers signed in as you. Sessions end after 14 days. SSO sessions also end after 3 days idle."
         >
           <SessionList />
         </SettingsSection>
@@ -134,7 +131,7 @@ function ProfileTab({ user }: { user: CurrentUser }) {
       await update.mutateAsync({ name, email, username });
       toast.success('Profile saved.');
     } catch (e) {
-      setError(await extractErrorDetail(e, 'Could not update profile.'));
+      setError(await extractErrorDetail(e, 'Update failed.'));
     }
   }
 
@@ -143,8 +140,8 @@ function ProfileTab({ user }: { user: CurrentUser }) {
       title="Profile"
       description={
         user.isExternallyManaged
-          ? 'Your identity provider manages these account details.'
-          : 'Update your display name, email, and username'
+          ? 'The provider manages these details.'
+          : 'Update your display name, email, and username.'
       }
     >
       <form onSubmit={submit}>
@@ -225,7 +222,7 @@ function SecurityTab() {
       void client.invalidateQueries({ queryKey: whoAmIKey });
       void client.invalidateQueries({ queryKey: sessionsKey() });
     } catch (e) {
-      setError(await extractErrorDetail(e, 'Could not change password.'));
+      setError(await extractErrorDetail(e, 'Password change failed.'));
     } finally {
       setPending(false);
     }

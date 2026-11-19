@@ -57,7 +57,7 @@ describe('Profile form feedback', () => {
     profileState.managed = true;
     setup();
     expect(
-      screen.getByText('Your identity provider manages these account details.'),
+      screen.getByText('The provider manages these details.'),
     ).toBeInTheDocument();
     expect(screen.getByLabelText('Display name')).toBeDisabled();
     expect(screen.getByLabelText('Email')).toBeDisabled();
@@ -113,7 +113,7 @@ describe('Profile form feedback', () => {
     await user.type(confirm, 'new-password');
     await user.click(screen.getByRole('button', { name: 'Change password' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not change password.',
+      'Password change failed.',
     );
     expect(screen.getByLabelText('New password')).toHaveValue('new-password');
   });
@@ -142,7 +142,7 @@ describe('Profile form feedback', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     await act(async () => reject(new Error('Unavailable')));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Could not revoke session.',
+      'Revoke failed.',
     );
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(revoke).toHaveFocus());

@@ -53,9 +53,7 @@ describe('OIDC completion', () => {
   it('does not report success when the refresh cookie is missing', async () => {
     vi.mocked(refreshSession).mockResolvedValue(null);
     setup('/printers');
-    expect(
-      await screen.findByText('Could not finish sign-in'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Sign-in failed')).toBeInTheDocument();
     expect(login).not.toHaveBeenCalled();
   });
   it('offers recovery after a network failure', async () => {

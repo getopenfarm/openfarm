@@ -256,14 +256,14 @@ export function UsersGroupsPage() {
         <TabsContent value={tab} className="flex flex-col gap-4">
           {query.isError && query.data && (
             <ErrorState
-              title="Could not refresh users and groups"
+              title="Refresh failed"
               description="Showing previous results."
               onRetry={() => query.refetch()}
             />
           )}
           {query.isError && !query.data ? (
             <ErrorState
-              title="Could not load users and groups"
+              title="Load failed"
               onRetry={() => void query.refetch()}
             />
           ) : !query.data ? (
@@ -339,9 +339,7 @@ export function UsersGroupsPage() {
               setRemoveOpen(false);
             })
             .catch(async (e) =>
-              toast.error(
-                await extractErrorDetail(e, 'Could not remove user.'),
-              ),
+              toast.error(await extractErrorDetail(e, 'Remove failed.')),
             );
         }}
       />

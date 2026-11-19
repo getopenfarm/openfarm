@@ -8,12 +8,18 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.Auth;
 
-public sealed record ExternalProfile(string? Username, string? Email, string? DisplayName, bool EmailVerified);
+public sealed record ExternalProfile(string? Username, string? Email, string? DisplayName, bool EmailVerified, IReadOnlyList<string>? Groups = null);
 public sealed class ProvisioningConflictException(string message) : ArgumentException(message);
 
-public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManager<ApplicationUser> users,
+public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManager<ApplicationUser> users, PermissionService permissions,
     OidcSettings oidc, ProvisioningSettings settings, TimeProvider time, ILogger<ExternalProvisioningService> logger)
 {
+    /// <summary>
+    /// The default group goes to every sign-in, so it must not be a protected group. A mapped group may be any group:
+    /// the provider then grants it only to users it lists, and an administrator accepted that in Settings → Authentication.
+    /// </summary>
+    public static bool CanBeDefaultGroup(ApplicationRole role) => !role.IsProtected;
+
     private ApplicationUser? Reject(string reason)
     {
         OidcSignInLog.Rejected(logger, reason);
@@ -26,16 +32,24 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
     public async Task ValidateAsync(CancellationToken ct)
     {
         if (!settings.JitEnabled) return;
-        _ = await FindAllowedRoleAsync(settings.DefaultGroup, ct);
+        _ = await FindDefaultRoleAsync(ct);
+        foreach (var mapping in settings.GroupMappings) _ = await FindMappedRoleAsync(mapping.Group, ct);
     }
 
-    private async Task<ApplicationRole> FindAllowedRoleAsync(string name, CancellationToken ct)
+    private async Task<ApplicationRole> FindDefaultRoleAsync(CancellationToken ct)
+    {
+        var role = await FindRoleAsync(settings.DefaultGroup, ct);
+        if (role is null || !CanBeDefaultGroup(role)) throw new ArgumentException("The default group must be an existing, unprotected group.");
+        return role;
+    }
+
+    private async Task<ApplicationRole> FindMappedRoleAsync(string name, CancellationToken ct) =>
+        await FindRoleAsync(name, ct) ?? throw new ArgumentException("Each mapped group must be an existing group.");
+
+    private Task<ApplicationRole?> FindRoleAsync(string name, CancellationToken ct)
     {
         var normalized = name.ToUpperInvariant();
-        var role = await db.Roles.SingleOrDefaultAsync(r => r.NormalizedName == normalized, ct);
-        if (role is null || role.IsProtected || string.Equals(role.Name, PermissionCatalog.Administrators, StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Provisioning can use only existing, unprotected OpenFarm groups.");
-        return role;
+        return db.Roles.SingleOrDefaultAsync(r => r.NormalizedName == normalized, ct);
     }
 
     /// <summary>Caller owns the transaction. A disabled account is never re-enabled.</summary>
@@ -54,12 +68,65 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
         return await CreateAsync(subject, username, profile.Email.Trim(), profile.DisplayName, ct);
     }
 
+    /// <summary>
+    /// Re-applies the group mapping at every sign-in. The sync owns the groups the mapping and the default group name now,
+    /// plus every group it granted at the previous sign-in, so removing or retargeting a mapping revokes what it granted.
+    /// Groups assigned by hand are never touched. No match (or no claim) yields the default group. Returns false, with
+    /// nothing to commit, when the change would remove the last enabled administrator. Caller owns the transaction and the
+    /// administration lock, and commits only when this returns true.
+    /// </summary>
+    public async Task<bool> SyncGroupsAsync(ApplicationUser user, IReadOnlyList<string>? claimed, CancellationToken ct)
+    {
+        var mappings = settings.GroupMappings;
+        if (!settings.JitEnabled || user.ProvisioningProvider != oidc.ProviderKey
+            || (mappings.Length == 0 && user.ProvisionedGroupIds.Length == 0)) return true;
+        if (mappings.Length > 0 && claimed is not { Count: > 0 }) OidcSignInLog.GroupsClaimEmpty(logger, settings.GroupsClaim);
+        var defaultId = (await FindDefaultRoleAsync(ct)).Id;
+        var mapped = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in mappings.Select(m => m.Group).Distinct(StringComparer.OrdinalIgnoreCase))
+            mapped[name] = (await FindMappedRoleAsync(name, ct)).Id; // refuses a group that was removed
+        var granted = mappings.Where(m => claimed?.Contains(m.ExternalGroup, StringComparer.Ordinal) == true)
+            .Select(m => mapped[m.Group]).Distinct().ToArray();
+        Guid[] desired = granted.Length > 0 ? granted : [defaultId];
+        // With no mapping left, only what an earlier sign-in granted is revoked: groups are managed locally again.
+        var owned = user.ProvisionedGroupIds.ToHashSet();
+        if (mappings.Length > 0) owned.UnionWith(mapped.Values.Append(defaultId));
+        var provisioned = mappings.Length > 0 ? desired.Order().ToArray() : [];
+        var memberships = await db.UserRoles.Where(m => m.UserId == user.Id).ToListAsync(ct);
+        var add = desired.Except(memberships.Select(m => m.RoleId)).ToArray();
+        var remove = memberships.Where(m => owned.Contains(m.RoleId) && !desired.Contains(m.RoleId)).ToList();
+        var provisionedChanged = !provisioned.SequenceEqual(user.ProvisionedGroupIds);
+        if (add.Length == 0 && remove.Count == 0 && !provisionedChanged) return true;
+        user.ProvisionedGroupIds = provisioned;
+        db.UserRoles.RemoveRange(remove);
+        db.UserRoles.AddRange(add.Select(id => new IdentityUserRole<Guid> { UserId = user.Id, RoleId = id }));
+        if (add.Length > 0 || remove.Count > 0)
+        {
+            var removed = remove.Select(m => m.RoleId).ToArray();
+            var names = await db.Roles.Where(r => add.Contains(r.Id) || removed.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.Name!, ct);
+            db.ActivityLogEntries.Add(ActivityLogEntry.Create("User", user.Id.ToString(), "OidcGroupsSynced", null, ActorType.System,
+                new ActivityLogDetails(ReportedState: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    Added = add.Select(id => names[id]).Order().ToArray(),
+                    Removed = removed.Select(id => names[id]).Order().ToArray(),
+                }))));
+        }
+        await db.SaveChangesAsync(ct);
+        // Same rule as account administration: write, then require an administrator to remain. The caller rolls back on false.
+        if (remove.Count > 0 && !await permissions.HasEnabledAdministratorAsync(ct))
+        {
+            OidcSignInLog.Rejected(logger, "last_administrator_would_be_removed");
+            return false;
+        }
+        return true;
+    }
+
     private async Task<ApplicationUser> CreateAsync(string subject, string username, string email, string? displayName, CancellationToken ct)
     {
         if (await db.UserLogins.AnyAsync(l => l.LoginProvider == oidc.ProviderKey && l.ProviderKey == subject, ct)
             || await db.Users.AnyAsync(u => u.ProvisioningProvider == oidc.ProviderKey && u.ProvisioningExternalId == subject, ct))
             throw new ProvisioningConflictException("This external identity already belongs to an account.");
-        var role = await FindAllowedRoleAsync(settings.DefaultGroup, ct);
+        var role = await FindDefaultRoleAsync(ct);
         var user = new ApplicationUser
         {
             UserName = username,

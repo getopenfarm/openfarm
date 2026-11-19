@@ -35,62 +35,9 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         using var client = factory.CreateClient();
         var options = await client.GetFromJsonAsync<LoginProvidersResponse>("/api/v1/auth/providers");
         options!.OidcEnabled.Should().BeFalse();
+        options.DisplayName.Should().Be("SSO");
         (await client.GetAsync("/api/v1/auth/sso/login")).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await client.GetAsync("/api/v1/auth/sso/link")).StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task ProviderTest_ProvesLinkedAdministratorAndPreservesOriginalBrowserSession()
-    {
-        await using var kit = new OidcKit(factory, jit: true);
-        using var browser = kit.CreateClient();
-        var userId = await kit.AuthenticateAsync(browser, administrator: true);
-        var subject = Guid.NewGuid().ToString();
-        await BeginLinkAsync(browser);
-        var link = await kit.CallbackAsync(browser, "/api/v1/auth/sso/link", subject);
-        (await browser.GetAsync(link)).Headers.Location!.OriginalString.Should().Contain("sso=linked");
-        using var scope = kit.App.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        var sessionsBefore = await db.BrowserSessions.CountAsync(s => s.UserId == userId);
-        (await CsrfPostAsync(browser, "/api/v1/admin/settings/authentication/test")).EnsureSuccessStatusCode();
-        var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/test", subject);
-        var tested = await browser.GetAsync(callback);
-        tested.Headers.Location!.OriginalString.Should().Be("/settings/authentication?test=success");
-        tested.Headers.GetValues("Set-Cookie").Should().NotContain(c => c.StartsWith("openfarm.refresh=", StringComparison.Ordinal));
-        (await db.BrowserSessions.CountAsync(s => s.UserId == userId)).Should().Be(sessionsBefore);
-        (await browser.GetFromJsonAsync<WhoAmIResult>("/api/v1/auth/whoami"))!.UserId.Should().Be(userId);
-        (await db.AuthenticationSettings.AsNoTracking().SingleAsync()).TestedProviderIdentity.Should()
-            .Be(scope.ServiceProvider.GetRequiredService<OidcSettings>().TestIdentity("https://farm.example"));
-        (await browser.GetAsync("/api/v1/auth/sso/test")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ProviderTest_RejectsWrongIdentityOrRevokedOriginalSession_WithoutJitCreation(bool revoke)
-    {
-        await using var kit = new OidcKit(factory, jit: true);
-        using var browser = kit.CreateClient();
-        var userId = await kit.AuthenticateAsync(browser, administrator: true);
-        (await CsrfPostAsync(browser, "/api/v1/admin/settings/authentication/test")).EnsureSuccessStatusCode();
-        var subject = "test-unlinked-" + Guid.NewGuid().ToString("N");
-        kit.Provider.Profile = new(subject, subject + "@example.test", "Unexpected identity", true);
-        var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/test", subject);
-        using var scope = kit.App.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-        if (revoke) await db.BrowserSessions.Where(s => s.UserId == userId)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, DateTimeOffset.UtcNow));
-        (await browser.GetAsync(callback)).Headers.Location!.OriginalString.Should().Be("/settings/authentication?test=failed");
-        (await db.Users.AnyAsync(u => u.ProvisioningExternalId == subject)).Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task ProviderTest_RequiresAnAdministratorBrowserSession()
-    {
-        await using var kit = new OidcKit(factory);
-        using var browser = kit.CreateClient();
-        await kit.AuthenticateAsync(browser);
-        (await CsrfPostAsync(browser, "/api/v1/admin/settings/authentication/test")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -150,6 +97,174 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
     }
 
     [Fact]
+    public async Task Jit_MapsProviderGroupsAtEverySignIn_AndLeavesOtherGroupsAlone()
+    {
+        await using var kit = new OidcKit(factory, jit: true, mappings: [new("farm-ops", "Operators"), new("farm-viewers", "Viewers")]);
+        var subject = "jit-map-" + Guid.NewGuid().ToString("N");
+        using var browser = kit.CreateClient();
+        using var scope = kit.App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        async Task<string[]> SignInAsync(params string[] groups)
+        {
+            kit.Provider.Profile = new(subject, subject + "@example.test", "Mapped", true, groups);
+            var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/login", subject);
+            (await browser.GetAsync(callback)).Headers.Location!.OriginalString.Should().StartWith("/auth/complete");
+            var user = await db.Users.AsNoTracking().SingleAsync(u => u.ProvisioningExternalId == subject);
+            return (await scope.ServiceProvider.GetRequiredService<PermissionService>().ResolveAsync(user.Id, CancellationToken.None)).Groups.Order().ToArray();
+        }
+        (await SignInAsync("farm-ops", "unrelated")).Should().Equal("Operators");
+        (await SignInAsync("farm-ops", "farm-viewers")).Should().Equal("Operators", "Viewers");
+        (await SignInAsync("farm-viewers")).Should().Equal("Viewers");
+        // Removing the user from every mapped provider group falls back to the default group, never to no group or more access.
+        (await SignInAsync("unrelated")).Should().Equal("Viewers");
+        (await SignInAsync()).Should().Equal("Viewers");
+        // A group outside the mapping (assigned locally) survives later sign-ins.
+        var user = await db.Users.AsNoTracking().SingleAsync(u => u.ProvisioningExternalId == subject);
+        await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().AddToRoleAsync((await db.Users.SingleAsync(u => u.Id == user.Id)), "Administrators");
+        (await SignInAsync("farm-ops")).Should().Equal("Administrators", "Operators");
+        (await db.ActivityLogEntries.CountAsync(e => e.EntityId == user.Id.ToString() && e.EventType == "OidcGroupsSynced")).Should().BeGreaterThan(0);
+    }
+
+    // Returns where the browser lands: "/auth/complete…" after a sign-in, "/login?ssoError=unavailable" after a refusal.
+    private static async Task<string> SignInWithGroupsAsync(OidcKit kit, string subject, params string[] groups)
+    {
+        kit.Provider.Profile = new(subject, subject + "@example.test", "Mapped", true, groups);
+        using var browser = kit.CreateClient();
+        var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/login", subject);
+        return (await browser.GetAsync(callback)).Headers.Location!.OriginalString;
+    }
+
+    private static async Task<UserAccess> AccessOfAsync(OidcKit kit, string subject)
+    {
+        using var scope = kit.App.Services.CreateScope();
+        var user = await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Users.AsNoTracking().SingleAsync(u => u.ProvisioningExternalId == subject);
+        return await scope.ServiceProvider.GetRequiredService<PermissionService>().ResolveAsync(user.Id, CancellationToken.None);
+    }
+
+    private static async Task AssignByHandAsync(OidcKit kit, string subject, string group)
+    {
+        using var scope = kit.App.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        (await users.AddToRoleAsync((await users.FindByNameAsync(subject))!, group)).Succeeded.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Jit_CanMapAProviderGroupToAdministrators_AndTakesItBackWhenTheProviderStopsListingIt()
+    {
+        await using var kit = new OidcKit(factory, jit: true, mappings: [new("farm-admins", "Administrators")]);
+        var subject = "jit-admin-" + Guid.NewGuid().ToString("N");
+        (await SignInWithGroupsAsync(kit, subject, "farm-admins")).Should().StartWith("/auth/complete");
+        var access = await AccessOfAsync(kit, subject);
+        access.IsAdministrator.Should().BeTrue();
+        access.Groups.Should().BeEquivalentTo(["Administrators"]);
+        using (var scope = kit.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            var userId = (await db.Users.AsNoTracking().SingleAsync(u => u.ProvisioningExternalId == subject)).Id.ToString();
+            (await db.ActivityLogEntries.AsNoTracking().Where(e => e.EntityId == userId && e.EventType == "OidcGroupsSynced").ToListAsync())
+                .Should().Contain(e => e.Details!.ReportedState!.Contains("Administrators"), "the grant is audited");
+        }
+        // Another enabled administrator exists (the seeded one), so the provider may take the group back.
+        (await SignInWithGroupsAsync(kit, subject)).Should().StartWith("/auth/complete");
+        access = await AccessOfAsync(kit, subject);
+        access.IsAdministrator.Should().BeFalse();
+        access.Groups.Should().BeEquivalentTo(["Viewers"]);
+    }
+
+    [Fact]
+    public async Task Jit_RefusesASignInThatWouldRemoveTheLastEnabledAdministrator()
+    {
+        await using var kit = new OidcKit(factory, jit: true, mappings: [new("farm-admins", "Administrators")]);
+        var subject = "jit-last-admin-" + Guid.NewGuid().ToString("N");
+        (await SignInWithGroupsAsync(kit, subject, "farm-admins")).Should().StartWith("/auth/complete");
+        using var scope = kit.App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var jitId = (await db.Users.AsNoTracking().SingleAsync(u => u.ProvisioningExternalId == subject)).Id;
+        var others = await (from user in db.Users
+                            join membership in db.UserRoles on user.Id equals membership.UserId
+                            join role in db.Roles on membership.RoleId equals role.Id
+                            where user.IsEnabled && user.Id != jitId && role.Name == PermissionCatalog.Administrators
+                            select user.Id).ToArrayAsync();
+        await db.Users.Where(u => others.Contains(u.Id)).ExecuteUpdateAsync(s => s.SetProperty(u => u.IsEnabled, false));
+        try
+        {
+            (await SignInWithGroupsAsync(kit, subject)).Should().Be("/login?ssoError=unavailable");
+            (await AccessOfAsync(kit, subject)).IsAdministrator.Should().BeTrue("a refused sign-in changes nothing");
+        }
+        finally
+        {
+            await db.Users.Where(u => others.Contains(u.Id)).ExecuteUpdateAsync(s => s.SetProperty(u => u.IsEnabled, true));
+        }
+    }
+
+    [Fact]
+    public async Task Jit_RevokesWhatARemovedOrRetargetedMappingGranted_AndLeavesHandAssignedGroupsAlone()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var subject = "jit-unmap-" + suffix;
+        var maintainers = "Maintainers-" + suffix;
+        var hand = "Hand-" + suffix;
+        await using var operators = new OidcKit(factory, jit: true, mappings: [new("farm-ops", "Operators")]);
+        (await SignInWithGroupsAsync(operators, subject, "farm-ops")).Should().StartWith("/auth/complete");
+        (await AccessOfAsync(operators, subject)).Groups.Should().BeEquivalentTo(["Operators"]);
+        using (var scope = operators.App.Services.CreateScope())
+        {
+            var roles = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
+            foreach (var name in new[] { maintainers, hand })
+                (await roles.CreateAsync(new ApplicationRole { Name = name })).Succeeded.Should().BeTrue();
+        }
+        await AssignByHandAsync(operators, subject, hand);
+        // Retargeting the mapping revokes what the old target granted; the hand-assigned group stays.
+        await using var retargeted = new OidcKit(factory, jit: true, mappings: [new("farm-ops", maintainers)]);
+        (await SignInWithGroupsAsync(retargeted, subject, "farm-ops")).Should().StartWith("/auth/complete");
+        (await AccessOfAsync(retargeted, subject)).Groups.Should().BeEquivalentTo([hand, maintainers]);
+        // Removing every mapping revokes the last grant and returns the user to the default group.
+        await using var unmapped = new OidcKit(factory, jit: true);
+        (await SignInWithGroupsAsync(unmapped, subject, "farm-ops")).Should().StartWith("/auth/complete");
+        (await AccessOfAsync(unmapped, subject)).Groups.Should().BeEquivalentTo([hand, "Viewers"]);
+        // Groups are managed locally from then on: a hand-assigned group is no longer reverted.
+        await AssignByHandAsync(unmapped, subject, "Operators");
+        (await SignInWithGroupsAsync(unmapped, subject, "farm-ops")).Should().StartWith("/auth/complete");
+        (await AccessOfAsync(unmapped, subject)).Groups.Should().BeEquivalentTo([hand, "Operators", "Viewers"]);
+    }
+
+    [Fact]
+    public async Task Jit_ReadsOnlyTheConfiguredGroupsClaim()
+    {
+        await using var kit = new OidcKit(factory, jit: true, mappings: [new("operator", "Operators")], groupsClaim: "entitlements");
+        var subject = "jit-claim-" + Guid.NewGuid().ToString("N");
+        using var browser = kit.CreateClient();
+        using var scope = kit.App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        async Task<string[]> SignInAsync(string claim)
+        {
+            kit.Provider.GroupsClaim = claim;
+            kit.Provider.Profile = new(subject, subject + "@example.test", "Claim", true, ["operator"]);
+            var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/login", subject);
+            (await browser.GetAsync(callback)).Headers.Location!.OriginalString.Should().StartWith("/auth/complete");
+            var user = await db.Users.AsNoTracking().SingleAsync(u => u.ProvisioningExternalId == subject);
+            return (await scope.ServiceProvider.GetRequiredService<PermissionService>().ResolveAsync(user.Id, CancellationToken.None)).Groups.Order().ToArray();
+        }
+        (await SignInAsync("entitlements")).Should().Equal("Operators");
+        // The same value under another claim name is ignored, so the user falls back to the default group.
+        (await SignInAsync("groups")).Should().Equal("Viewers");
+    }
+
+    [Fact]
+    public async Task Jit_WithoutMappings_KeepsTheDefaultGroupAndIgnoresTheGroupsClaim()
+    {
+        await using var kit = new OidcKit(factory, jit: true);
+        var subject = "jit-nomap-" + Guid.NewGuid().ToString("N");
+        kit.Provider.Profile = new(subject, subject + "@example.test", "Unmapped", true, ["farm-ops"]);
+        using var browser = kit.CreateClient();
+        var callback = await kit.CallbackAsync(browser, "/api/v1/auth/sso/login", subject);
+        (await browser.GetAsync(callback)).Headers.Location!.OriginalString.Should().StartWith("/auth/complete");
+        using var scope = kit.App.Services.CreateScope();
+        var user = await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Users.AsNoTracking().SingleAsync(u => u.ProvisioningExternalId == subject);
+        (await scope.ServiceProvider.GetRequiredService<PermissionService>().ResolveAsync(user.Id, CancellationToken.None)).Groups.Should().Equal("Viewers");
+    }
+
+    [Fact]
     public async Task Jit_RejectsUnverifiedEmailAndAccountCollisions()
     {
         await using var kit = new OidcKit(factory, jit: true);
@@ -199,7 +314,8 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         var sid = Guid.Parse(new JwtSecurityTokenHandler().ReadJwtToken(login.Token).Claims.Single(c => c.Type == "sid").Value);
         var session = await db.BrowserSessions.SingleAsync(s => s.Id == sid);
         session.OidcConfigurationIdentity.Should().NotBeNull();
-        session.ExpiresAtUtc.Should().BeCloseTo(session.CreatedAtUtc.AddHours(8), TimeSpan.FromSeconds(1));
+        // The refresh above slid the window: a full idle period from now, well inside the 14-day cap.
+        session.ExpiresAtUtc.Should().BeCloseTo(DateTimeOffset.UtcNow + BrowserSessionService.OidcIdleLifetime, TimeSpan.FromSeconds(30));
         (await CsrfPostAsync(browser, "/api/v1/auth/logout")).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         kit.Provider.Exchanges.Should().BeGreaterThan(0);
@@ -424,6 +540,47 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
     }
 
     [Fact]
+    public async Task OidcSession_SlidesOnRefreshUpToTheFixedCap_AndExpiredSessionsStayDead()
+    {
+        await using var kit = new OidcKit(factory);
+        using var scope = kit.App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var sessions = scope.ServiceProvider.GetRequiredService<BrowserSessionService>();
+        var userId = await db.Users.Where(u => u.UserName == "admin").Select(u => u.Id).SingleAsync();
+        var initial = await sessions.CreateAsync(userId, "SSO", CancellationToken.None, external: true);
+        var sid = Guid.Parse(new JwtSecurityTokenHandler().ReadJwtToken(initial.Token).Claims.Single(c => c.Type == "sid").Value);
+        var tolerance = TimeSpan.FromSeconds(10);
+
+        // Refresh rows are tracked by the shared context; clear it so each step sees what the previous one wrote.
+        async Task<DateTimeOffset> ExpiryAsync() { db.ChangeTracker.Clear(); return (await db.BrowserSessions.AsNoTracking().SingleAsync(s => s.Id == sid)).ExpiresAtUtc; }
+        async Task SetAsync(DateTimeOffset? created, DateTimeOffset? expires)
+        {
+            if (created is { } c) await db.BrowserSessions.Where(s => s.Id == sid).ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, c));
+            if (expires is { } e) await db.BrowserSessions.Where(s => s.Id == sid).ExecuteUpdateAsync(s => s.SetProperty(x => x.ExpiresAtUtc, e));
+            db.ChangeTracker.Clear();
+        }
+
+        (await ExpiryAsync()).Should().BeCloseTo(DateTimeOffset.UtcNow + BrowserSessionService.OidcIdleLifetime, tolerance);
+
+        // Slides: a session about to lapse is pushed out to a full idle window.
+        await SetAsync(null, DateTimeOffset.UtcNow.AddMinutes(1));
+        var first = await sessions.RefreshAsync(initial.RefreshToken!, CancellationToken.None);
+        first.Should().NotBeNull();
+        (await ExpiryAsync()).Should().BeCloseTo(DateTimeOffset.UtcNow + BrowserSessionService.OidcIdleLifetime, tolerance);
+
+        // Capped: near day 14 the window shrinks to the cap, which is fixed at sign-in.
+        var signedIn = DateTimeOffset.UtcNow.AddDays(-13);
+        await SetAsync(signedIn, null);
+        var second = await sessions.RefreshAsync(first!.RefreshToken!, CancellationToken.None);
+        second.Should().NotBeNull();
+        (await ExpiryAsync()).Should().BeCloseTo(signedIn + BrowserSessionService.SessionMaxLifetime, tolerance);
+
+        // Expired: refresh never revives a session.
+        await SetAsync(null, DateTimeOffset.UtcNow.AddMinutes(-1));
+        (await sessions.RefreshAsync(second!.RefreshToken!, CancellationToken.None)).Should().BeNull();
+    }
+
+    [Fact]
     public async Task RequiredMode_EnforcesLoginAndSessionPolicyAndPreservesRecovery()
     {
         await using var kit = new OidcKit(factory, required: true);
@@ -576,19 +733,6 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         (await browser.GetFromJsonAsync<OidcIdentityResponse>("/api/v1/auth/sso/identity"))!.Linked.Should().BeFalse();
     }
 
-    [Fact]
-    public async Task DiscoveryOutage_ReturnsTheProviderTestToAuthenticationSettings()
-    {
-        await using var kit = new OidcKit(factory);
-        using var browser = kit.CreateClient();
-        await kit.AuthenticateAsync(browser, administrator: true);
-        (await CsrfPostAsync(browser, "/api/v1/admin/settings/authentication/test")).EnsureSuccessStatusCode();
-        kit.Provider.Unavailable = true;
-        var response = await browser.GetAsync("/api/v1/auth/sso/test");
-        response.Headers.Location!.OriginalString.Should().Be("/settings/authentication?test=failed&ssoReason=provider_configuration");
-        (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
     private sealed class UnavailableConfigurationManager : IConfigurationManager<OpenIdConnectConfiguration>
     {
         public Task<OpenIdConnectConfiguration> GetConfigurationAsync(CancellationToken cancel) =>
@@ -612,7 +756,8 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         public Guid RecoveryId { get; }
 
         public OidcKit(CustomWebApplicationFactory parent, bool required = false, bool jit = false, bool par = false,
-            string authority = FakeProvider.Issuer, string origin = "https://farm.example")
+            string authority = FakeProvider.Issuer, string origin = "https://farm.example", GroupMapping[]? mappings = null,
+            string groupsClaim = "groups")
         {
             if (required)
             {
@@ -631,6 +776,8 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
                         ClientId = "farm",
                         ClientSecret = "test-client-credential",
                         JitEnabled = jit,
+                        GroupMappings = mappings ?? [],
+                        GroupsClaim = groupsClaim,
                         InternalAuthenticationEnabled = !required,
                         RecoveryUserIds = required ? [RecoveryId] : [],
                     }));
@@ -712,6 +859,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         public RsaSecurityKey Key { get; }
         private readonly Dictionary<string, (string Subject, string Nonce, string Challenge, string? Invalid, DateTime Issued)> _codes = [];
         public string? SessionId { get; set; }
+        public string GroupsClaim { get; set; } = "groups";
         public bool Unavailable { get; set; }
         public int Exchanges { get; private set; }
         public int Pushes { get; private set; }
@@ -767,6 +915,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
             {
                 claims.Add(new("preferred_username", profile.Username!)); claims.Add(new("email", profile.Email!));
                 claims.Add(new("name", profile.DisplayName ?? "")); claims.Add(new("email_verified", profile.EmailVerified ? "true" : "false", ClaimValueTypes.Boolean));
+                foreach (var group in profile.Groups ?? []) claims.Add(new(GroupsClaim, group));
             }
             var token = new JwtSecurityToken(proof.Invalid == "issuer" ? "https://wrong.example/" : Issuer,
                 proof.Invalid == "audience" ? "another-app" : "farm",

@@ -65,17 +65,14 @@ export function TokenList({ userId }: { userId?: string }) {
       setOpen(false);
       await client.invalidateQueries({ queryKey: tokenKey(userId) });
     } catch (e) {
-      setError(await tokenError(e, 'Could not change this token.'));
+      setError(await tokenError(e, 'Token update failed.'));
     } finally {
       setBusy(false);
     }
   }
   if (!query.data)
     return query.isError ? (
-      <ErrorState
-        title="Could not load access tokens"
-        onRetry={() => void query.refetch()}
-      />
+      <ErrorState title="Load failed" onRetry={() => void query.refetch()} />
     ) : (
       <Skeleton className="h-32 w-full" />
     );

@@ -86,17 +86,3 @@ public sealed class StartOidcLinkEndpoint(OidcSettings settings, OidcAccountServ
         HttpContext.MarkResponseStart();
     }
 }
-
-public sealed class StartOidcTestEndpoint(OidcSettings settings) : EndpointWithoutRequest
-{
-    public override void Configure() { Get("/api/v1/auth/sso/test"); AllowAnonymous(); Throttle(10, 60); }
-    public override async Task HandleAsync(CancellationToken ct)
-    {
-        var ticket = HttpContext.Request.Cookies[OidcAuthentication.TestCookie];
-        if (!settings.Enabled || string.IsNullOrEmpty(ticket)) { await Send.UnauthorizedAsync(ct); return; }
-        var properties = new AuthenticationProperties();
-        properties.Items["test"] = ticket;
-        await OidcAuthentication.StartChallengeAsync(HttpContext, properties);
-        HttpContext.MarkResponseStart();
-    }
-}

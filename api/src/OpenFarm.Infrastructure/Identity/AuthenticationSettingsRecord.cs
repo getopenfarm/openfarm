@@ -6,8 +6,6 @@ public sealed class AuthenticationSettingsRecord
     public static readonly Guid SingletonId = new("00000000-0000-0000-0000-000000000001");
     public Guid Id { get; set; } = SingletonId;
     public Guid Revision { get; set; } = Guid.NewGuid();
-    public string? TestedProviderIdentity { get; set; }
-    public DateTimeOffset? TestedAtUtc { get; set; }
     public string ProtectedConfiguration { get; set; } = string.Empty;
 }
 

@@ -10,6 +10,7 @@ public sealed class ProvisionedUserConfiguration : IEntityTypeConfiguration<Appl
     {
         builder.Property(u => u.ProvisioningProvider).HasMaxLength(69);
         builder.Property(u => u.ProvisioningExternalId).HasMaxLength(255);
+        builder.Property(u => u.ProvisionedGroupIds).HasColumnType("uuid[]").HasDefaultValueSql("'{}'::uuid[]");
         builder.HasIndex(u => new { u.ProvisioningProvider, u.ProvisioningExternalId }).IsUnique();
     }
 }

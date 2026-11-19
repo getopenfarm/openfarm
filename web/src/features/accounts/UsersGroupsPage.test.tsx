@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -127,7 +127,36 @@ describe('UserFormPage', () => {
     ).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Remove' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
-      'Disable the account instead to block access.',
+      'Disable the account to block access.',
+    );
+  });
+  it('removes an empty group with the same verb as a user', async () => {
+    const user = userEvent.setup();
+    http.mockImplementation(async (url: string, init?: RequestInit) =>
+      init?.method
+        ? undefined
+        : {
+            data:
+              url === '/api/v1/admin/groups'
+                ? [{ ...(data[url] as object[])[0], memberCount: 0 }]
+                : data[url],
+          },
+    );
+    renderAt('/users-groups?tab=groups');
+    await user.click(
+      await screen.findByRole('button', { name: 'Actions for Operators' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Remove group' }),
+    );
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'Remove group "Operators"?',
+    );
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await waitFor(() =>
+      expect(http).toHaveBeenCalledWith('/api/v1/admin/groups/g1', {
+        method: 'DELETE',
+      }),
     );
   });
   it('opens the add form from the keyboard and creates a user', async () => {

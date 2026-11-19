@@ -15,25 +15,26 @@ function setup({
   failLoad = false,
   administrator = true,
   configured = false,
-  search = '',
 } = {}) {
   let data = {
     revision: 'first',
     oidcEnabled: configured,
     internalAuthenticationEnabled: true,
-    displayName: 'authentik',
+    displayName: '',
     authority: 'https://identity.example/application/o/farm/',
     clientId: 'farm',
     clientCredentialConfigured: true,
-    sessionHours: 8,
     recoveryUserIds: [] as string[],
     jitEnabled: configured,
     requireVerifiedEmail: true,
     defaultGroup: 'Viewers',
+    groupMappings: [] as { externalGroup: string; group: string }[],
+    groupsClaim: 'groups',
     recoveryAccounts: [{ id: 'admin-id', username: 'admin' }],
     groups: [
-      { id: 'viewers', name: 'Viewers' },
-      { id: 'operators', name: 'Operators' },
+      { id: 'administrators', name: 'Administrators', isProtected: true },
+      { id: 'viewers', name: 'Viewers', isProtected: false },
+      { id: 'operators', name: 'Operators', isProtected: false },
     ],
     callbackUrl: 'https://farm.example/api/v1/auth/sso/callback',
     logoutUrl: 'https://farm.example/api/v1/auth/sso/backchannel-logout',
@@ -72,7 +73,7 @@ function setup({
         ],
       },
     ],
-    { initialEntries: [`/settings/authentication${search}`] },
+    { initialEntries: ['/settings/authentication'] },
   );
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -105,25 +106,28 @@ it('uses settings navigation and retains stored credentials on save', async () =
   await user.click(
     await screen.findByRole('switch', { name: 'OIDC authentication' }),
   );
-  expect(screen.getByRole('button', { name: 'Test sign-in' })).toBeDisabled();
   expect(await screen.findByLabelText('Client credential')).toHaveValue('');
   expect(screen.getByLabelText('Client credential')).toHaveAttribute(
     'type',
     'password',
+  );
+  // A saved credential shows dots (never the value); blank keeps it.
+  expect(screen.getByLabelText('Client credential')).toHaveAttribute(
+    'placeholder',
+    '••••••••••••',
   );
 
   await user.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0].settings).toMatchObject({
     oidcEnabled: true,
+    displayName: '',
     clientSecret: null,
   });
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
   );
-  expect(screen.getByRole('button', { name: 'Test sign-in' })).toBeEnabled();
   expect(screen.queryByText('Advanced OIDC settings')).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Session duration (hours)')).toHaveValue(8);
   expect(
     screen.getByText('https://farm.example/api/v1/auth/sso/backchannel-logout'),
   ).toBeInTheDocument();
@@ -184,9 +188,7 @@ it('preserves edits after a save conflict and clears draft credentials on reset'
 
 it('shows load errors with retry and hides the administrator navigation from delegated users', async () => {
   setup({ failLoad: true, administrator: false });
-  expect(
-    await screen.findByText('Could not load authentication settings'),
-  ).toBeInTheDocument();
+  expect(await screen.findByText('Load failed')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   expect(
     screen.queryByRole('link', { name: 'Authentication' }),
@@ -202,9 +204,7 @@ it('reveals OIDC and provisioning controls only while their features are enabled
   expect(
     screen.queryByText('Account provisioning', { exact: true }),
   ).not.toBeInTheDocument();
-  expect(
-    screen.queryByLabelText('Session duration (hours)'),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Client ID')).not.toBeInTheDocument();
   await user.click(oidc);
   expect(
     screen.getByText('Account provisioning', { exact: true }),
@@ -277,6 +277,90 @@ it('preserves the complete provisioning draft across an unsaved OIDC off/on cycl
   });
 });
 
+it('adds, validates, saves and removes provider group mappings', async () => {
+  const user = userEvent.setup();
+  const { writes } = setup({ configured: true });
+  await screen.findByRole('switch', { name: 'OIDC authentication' });
+  await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+  // An incomplete row blocks Save with an error on the row.
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  expect(
+    await screen.findByText('Enter the provider group name.'),
+  ).toBeInTheDocument();
+  expect(writes).toHaveLength(0);
+  await user.type(screen.getByLabelText('Claim value 1'), ' farm-ops ');
+  await user.click(screen.getByRole('combobox', { name: 'OpenFarm group 1' }));
+  await user.click(await screen.findByRole('option', { name: 'Operators' }));
+  await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+  await user.type(screen.getByLabelText('Claim value 2'), 'farm-ops');
+  await user.click(screen.getByRole('combobox', { name: 'OpenFarm group 2' }));
+  await user.click(await screen.findByRole('option', { name: 'Operators' }));
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByText('Duplicate mapping.')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Remove mapping 2' }));
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0].settings).toMatchObject({
+    jitEnabled: true,
+    groupMappings: [{ externalGroup: 'farm-ops', group: 'Operators' }],
+  });
+  // The saved mapping reloads into its row and can be removed again.
+  expect(await screen.findByLabelText('Claim value 1')).toHaveValue('farm-ops');
+  await user.click(screen.getByRole('button', { name: 'Remove mapping 1' }));
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(writes).toHaveLength(2));
+  expect(writes[1].settings).toMatchObject({ groupMappings: [] });
+});
+
+it('offers a protected group as a mapping target only, and warns about it', async () => {
+  const user = userEvent.setup();
+  const { writes } = setup({ configured: true });
+  await user.click(
+    await screen.findByRole('combobox', { name: 'Default group' }),
+  );
+  expect(
+    await screen.findByRole('option', { name: 'Operators' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole('option', { name: 'Administrators' }),
+  ).not.toBeInTheDocument();
+  await user.keyboard('{Escape}');
+  await user.click(screen.getByRole('button', { name: 'Add mapping' }));
+  await user.type(screen.getByLabelText('Claim value 1'), 'farm-admins');
+  await user.click(screen.getByRole('combobox', { name: 'OpenFarm group 1' }));
+  expect(
+    screen.queryByText(/A protected group has full access/),
+  ).not.toBeInTheDocument();
+  await user.click(
+    await screen.findByRole('option', { name: 'Administrators' }),
+  );
+  expect(
+    await screen.findByText(/A protected group has full access/),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0].settings).toMatchObject({
+    groupMappings: [{ externalGroup: 'farm-admins', group: 'Administrators' }],
+  });
+});
+
+it('saves a custom groups claim and rejects identity claims', async () => {
+  const user = userEvent.setup();
+  const { writes } = setup({ configured: true });
+  const claim = await screen.findByLabelText('Groups claim');
+  expect(claim).toHaveValue('groups');
+  await user.clear(claim);
+  await user.type(claim, 'email');
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByText(/Not an identity claim/)).toBeInTheDocument();
+  expect(writes).toHaveLength(0);
+  await user.clear(claim);
+  await user.type(claim, 'entitlements');
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0].settings).toMatchObject({ groupsClaim: 'entitlements' });
+});
+
 it('warns when disabling saved OIDC and saves disabled provisioning without hidden draft errors', async () => {
   const user = userEvent.setup();
   const { writes } = setup({ configured: true });
@@ -284,9 +368,8 @@ it('warns when disabling saved OIDC and saves disabled provisioning without hidd
     name: 'OIDC authentication',
   });
   await user.clear(screen.getByLabelText('Client ID'));
-  await user.clear(screen.getByLabelText('Session duration (hours)'));
   await user.click(oidc);
-  expect(screen.getByRole('status')).toHaveTextContent('disable JIT');
+  expect(screen.getByRole('status')).toHaveTextContent('turns off JIT');
   expect(
     screen.queryByText('Account provisioning', { exact: true }),
   ).not.toBeInTheDocument();
@@ -297,7 +380,6 @@ it('warns when disabling saved OIDC and saves disabled provisioning without hidd
     internalAuthenticationEnabled: true,
     jitEnabled: false,
     clientId: 'farm',
-    sessionHours: 8,
     clientSecret: null,
   });
   await waitFor(() =>
@@ -337,15 +419,4 @@ it('copies both provider addresses using accessible keyboard actions', async () 
   expect(copy).toHaveBeenLastCalledWith(
     'https://farm.example/api/v1/auth/sso/backchannel-logout',
   );
-});
-
-it('explains provider configuration failures separately from account-linking failures', async () => {
-  setup({
-    configured: true,
-    search: '?test=failed&ssoReason=provider_configuration',
-  });
-  expect(await screen.findByRole('status')).toHaveTextContent(
-    'Check the Issuer URL, provider connectivity, and OpenFarm server logs',
-  );
-  expect(screen.getByRole('button', { name: 'Test sign-in' })).toBeEnabled();
 });

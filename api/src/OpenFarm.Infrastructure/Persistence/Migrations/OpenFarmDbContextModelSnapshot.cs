@@ -2153,6 +2153,12 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
 
+                    b.PrimitiveCollection<Guid[]>("ProvisionedGroupIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid[]")
+                        .HasDefaultValueSql("'{}'::uuid[]");
+
                     b.Property<string>("ProvisioningExternalId")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
@@ -2199,12 +2205,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Revision")
                         .IsConcurrencyToken()
                         .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("TestedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("TestedProviderIdentity")
-                        .HasColumnType("text");
 
                     b.HasKey("Id");
 

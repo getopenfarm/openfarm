@@ -12,27 +12,25 @@ public sealed class OidcSettings
     public string? Authority { get; }
     public string? ClientId { get; }
     public string? ClientSecret { get; }
-    public int SessionHours { get; }
     public Guid[] RecoveryUserIds { get; }
     // Bind external identities to the issuer, not to an email or a mutable display name.
     public string ProviderKey => "oidc:" + Hash(Authority!);
-    public string TestIdentity(string? publicUrl) => Hash(System.Text.Json.JsonSerializer.Serialize(new[] { Authority, ClientId, ClientSecret, publicUrl }));
     public string SessionIdentity => Hash($"{Authority}|{ClientId}");
 
     public OidcSettings(AuthenticationSettingsValues value)
     {
         Enabled = value.OidcEnabled;
         InternalAuthenticationEnabled = value.InternalAuthenticationEnabled;
-        DisplayName = value.DisplayName.Trim() is { Length: > 0 } name ? name : "authentik";
+        // Blank by default; the neutral label keeps the sign-in and linking text readable for any provider.
+        DisplayName = value.DisplayName.Trim() is { Length: > 0 } name ? name : "SSO";
         Authority = value.Authority;
         ClientId = value.ClientId;
         ClientSecret = value.ClientSecret;
-        SessionHours = value.SessionHours;
         RecoveryUserIds = value.RecoveryUserIds;
         if (!InternalAuthenticationEnabled && (!Enabled || RecoveryUserIds.Length == 0))
             throw new InvalidOperationException("Disabling internal authentication requires OIDC and a recovery administrator.");
-        if (DisplayName.Length > 80 || SessionHours is < 1 or > 24)
-            throw new InvalidOperationException("OIDC display name must be at most 80 characters; SessionHours must be 1–24.");
+        if (DisplayName.Length > 80)
+            throw new InvalidOperationException("OIDC display name must be at most 80 characters.");
         if (!Enabled) return;
         if (!Uri.TryCreate(Authority, UriKind.Absolute, out var uri) || !uri.IsWellFormedOriginalString()
             || (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback))

@@ -1,6 +1,6 @@
 # Accounts, sessions, and access
 
-OpenFarm uses ASP.NET Identity accounts, 15-minute JWT access tokens, and database-backed browser sessions. A password session expires 14 days after sign-in; an OIDC session uses the configured shorter deadline (eight hours by default). Refreshing access does not extend that deadline. Access tokens stay in browser memory; the persistent refresh credential is an HttpOnly cookie. Refresh rotates the credential, tolerates concurrent retries for ten seconds, and revokes a session if an older credential is reused afterward.
+OpenFarm uses ASP.NET Identity accounts, 15-minute JWT access tokens, and database-backed browser sessions. A password session expires 14 days after sign-in, and refreshing never extends it. An OIDC session slides: each refresh extends it to three days from now, never past 14 days after sign-in. Neither lifetime is configurable. Access tokens stay in browser memory; the persistent refresh credential is an HttpOnly cookie. Refresh rotates the credential, tolerates concurrent retries for ten seconds, and revokes a session if an older credential is reused afterward.
 
 ## External sign-in (OIDC)
 
@@ -16,11 +16,12 @@ A five-minute protected ticket contains a nonce, owner, session and security sta
 prevents replay across processes; a new attempt supersedes the old one. User-row locking serializes linking and session creation with account edits.
 
 OIDC success creates an ordinary OpenFarm browser session and refresh cookie. The SPA restores its JWT through the existing refresh endpoint.
-`BrowserSessions.OidcConfigurationIdentity` binds external sessions to authority and client ID. External sessions have a configurable fixed 1–24 hour lifetime (default 8).
-Password sessions retain their 14-day lifetime. Required mode blocks password login, refresh and bearer validation except explicit immutable recovery user IDs.
+`BrowserSessions.OidcConfigurationIdentity` binds external sessions to authority and client ID. External sessions slide (`BrowserSessionService.OidcIdleLifetime`, three days, extended on each refresh) up to the fixed cap
+`SessionMaxLifetime` (14 days from sign-in). Three days covers nights and weekends; the cap bounds how long an upstream disablement goes unnoticed, because provider state is not polled.
+Password sessions retain their fixed 14-day lifetime. Required mode blocks password login, refresh and bearer validation except explicit immutable recovery user IDs.
 Password reset/change cannot bypass required mode. Startup and administrator edits preserve a working designated recovery administrator.
 
-OIDC configuration is managed under Settings → Authentication and applies without restart. Settings changes revoke browser sessions incompatible with the new login policy. Disabling the provider or changing authority/client invalidates external browser sessions.
+OIDC configuration is managed under Settings → Authentication and applies without restart. The provider name is optional: `OidcSettings.DisplayName` returns `SSO` when it is blank, and the login, linking and profile text use that value. No product name is a default. Settings changes revoke browser sessions incompatible with the new login policy. Disabling the provider or changing authority/client invalidates external browser sessions.
 PATs and MCP app grants retain their own existing lifecycle. Local logout does not end the provider session.
 Upstream disablement is not polled. OIDC back-channel logout revokes matching OIDC browser sessions. Disable the OpenFarm account to revoke all access methods.
 JIT can enroll new managed accounts in required mode. Explicit linking of existing local accounts needs optional mode.
@@ -33,7 +34,14 @@ JIT resolves existing external logins first, never matches by email, and never e
 `ApplicationUser.ProvisioningProvider/ProvisioningExternalId` binds each JIT account to the configured OIDC issuer and opaque subject.
 Every refused OIDC sign-in redirects to the same generic `ssoError=unavailable` (so the login page never reveals local account state); `OidcSignInLog.Rejected` logs the fixed reason code server-side. A new refusal path must log one.
 Managed users cannot acquire passwords or edit identity fields through local APIs.
-New accounts receive one configured, existing, unprotected local group. All later permissions are managed locally.
+New accounts receive one configured, existing, unprotected local group (`DefaultGroup`; the rule is `ExternalProvisioningService.CanBeDefaultGroup`, shared with the settings validation). A mapping target may be any existing group, including the protected Administrators. Without a group mapping, all later permissions are managed locally.
+Optional `GroupMappings` (`authentik group → local group`, exact name match, stored in the protected settings JSON, so no migration) re-apply at every OIDC sign-in via `ExternalProvisioningService.SyncGroupsAsync`.
+Only JIT accounts of the current issuer are synced. The sync owns the mapped groups, `DefaultGroup` and `ApplicationUser.ProvisionedGroupIds` (what the previous sign-in granted), so removing or retargeting a mapping revokes its grants at the next sign-in. Groups assigned by hand are never touched. With no mapping left the sync revokes only `ProvisionedGroupIds`, grants `DefaultGroup`, writes `[]` and stops managing. JIT off stops syncing: memberships stay.
+No match, a missing claim or an empty claim yields `DefaultGroup`. A provider can raise access only through a mapping, and mapping Administrators makes the groups claim a privilege source: the settings page warns, and the docs say only provider administrators may edit that group. Demotion reaches OpenFarm at the next sign-in, bounded by the SSO session window (3 days idle, 14 days max); the docs tell administrators to revoke sessions for an immediate cut.
+The sync writes its changes, then asks `PermissionService.HasEnabledAdministratorAsync` (the same rule account edits use). If no enabled administrator remains, it refuses the sign-in with `last_administrator_would_be_removed` and the caller rolls back; do not add a second definition of "an administrator remains". The claim is read from the ID token only (authentik emits `groups` in the `profile` scope).
+The claim name is the setting `GroupsClaim` (default `groups`), so each install has exactly one source: `groups`, authentik `entitlements`, `roles`, and so on. Do not read two claims and union them: a group and an entitlement with the same name would grant the same access, and no single source could explain a grant. `entitlements` is authentik-specific, so it is not hard-coded. `ProvisioningSettings` refuses identity claims (`sub`, `email`, `name`, …) because the provider user can edit some of them. Only flat, top-level claims are supported. `OidcSignInLog.GroupsClaimEmpty` (Information) names the claim when a sign-in carries no values, since a wrong claim name otherwise silently gives everyone `DefaultGroup`.
+A role change takes effect at the next sign-in, not mid-session: external sessions slide up to the 14-day cap. A change that adds or removes a group writes an `OidcGroupsSynced` activity-log entry.
+Mapped groups are provisioning targets, so they cannot be renamed or removed while JIT is on.
 Administrators can disable or remove JIT accounts. Removal deletes the identity link, allowing a later JIT enrollment if provider access remains allowed.
 Disabling reserves the identity and revokes browser sessions, connected apps, personal tokens, and pending linking proofs.
 Operator configuration: `docs/content/administration/account-provisioning.md`.

@@ -13,7 +13,6 @@ public static class OidcAuthentication
 {
     public const string Scheme = "ExternalOidc";
     public const string CallbackPath = "/api/v1/auth/sso/callback";
-    public const string TestCookie = "openfarm.oidc.test";
     public const string LinkCookie = "openfarm.oidc.link";
     private const string LinkStarted = "openfarm.link.started";
     private static readonly Action<ILogger, string?, Exception?> ChallengeFailed = LoggerMessage.Define<string?>(
@@ -38,7 +37,7 @@ public static class OidcAuthentication
     private static string Loggable(string? value) => value is null ? "" : new string([.. value.Take(300).Select(c => char.IsControl(c) ? ' ' : c)]);
 
     private static string Flow(AuthenticationProperties? properties) =>
-        properties?.Items.ContainsKey("link") == true ? "link" : properties?.Items.ContainsKey("test") == true ? "test" : "sign-in";
+        properties?.Items.ContainsKey("link") == true ? "link" : "sign-in";
 
     private static void SignInRejected(HttpContext http, string reason) => OidcSignInLog.Rejected(
         http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication"), reason);
@@ -58,11 +57,9 @@ public static class OidcAuthentication
             var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication");
             ChallengeFailed(logger, http.RequestServices.GetRequiredService<OidcSettings>().Authority, e);
             // Keep protocol details in server logs; expose only a fixed, actionable failure category.
-            http.Response.Redirect(properties.Items.ContainsKey("test")
-                ? "/settings/authentication?test=failed&ssoReason=provider_configuration"
-                : properties.Items.ContainsKey("link")
-                    ? "/profile?tab=security&sso=failed&ssoReason=provider_configuration"
-                    : "/login?ssoError=provider_configuration");
+            http.Response.Redirect(properties.Items.ContainsKey("link")
+                ? "/profile?tab=security&sso=failed&ssoReason=provider_configuration"
+                : "/login?ssoError=provider_configuration");
         }
     }
 
@@ -114,7 +111,6 @@ public static class OidcAuthentication
                             ?? throw new InvalidOperationException("OIDC needs a configured public URL.");
                         settings.ValidatePublicUrl(origin);
                         context.ProtocolMessage.RedirectUri = origin + CallbackPath;
-                        context.Properties.Items["openfarm.oidc.origin"] = origin;
                         context.Properties.Items["openfarm.oidc.configuration"] = settings.SessionIdentity;
                         context.Properties.Items["openfarm.oidc.revision"] = context.HttpContext.RequestServices
                             .GetRequiredService<AuthenticationConfiguration>().Revision.ToString();
@@ -138,7 +134,7 @@ public static class OidcAuthentication
                         // An "error" parameter is the provider's own refusal (denied, cancelled, login required), not a failed verification.
                         if (context.Properties?.Items.ContainsKey("link") == true)
                             FailLink(context.HttpContext, context.Request.Query.ContainsKey("error") ? "provider_denied" : "provider_response");
-                        else context.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
+                        else context.Response.Redirect("/login?ssoError=failed");
                         return Task.CompletedTask;
                     },
                 };
@@ -161,7 +157,7 @@ public static class OidcAuthentication
                 IssuerMismatch(http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication"),
                     Loggable(issuers[0].Value), Loggable(settings.Authority), null);
             if (context.Properties?.Items.ContainsKey("link") == true) FailLink(http, issuerMismatch ? "issuer_mismatch" : "provider_response");
-            else http.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
+            else http.Response.Redirect("/login?ssoError=failed");
             return;
         }
         if (context.Properties?.Items.TryGetValue("openfarm.oidc.configuration", out var challengedIdentity) != true
@@ -170,19 +166,11 @@ public static class OidcAuthentication
             || revision != http.RequestServices.GetRequiredService<AuthenticationConfiguration>().Revision.ToString())
         {
             if (context.Properties?.Items.ContainsKey("link") == true) FailLink(http, "configuration_changed");
-            else http.Response.Redirect(context.Properties?.Items.ContainsKey("test") == true ? "/settings/authentication?test=failed" : "/login?ssoError=failed");
+            else http.Response.Redirect("/login?ssoError=failed");
             return;
         }
         var accounts = http.RequestServices.GetRequiredService<OidcAccountService>();
         var ct = http.RequestAborted;
-        if (context.Properties?.Items.TryGetValue("test", out var testTicket) == true)
-        {
-            http.Response.Cookies.Delete(TestCookie, LinkCookieOptions(http));
-            var passed = !string.IsNullOrEmpty(testTicket) && http.Request.Cookies[TestCookie] == testTicket
-                && await accounts.CompleteTestAsync(testTicket, http.Request.Cookies[SessionCookies.RefreshName] ?? "", subjects[0].Value, context.Properties.Items.TryGetValue("openfarm.oidc.origin", out var challengedOrigin) ? challengedOrigin : null, ct);
-            http.Response.Redirect("/settings/authentication?test=" + (passed ? "success" : "failed"));
-            return;
-        }
         if (context.Properties?.Items.TryGetValue("link", out var ticket) == true)
         {
             var cookie = http.Request.Cookies[LinkCookie];
@@ -233,7 +221,8 @@ public static class OidcAuthentication
         try
         {
             var profile = new ExternalProfile(Claim("preferred_username"), Claim("email"), Claim("name"),
-                string.Equals(Claim("email_verified"), "true", StringComparison.OrdinalIgnoreCase));
+                string.Equals(Claim("email_verified"), "true", StringComparison.OrdinalIgnoreCase),
+                context.Principal!.FindAll(http.RequestServices.GetRequiredService<ProvisioningSettings>().GroupsClaim).Select(c => c.Value).ToArray());
             var providerSessionId = Claim("sid");
             if (providerSessionId is { Length: > 255 } || providerSessionId is not null && string.IsNullOrWhiteSpace(providerSessionId))
                 throw new ArgumentException("Invalid provider session identifier.");

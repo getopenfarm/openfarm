@@ -13,8 +13,9 @@ Existing local accounts must use explicit OIDC linking.
 
 Apply application-access policies in authentik before enabling JIT.
 New accounts receive the configured default OpenFarm group. The default is **Viewers**.
+To set groups from authentik instead, add a [group mapping](#map-provider-groups-to-openfarm-groups).
 Use an existing empty group if new accounts must have no operational permissions until an administrator grants access.
-Protected groups, including **Administrators**, cannot be provisioning targets.
+The default group cannot be a protected group, such as **Administrators**. A group mapping can target it. See [Map a provider group to Administrators](#map-a-provider-group-to-administrators).
 
 ## Enable JIT
 
@@ -36,7 +37,7 @@ Existing linked accounts can still sign in.
 
 OpenFarm rejects username and email collisions. An existing local account must use explicit linking instead.
 JIT never re-enables a disabled account. Existing account details are not overwritten on subsequent logins.
-Administrators manage group access in OpenFarm.
+Without a group mapping, administrators manage group access in OpenFarm.
 
 ### Configure verified email in authentik
 
@@ -75,19 +76,93 @@ The server log has one `OidcSignInRejected` warning that names the cause. It nev
 | `claim_too_long` | A username, email, or name has more than 256 characters. | Shorten the value in authentik. |
 | `account_conflict` | An OpenFarm account already uses this username, email, or identity. | Link the existing account in My profile › Security. JIT never merges accounts. |
 | `Username, email or identity is invalid or already in use.` | The username has characters other than letters, digits, and `- . _ @ +`, or another account has the same email. | Change the authentik username or email, or link the existing account. |
-| `Provisioning can use only existing, unprotected OpenFarm groups.` | The default group does not exist or is protected. | Select an existing, unprotected default group in Settings → Authentication. |
+| `The default group must be an existing, unprotected group.` | The default group does not exist or is protected. | Select an existing, unprotected default group in Settings → Authentication. |
+| `Each mapped group must be an existing group.` | A mapped OpenFarm group was removed. | Select an existing group for each mapping. |
+| `last_administrator_would_be_removed` | The provider no longer lists the user for **Administrators**, and no other enabled administrator exists. | Make another account an administrator, or add the user to the provider group again. |
 | `not_linked_and_jit_disabled` | The identity is not linked and JIT is off. | Enable JIT, or link the account in My profile. |
 | `account_disabled_or_removed` | The account is disabled, or was removed during sign-in. JIT does not re-enable it. | Re-enable the account under **Users & Groups**. |
 | `provider_logout_receipt` | The provider ended this session before sign-in finished. | Sign in again. |
 | `provider_disabled_or_settings_changed`, `identity_conflict` | Authentication settings changed, or two first sign-ins raced. | Try again. |
 | `duplicate_claim_or_invalid_settings` | The ID token repeats a claim, or the saved settings are invalid. | Check the provider's claim mappings and the saved settings. |
 
+## Map provider groups to OpenFarm groups
+
+Use a group mapping to set OpenFarm groups from authentik groups. Without a mapping, only the default group applies, and administrators manage groups under **Users & Groups**.
+
+1. In authentik, create a group for each OpenFarm role, for example `openfarm-operators`. Add the users.
+2. Keep the `profile` scope mapping on the OpenFarm provider. It puts a `groups` claim with the user's group names in the ID token.
+3. In **Settings → Authentication**, leave **Groups claim** as `groups`.
+4. Under **Group mapping**, select **Add mapping**. Enter the authentik group name and pick the OpenFarm group. Names are case-sensitive.
+5. Select **Save**.
+
+OpenFarm reads one claim only, the one named in **Groups claim**. It never combines two claims, so a group and an entitlement with the same name cannot both grant access.
+To use authentik entitlements instead of groups, see [Use entitlements instead of groups](#use-entitlements-instead-of-groups).
+
+OpenFarm applies the mapping at every sign-in, to accounts it created through JIT:
+
+- A user in a mapped authentik group gets the OpenFarm group. A user in several groups gets all of them.
+- A user in no mapped group gets the default group.
+- OpenFarm manages the groups in the mapping and the default group. Any other group you assign under **Users & Groups** stays.
+- If you remove a mapping or point it at another group, OpenFarm removes the group it granted earlier at the user's next sign-in.
+- A mapping can target **Administrators**. See [Map a provider group to Administrators](#map-a-provider-group-to-administrators).
+- Accounts you linked by hand are never changed.
+- If you remove every mapping, the user loses the groups the mapping granted and gets the default group. Groups are then managed under **Users & Groups** again.
+
+Do not assign a mapped group or the default group by hand. The next sign-in removes it unless authentik lists it.
+
+A change in authentik reaches OpenFarm at the user's next sign-in. A browser session slides for three days, up to 14 days from sign-in, so an access change can take that long.
+To apply it sooner, revoke the user's sessions under **Users & Groups**, or disable the account.
+
+If the ID token has no values in the Groups claim, the user gets the default group. OpenFarm removes the groups the mapping granted earlier.
+The server log then has one `OidcGroupsClaimEmpty` entry that names the claim. It also appears for a user who has no mapped values, so it is not always an error.
+Check the claim for a test user in authentik before rollout. Gate who may sign in with a policy or group binding on the OpenFarm application in authentik.
+
+### Use entitlements instead of groups
+
+Entitlements are authentik's per-application roles. Use them to keep OpenFarm roles out of your shared group list.
+Set **Groups claim** to `entitlements`. OpenFarm then ignores `groups`.
+
+1. Open the OpenFarm application in authentik. On **Application entitlements**, create one entitlement per role, for example `operator`.
+   Bind the users or groups that need it.
+2. Open **Customization → Property Mappings** and create a **Scope Mapping**. Set **Scope name** to `profile`.
+   OpenFarm requests only `openid`, `profile`, and `email`, so a mapping with another scope name is never returned.
+   ```python
+   return {
+       "entitlements": [e.name for e in request.user.app_entitlements(provider.application)],
+   }
+   ```
+3. Open the OpenFarm OAuth2/OIDC provider and add this mapping. Keep the default `profile` mapping selected too.
+   OpenFarm needs its `preferred_username`, `email`, and `name` claims. authentik merges list claims from several mappings.
+4. In **Settings → Authentication**, set **Groups claim** to `entitlements`. Add a mapping row for each entitlement name, for example `operator` → Operators.
+5. Check the ID token for a test user. It must list the entitlement names under `entitlements`.
+
+The expression follows authentik's integration guides. Confirm it against your authentik version.
+
+Other providers work the same way. Set **Groups claim** to the top-level claim that lists the user's groups or roles, for example `roles`.
+Nested claims, such as Keycloak's `realm_access.roles`, are not supported.
+Identity claims such as `sub`, `email`, and `name` are refused, because a user can edit some of them at the provider.
+
+### Map a provider group to Administrators
+
+A mapping can target **Administrators**. Every user in that provider group then gets full access, including **Settings**.
+The default group cannot be **Administrators**, because every new account gets it.
+
+Before you map it:
+
+- Let only provider administrators edit that provider group. OpenFarm trusts the Groups claim. A person who can add a user to the group can make that user an OpenFarm administrator.
+- Keep a tested local [recovery administrator](single-sign-on.md). A local account does not depend on the provider.
+- Plan for the delay. A removal reaches OpenFarm at the user's next sign-in, up to 14 days. To end administrator access at once, revoke the user's sessions or disable the account under **Users & Groups**.
+
+OpenFarm never removes the last enabled administrator at sign-in. If a user would lose **Administrators** and no other enabled administrator exists, the sign-in fails.
+The server log then has `last_administrator_would_be_removed`.
+Each group change is in the activity log as `OidcGroupsSynced`.
+
 ## Manage access and offboarding
 
 JIT accounts have no local password. Local password reset is blocked.
 Their name, email, and username are read-only in OpenFarm.
 Administrators manage groups and extra permissions under **Users & Groups**.
-Provider group changes do not synchronize OpenFarm permissions.
+Provider group changes reach OpenFarm at the next sign-in, and only for groups in the [group mapping](#map-provider-groups-to-openfarm-groups).
 Keep the provider's subject mode stable after users enroll.
 
 Disable an account in OpenFarm to revoke its browser sessions, connected apps, and personal tokens.
@@ -99,7 +174,7 @@ Disable the account to keep its identity reserved during offboarding.
 
 ## Verify before rollout
 
-Test a new JIT login and check its default group.
+Test a new JIT login and check its default group, or its mapped groups if you set a mapping.
 Confirm that existing users can link their accounts without creating duplicates.
 Disable a user and check that their browser session and personal token stop working.
 Keep a tested local recovery administrator before requiring OIDC.

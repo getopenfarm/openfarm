@@ -133,10 +133,6 @@ export const apiQueryPermissions = [
     permissions: [],
   },
   {
-    pattern: '^/api/v1/auth/sso/test$',
-    permissions: [],
-  },
-  {
     pattern: '^/api/v1/auth/sessions$',
     permissions: [],
   },

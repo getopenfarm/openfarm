@@ -31,11 +31,12 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
         DisplayName = saved.DisplayName,
         Authority = saved.Authority,
         ClientId = saved.ClientId,
-        SessionHours = saved.SessionHours,
         RecoveryUserIds = saved.RecoveryUserIds,
         JitEnabled = saved.JitEnabled,
         RequireVerifiedEmail = saved.RequireVerifiedEmail,
         DefaultGroup = saved.DefaultGroup,
+        GroupMappings = saved.GroupMappings,
+        GroupsClaim = saved.GroupsClaim,
     };
 
     [Fact]
@@ -117,22 +118,59 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
         (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, values))).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var who = (await browser.GetFromJsonAsync<WhoAmIResult>("/api/v1/auth/whoami"))!;
         values = values with { InternalAuthenticationEnabled = false, RecoveryUserIds = [who.UserId], DefaultGroup = "Viewers" };
-        // An untested provider cannot be used to disable internal authentication.
-        (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, values))).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        using (var scope = factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
-            var row = await db.AuthenticationSettings.SingleAsync();
-            row.TestedProviderIdentity = new OidcSettings(values).TestIdentity("https://farm.example");
-            await db.SaveChangesAsync();
-        }
         (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, values))).EnsureSuccessStatusCode();
         (await browser.GetAsync("/api/v1/auth/whoami")).StatusCode.Should().Be(HttpStatusCode.OK);
         saved = (await ReadAsync(browser))!;
-        saved.OidcTested.Should().BeTrue();
-        (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision,
-            Values(saved) with { ClientSecret = "rotated-untested-client-credential" }))).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, Values(saved) with { OidcEnabled = false, InternalAuthenticationEnabled = true, JitEnabled = false }))).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task GroupMappings_AcceptAnyExistingGroup_AndProtectTheirTargets()
+    {
+        using var browser = await McpTestClient.BrowserAsync(factory);
+        var server = (await browser.GetFromJsonAsync<ServerSettingsResponse>("/api/v1/admin/settings/server"))!;
+        (await browser.PutAsJsonAsync("/api/v1/admin/settings/server", new { server.Revision, PublicUrl = "https://farm.example" })).EnsureSuccessStatusCode();
+        var saved = (await ReadAsync(browser))!;
+        var values = Values(saved) with { OidcEnabled = true, Authority = "https://identity.example/application/o/farm/", ClientId = "mapping-client", ClientSecret = "mapping-client-credential", JitEnabled = true };
+        async Task<HttpStatusCode> Save(params GroupMapping[] mappings) =>
+            (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, values with { GroupMappings = mappings }))).StatusCode;
+        (await Save(new GroupMapping("farm-ops", "No such group"))).Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await Save(new GroupMapping("", "Operators"))).Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await Save(new GroupMapping("farm-ops", "Operators"), new GroupMapping("farm-ops", "operators"))).Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await Save(Enumerable.Range(0, 51).Select(i => new GroupMapping("g" + i, "Operators")).ToArray())).Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await Save(new GroupMapping("farm-ops", "Operators"), new GroupMapping("farm-ops", "Viewers"))).Should().Be(HttpStatusCode.OK);
+        saved = (await ReadAsync(browser))!;
+        saved.GroupMappings.Should().BeEquivalentTo([new GroupMapping("farm-ops", "Operators"), new GroupMapping("farm-ops", "Viewers")]);
+        var operators = (await browser.GetFromJsonAsync<GroupResponse[]>("/api/v1/admin/groups"))!.Single(g => g.Name == "Operators");
+        var rename = await browser.PutAsJsonAsync("/api/v1/admin/groups/" + operators.Id, new GroupInput("Renamed", "", operators.Grants));
+        rename.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await rename.Content.ReadAsStringAsync()).Should().Contain("used by provisioning");
+        // The protected Administrators group can be a mapping target; the response says which groups are protected.
+        saved.Groups.Should().Contain(g => g.Name == "Administrators" && g.IsProtected).And.Contain(g => g.Name == "Operators" && !g.IsProtected);
+        (await Save(new GroupMapping("farm-admins", "Administrators"))).Should().Be(HttpStatusCode.OK);
+        saved = (await ReadAsync(browser))!;
+        saved.GroupMappings.Should().BeEquivalentTo([new GroupMapping("farm-admins", "Administrators")]);
+        (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, Values(saved) with { OidcEnabled = false, JitEnabled = false }))).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task GroupsClaim_IsSaved_AndIsNeverAnIdentityClaim()
+    {
+        using var browser = await McpTestClient.BrowserAsync(factory);
+        var server = (await browser.GetFromJsonAsync<ServerSettingsResponse>("/api/v1/admin/settings/server"))!;
+        (await browser.PutAsJsonAsync("/api/v1/admin/settings/server", new { server.Revision, PublicUrl = "https://farm.example" })).EnsureSuccessStatusCode();
+        var saved = (await ReadAsync(browser))!;
+        saved.GroupsClaim.Should().Be("groups");
+        var values = Values(saved) with { OidcEnabled = true, Authority = "https://identity.example/application/o/farm/", ClientId = "claim-client", ClientSecret = "claim-client-credential", JitEnabled = true };
+        async Task<HttpStatusCode> Save(string claim) =>
+            (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, values with { GroupsClaim = claim }))).StatusCode;
+        // An identity claim such as name or email is user-editable at the provider, so it must never decide group membership.
+        foreach (var rejected in new[] { "", "two words", "sub", "Email", "name", "preferred_username" })
+            (await Save(rejected)).Should().Be(HttpStatusCode.UnprocessableEntity, rejected);
+        (await Save("entitlements")).Should().Be(HttpStatusCode.OK);
+        saved = (await ReadAsync(browser))!;
+        saved.GroupsClaim.Should().Be("entitlements");
+        (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, Values(saved) with { OidcEnabled = false, JitEnabled = false, GroupsClaim = "groups" }))).EnsureSuccessStatusCode();
     }
 
     [Fact]

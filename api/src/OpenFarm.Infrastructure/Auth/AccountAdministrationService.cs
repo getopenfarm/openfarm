@@ -7,7 +7,7 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.Auth;
 
-public sealed record GroupSummary(Guid Id, string Name);
+public sealed record GroupSummary(Guid Id, string Name, bool IsProtected);
 public sealed record AccountResponse(Guid Id, string Username, string Email, string? Name, bool IsEnabled,
     DateTimeOffset CreatedAtUtc, GroupSummary[] Groups, string[] ExtraGrants, string[] EffectivePermissions, bool IsAdministrator, int SessionCount)
 {
@@ -34,7 +34,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
             var groups = await (from membership in db.UserRoles
                                 join role in db.Roles on membership.RoleId equals role.Id
                                 where membership.UserId == user.Id
-                                select new GroupSummary(role.Id, role.Name!)).ToArrayAsync(ct);
+                                select new GroupSummary(role.Id, role.Name!, role.IsProtected)).ToArrayAsync(ct);
             var grants = await db.UserClaims.Where(c => c.UserId == user.Id && c.ClaimType == PermissionCatalog.GrantClaim).Select(c => c.ClaimValue!).ToArrayAsync(ct);
             grants = PermissionCatalog.Sort(grants.Where(PermissionCatalog.IsGrantable));
             var count = await db.BrowserSessions.CountAsync(s => s.UserId == user.Id && s.ClientId == null && s.RevokedAtUtc == null && s.ExpiresAtUtc > DateTimeOffset.UtcNow, ct);
@@ -113,12 +113,7 @@ public sealed class AccountAdministrationService(OpenFarmDbContext db, UserManag
 
     private async Task EnsureAdministratorAsync(CancellationToken ct)
     {
-        var exists = await (from user in db.Users
-                            join membership in db.UserRoles on user.Id equals membership.UserId
-                            join role in db.Roles on membership.RoleId equals role.Id
-                            where user.IsEnabled && role.IsProtected && role.Name == PermissionCatalog.Administrators
-                            select user.Id).AnyAsync(ct);
-        if (!exists) throw new ArgumentException("At least one enabled administrator must remain.");
+        if (!await permissions.HasEnabledAdministratorAsync(ct)) throw new ArgumentException("At least one enabled administrator must remain.");
         await EnsureRecoveryAdministratorAsync(ct);
     }
 

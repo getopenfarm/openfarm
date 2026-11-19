@@ -74,7 +74,7 @@ it('keeps failed revocation open and restores keyboard focus on cancel', async (
   http.mockRejectedValueOnce(new Error('offline'));
   await user.click(within(dialog).getByRole('button', { name: 'Revoke' }));
   expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Could not change this token.',
+    'Token update failed.',
   );
   await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
   await waitFor(() => expect(button).toHaveFocus());

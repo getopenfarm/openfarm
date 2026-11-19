@@ -23,6 +23,10 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
 {
     public const string AppCredentialPrefix = "ofr_";
     public static readonly TimeSpan AppLifetime = TimeSpan.FromDays(30);
+    /// <summary>Hard cap from sign-in: a password session's whole life, and the most a sliding OIDC session can reach.</summary>
+    public static readonly TimeSpan SessionMaxLifetime = TimeSpan.FromDays(14);
+    /// <summary>An OIDC session's sliding window: each refresh extends it, never past <see cref="SessionMaxLifetime"/>.</summary>
+    public static readonly TimeSpan OidcIdleLifetime = TimeSpan.FromDays(3);
     private static readonly SearchValues<char> LowerHex = SearchValues.Create("0123456789abcdef");
 
     private readonly IDataProtector _protector = protection.CreateProtector("OpenFarm.RefreshRetry.v1");
@@ -59,7 +63,7 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
             UserId = userId,
             CreatedAtUtc = now,
             LastSeenAtUtc = now,
-            ExpiresAtUtc = external ? now.AddHours(oidc.SessionHours) : now.AddDays(14),
+            ExpiresAtUtc = now + (external ? OidcIdleLifetime : SessionMaxLifetime),
             OidcConfigurationIdentity = external ? oidc.SessionIdentity : null,
             OidcSubject = external ? oidcSubject : null,
             OidcSessionId = external ? oidcSessionId : null,
@@ -145,6 +149,13 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         row.UsedAtUtc = now;
         row.ProtectedSuccessor = _protector.Protect(next);
         db.SessionCredentials.Add(new SessionCredential { Hash = Hash(next), SessionId = session.Id });
+        // Sliding window for OIDC browser sessions; the cap is fixed at sign-in and never moves.
+        if (session.ClientId is null && session.OidcConfigurationIdentity is not null)
+        {
+            var slid = now + OidcIdleLifetime;
+            var cap = session.CreatedAtUtc + SessionMaxLifetime;
+            session.ExpiresAtUtc = slid < cap ? slid : cap;
+        }
         session.LastSeenAtUtc = now;
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

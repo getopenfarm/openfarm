@@ -32,6 +32,13 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 maxLength: 255,
                 nullable: true);
 
+            migrationBuilder.AddColumn<Guid[]>(
+                name: "ProvisionedGroupIds",
+                table: "AspNetUsers",
+                type: "uuid[]",
+                nullable: false,
+                defaultValueSql: "'{}'::uuid[]");
+
             migrationBuilder.AddColumn<string>(
                 name: "ProvisioningExternalId",
                 table: "AspNetUsers",
@@ -52,8 +59,6 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Revision = table.Column<Guid>(type: "uuid", nullable: false),
-                    TestedProviderIdentity = table.Column<string>(type: "text", nullable: true),
-                    TestedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     ProtectedConfiguration = table.Column<string>(type: "text", nullable: false)
                 },
                 constraints: table =>
@@ -128,6 +133,10 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
             migrationBuilder.DropColumn(
                 name: "OidcSubject",
                 table: "BrowserSessions");
+
+            migrationBuilder.DropColumn(
+                name: "ProvisionedGroupIds",
+                table: "AspNetUsers");
 
             migrationBuilder.DropColumn(
                 name: "ProvisioningExternalId",

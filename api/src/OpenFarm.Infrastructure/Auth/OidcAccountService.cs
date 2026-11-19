@@ -16,60 +16,11 @@ public sealed record OidcLinkTicket(Guid UserId, Guid SessionId, string Nonce, s
 /// <summary>Explicit linking and opt-in JIT creation. Existing identities are resolved only by issuer and subject.</summary>
 public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<ApplicationUser> users,
     BrowserSessionService sessions, OidcSettings settings, IDataProtectionProvider protection, TimeProvider time,
-    ExternalProvisioningService provisioning, AuthenticationConfiguration configuration, ServerConfigurationOverrides serverPolicy,
+    ExternalProvisioningService provisioning, AuthenticationConfiguration configuration,
     ILogger<OidcAccountService> logger)
 {
     private const string LinkTokenName = "PendingLink";
     private readonly IDataProtector _protector = protection.CreateProtector("OpenFarm.OidcLink.v1");
-
-    private readonly IDataProtector _testProtector = protection.CreateProtector("OpenFarm.OidcTest.v1");
-
-    public async Task<string?> BeginTestAsync(Guid userId, Guid sessionId, CancellationToken ct)
-    {
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await provisioning.LockAsync(ct);
-        if (!settings.Enabled || !await configuration.LockCurrentAsync(ct)) return null;
-        var user = await users.FindByIdAsync(userId.ToString());
-        if (user is null || !await users.IsInRoleAsync(user, PermissionCatalog.Administrators)
-            || !await sessions.IsActiveAsync(userId, sessionId, ct)) return null;
-        var ticket = new OidcLinkTicket(userId, sessionId, Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
-            user.SecurityStamp, time.GetUtcNow().AddMinutes(5));
-        Check(await users.SetAuthenticationTokenAsync(user, settings.ProviderKey, "PendingTest", BrowserSessionService.Hash(ticket.Nonce)));
-        await tx.CommitAsync(ct);
-        return _testProtector.Protect(JsonSerializer.Serialize(ticket));
-    }
-
-    public async Task<bool> CompleteTestAsync(string value, string credential, string subject, string? challengedOrigin, CancellationToken ct)
-    {
-        OidcLinkTicket? ticket;
-        try { ticket = JsonSerializer.Deserialize<OidcLinkTicket>(_testProtector.Unprotect(value)); }
-        catch (Exception e) when (e is CryptographicException or JsonException) { return false; }
-        if (ticket is null || ticket.ExpiresAtUtc <= time.GetUtcNow()) return false;
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await provisioning.LockAsync(ct);
-        if (!await configuration.LockCurrentAsync(ct)) return false;
-        await LockUserAsync(ticket.UserId, ct);
-        await LockSessionAsync(ticket.SessionId, ct);
-        var user = await users.FindByIdAsync(ticket.UserId.ToString());
-        if (user is null || user.SecurityStamp != ticket.SecurityStamp || !user.IsEnabled
-            || !await users.IsInRoleAsync(user, PermissionCatalog.Administrators)
-            || !await MatchesBrowserAsync(ticket.UserId, ticket.SessionId, credential, ct)) return false;
-        var hash = BrowserSessionService.Hash(ticket.Nonce);
-        if (await db.UserTokens.Where(t => t.UserId == user.Id && t.LoginProvider == settings.ProviderKey
-            && t.Name == "PendingTest" && t.Value == hash).ExecuteDeleteAsync(ct) != 1) return false;
-        // A provider test must prove access to the administrator's explicitly linked identity.
-        if (!await db.UserLogins.AnyAsync(l => l.UserId == user.Id && l.LoginProvider == settings.ProviderKey && l.ProviderKey == subject, ct))
-        { await tx.CommitAsync(ct); return false; }
-        var origin = serverPolicy.Resolve(await db.ServerSettings.AsNoTracking().SingleAsync(ct)).PublicUrl;
-        if (origin != challengedOrigin) return false;
-        var saved = await db.AuthenticationSettings.SingleAsync(ct);
-        saved.TestedProviderIdentity = settings.TestIdentity(origin);
-        saved.TestedAtUtc = time.GetUtcNow();
-        Audit(user.Id, "OidcProviderTestPassed");
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
-        return true;
-    }
 
     public async Task<string?> BeginLinkAsync(Guid userId, Guid sessionId, string password, string credential, CancellationToken ct)
     {
@@ -154,6 +105,7 @@ public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<Applica
         await LockUserAsync(user.Id, ct);
         await db.Entry(user).ReloadAsync(ct);
         if (db.Entry(user).State == EntityState.Detached || !user.IsEnabled) return Reject("account_disabled_or_removed");
+        if (profile is not null && !await provisioning.SyncGroupsAsync(user, profile.Groups, ct)) return null; // logs its own refusal reason; nothing is committed
         var now = time.GetUtcNow();
         var authorizationTime = authorizationStartedAt ?? now;
         if (await db.OidcLogoutReceipts.AnyAsync(r => r.Provider == settings.SessionIdentity && r.ExpiresAtUtc > now

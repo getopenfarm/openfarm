@@ -34,7 +34,7 @@ const consentUrl = '/api/v1/auth/oauth/consent';
 const NOTHING_SELECTED = 'Select at least one available permission.';
 const EXPIRED =
   'Connection request expired. Start again from your AI assistant.';
-const FAILED = 'Could not connect the app. Start again from your AI assistant.';
+const FAILED = 'Connection failed. Start again from your AI assistant.';
 
 const TIERS: Record<string, { heading: string; note?: string; red?: boolean }> =
   {
@@ -99,10 +99,7 @@ export function ConsentPage() {
       ) : consent ? (
         <ConsentForm request={request} consent={consent} />
       ) : query.isError ? (
-        <ErrorState
-          title="Could not load the connection request"
-          onRetry={() => void query.refetch()}
-        />
+        <ErrorState title="Load failed" onRetry={() => void query.refetch()} />
       ) : (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-8 w-2/3" />
@@ -190,7 +187,7 @@ function ConsentForm({
         { replace: true },
       );
     } catch {
-      toast.error('Could not sign out.');
+      toast.error('Sign-out failed.');
     }
   }
 

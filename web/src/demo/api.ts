@@ -1397,11 +1397,11 @@ route('GET', '/auth/csrf', () => ({ token: 'demo-csrf' }));
 route('GET', '/auth/providers', () => ({
   oidcEnabled: false,
   internalAuthenticationEnabled: true,
-  displayName: 'authentik',
+  displayName: 'SSO',
 }));
 route('GET', '/auth/sso/identity', () => ({
   enabled: false,
-  displayName: 'authentik',
+  displayName: 'SSO',
   linked: false,
   passwordAllowed: true,
 }));

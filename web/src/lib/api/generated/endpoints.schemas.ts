@@ -300,6 +300,11 @@ export interface GetSlicingReadinessRequest {
   [key: string]: unknown;
 }
 
+export interface GroupMapping {
+  externalGroup?: string;
+  group?: string;
+}
+
 export interface AuthenticationRecoveryAccount {
   id?: string;
   username?: string;
@@ -308,6 +313,7 @@ export interface AuthenticationRecoveryAccount {
 export interface GroupSummary {
   id?: string;
   name?: string;
+  isProtected?: boolean;
 }
 
 export interface AuthenticationSettingsResponse {
@@ -320,11 +326,12 @@ export interface AuthenticationSettingsResponse {
   /** @nullable */
   clientId?: string | null;
   clientCredentialConfigured?: boolean;
-  sessionHours?: number;
   recoveryUserIds?: string[];
   jitEnabled?: boolean;
   requireVerifiedEmail?: boolean;
   defaultGroup?: string;
+  groupMappings?: GroupMapping[];
+  groupsClaim?: string;
   recoveryAccounts?: AuthenticationRecoveryAccount[];
   groups?: GroupSummary[];
   /** @nullable */
@@ -332,7 +339,6 @@ export interface AuthenticationSettingsResponse {
   /** @nullable */
   logoutUrl?: string | null;
   recoveryMode?: boolean;
-  oidcTested?: boolean;
 }
 
 export interface AuthenticationSettingsValues {
@@ -345,20 +351,17 @@ export interface AuthenticationSettingsValues {
   clientId?: string | null;
   /** @nullable */
   clientSecret?: string | null;
-  sessionHours?: number;
   recoveryUserIds?: string[];
   jitEnabled?: boolean;
   requireVerifiedEmail?: boolean;
   defaultGroup?: string;
+  groupMappings?: GroupMapping[];
+  groupsClaim?: string;
 }
 
 export interface UpdateAuthenticationSettingsRequest {
   revision?: string;
   settings?: AuthenticationSettingsValues;
-}
-
-export interface TestAuthenticationResponse {
-  redirectUri?: string;
 }
 
 export interface FeeDto {

@@ -36,7 +36,6 @@ const TYPE_LABELS: Record<string, string> = {
   ServerSettings: 'Server settings',
   AuthenticationSettingsRecord: 'Authentication settings',
   AuthenticationSettingsChanged: 'Authentication settings changed',
-  OidcProviderTestPassed: 'OIDC provider test passed',
   OidcBackchannelLogout: 'Signed out by identity provider',
   PrinterModelCost: 'Printer model costs',
   FeeProfile: 'Fee profile',

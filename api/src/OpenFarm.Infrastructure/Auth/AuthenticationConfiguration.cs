@@ -7,19 +7,24 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.Auth;
 
+/// <summary>An identity-provider group name (exact, case-sensitive) and the OpenFarm group it grants.</summary>
+public sealed record GroupMapping(string ExternalGroup, string Group);
+
 public sealed record AuthenticationSettingsValues
 {
     public bool OidcEnabled { get; init; }
     public bool InternalAuthenticationEnabled { get; init; } = true;
-    public string DisplayName { get; init; } = "authentik";
+    public string DisplayName { get; init; } = "";
     public string? Authority { get; init; }
     public string? ClientId { get; init; }
     public string? ClientSecret { get; init; }
-    public int SessionHours { get; init; } = 8;
     public Guid[] RecoveryUserIds { get; init; } = [];
     public bool JitEnabled { get; init; }
     public bool RequireVerifiedEmail { get; init; } = true;
     public string DefaultGroup { get; init; } = "Viewers";
+    public GroupMapping[] GroupMappings { get; init; } = [];
+    /// <summary>The one ID-token claim that lists the user's provider groups or roles. Blobs saved before this field read as "groups".</summary>
+    public string GroupsClaim { get; init; } = "groups";
 }
 
 /// <summary>One database snapshot per request. The fixed-value constructor supports isolated protocol hosts.</summary>

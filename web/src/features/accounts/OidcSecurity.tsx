@@ -25,31 +25,30 @@ interface Identity {
 
 const linkFailureMessages: Record<string, string> = {
   provider_configuration:
-    'Could not load or use the sign-in provider configuration. Check the Issuer URL and make sure OpenFarm can reach the provider. Administrators can check the OpenFarm server logs for details.',
+    'Provider configuration load failed. Check the issuer URL and the connection to the provider. Administrators: see the server log.',
   provider_response:
-    'The provider sign-in response could not be verified. Ask an administrator to check the issuer, client configuration, signing key, and OpenFarm server logs.',
+    'The provider response failed verification. Ask an administrator to check the issuer, the client settings, the signing key, and the server log.',
   provider_denied:
-    'The provider refused the sign-in. Check that your provider account can use OpenFarm, then start linking again.',
+    'The provider refused the sign-in. Make sure your provider account can use OpenFarm. Then start linking again.',
   issuer_mismatch:
-    'The provider issuer does not match the saved Issuer URL. Ask an administrator to enter the exact issuer, including any trailing slash.',
+    'The provider issuer does not match the saved issuer URL. Ask an administrator to enter the exact issuer, with any trailing slash.',
   auth_time_missing:
-    'The provider did not send a usable sign-in time (auth_time). Trying again will not help. Ask an administrator to include auth_time in the provider ID token.',
+    'The provider did not send auth_time. Trying again does not help. Ask an administrator to add auth_time to the ID token.',
   fresh_authentication:
-    'The provider did not confirm a recent sign-in. Sign out of your sign-in provider, then start linking again. An administrator should check the provider authentication flow and server clocks if this continues.',
+    'The provider did not confirm a recent sign-in. Sign out of the provider. Then start linking again. If this continues, ask an administrator to check the provider flow and the server clocks.',
   browser_proof:
-    'The linking browser proof is missing or does not match. Start linking again in the same browser and use the same OpenFarm hostname throughout.',
+    'The browser proof for linking is missing or does not match. Start linking again in the same browser. Use the same OpenFarm hostname.',
   session_changed:
-    'Your original OpenFarm session changed or expired. Sign in to your local OpenFarm account again, then start linking from this browser.',
-  expired:
-    'The linking request expired or could not be read. Start a new linking request from My profile.',
+    'Your OpenFarm session changed or ended. Sign in to your local account again. Then start linking from this browser.',
+  expired: 'The linking request expired. Start a new request in My profile.',
   request_replaced:
-    'The linking request was already used or replaced. Start a new linking request and complete only that attempt.',
+    'The linking request was used or replaced. Start a new request. Complete only that request.',
   configuration_changed:
-    'The sign-in settings changed during linking. Start a new linking request.',
+    'The sign-in settings changed. Start a new linking request.',
   already_linked:
-    'This OpenFarm account is already linked to the provider. Reload My profile to check its status.',
+    'This account is already linked to the provider. Reload My profile to see its status.',
   identity_conflict:
-    'This provider identity is already linked to an OpenFarm account. Contact an administrator to check the account association.',
+    'Another OpenFarm account already uses this provider identity. Contact an administrator.',
 };
 
 export function OidcSecurity({ children }: { children: React.ReactNode }) {
@@ -88,10 +87,7 @@ export function OidcSecurity({ children }: { children: React.ReactNode }) {
       window.location.assign(apiUrl(response.data.redirectUri));
     } catch (e) {
       setError(
-        await extractErrorDetail(
-          e,
-          'Could not start linking. Check your current password and try again.',
-        ),
+        await extractErrorDetail(e, 'Link failed. Check the current password.'),
       );
       setPending(false);
     }
@@ -102,18 +98,18 @@ export function OidcSecurity({ children }: { children: React.ReactNode }) {
         <Skeleton className="h-24" />
       ) : identity.isError ? (
         <ErrorState
-          title="Could not load sign-in methods"
+          title="Load failed"
           onRetry={() => void identity.refetch()}
         />
       ) : (
         identity.data?.enabled && (
           <SettingsSection
             title="Single sign-on"
-            description={`Connect your existing OpenFarm account to ${identity.data.displayName}. Your OpenFarm permissions stay the same.`}
+            description={`Link this account to ${identity.data.displayName}. Permissions do not change.`}
           >
             {params.get('sso') === 'linked' && (
               <Alert className="mb-4">
-                <AlertDescription>Sign-in provider linked.</AlertDescription>
+                <AlertDescription>Account linked.</AlertDescription>
               </Alert>
             )}
             {params.get('sso') === 'failed' && (
@@ -125,7 +121,7 @@ export function OidcSecurity({ children }: { children: React.ReactNode }) {
                   )
                     ? linkFailureMessages[params.get('ssoReason') ?? '']
                     : undefined) ??
-                    'Could not link this identity. Start again, or contact an administrator.'}
+                    'Link failed. Start again, or contact an administrator.'}
                 </AlertDescription>
               </Alert>
             )}
@@ -134,10 +130,7 @@ export function OidcSecurity({ children }: { children: React.ReactNode }) {
             ) : (
               <form onSubmit={link}>
                 <SettingsRows>
-                  <SettingsRow
-                    label="Confirm local password"
-                    htmlFor="oidc-password"
-                  >
+                  <SettingsRow label="Current password" htmlFor="oidc-password">
                     <Input
                       id="oidc-password"
                       type="password"
@@ -156,9 +149,7 @@ export function OidcSecurity({ children }: { children: React.ReactNode }) {
                 )}
                 <Button type="submit" disabled={pending} className="mt-4">
                   {pending && <Spinner data-icon="inline-start" />}
-                  {pending
-                    ? 'Connecting…'
-                    : `Link ${identity.data.displayName}`}
+                  {pending ? 'Linking…' : `Link ${identity.data.displayName}`}
                 </Button>
               </form>
             )}
@@ -169,8 +160,8 @@ export function OidcSecurity({ children }: { children: React.ReactNode }) {
         children
       ) : (
         <SettingsSection
-          title="Password login disabled"
-          description="Use your organization’s sign-in provider to manage your credentials."
+          title="Password sign-in disabled"
+          description="Manage your credentials in the provider."
         >
           <p className="text-sm">
             Contact an administrator if you cannot sign in.

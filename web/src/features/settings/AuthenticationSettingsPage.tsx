@@ -1,16 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CopyIcon } from 'lucide-react';
+import { CopyIcon, PlusIcon, XIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { Link, useSearchParams } from 'react-router';
+import { Controller, useFieldArray, useForm } from 'react-hook-form';
+import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { ErrorState } from '@/components/empty-state/EmptyState';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FieldError, FieldSet } from '@/components/ui/field';
+import { FieldError } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -24,9 +24,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
-import { apiUrl } from '@/lib/api/apiUrl';
 import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
-import type { AuthenticationSettingsResponse } from '@/lib/api/generated/endpoints.schemas';
+import type {
+  AuthenticationSettingsResponse,
+  GroupSummary,
+} from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
 import { useAuthorizedQuery } from '@/lib/auth/useAuthorizedQuery';
 import {
@@ -38,26 +40,83 @@ import {
 } from './SettingsParts';
 
 const key = '/api/v1/admin/settings/authentication';
+// Mirrors ProvisioningSettings.IdentityClaims: the server is the authority, this only gives a clear message.
+const identityClaims = new Set([
+  'sub',
+  'iss',
+  'aud',
+  'exp',
+  'iat',
+  'nbf',
+  'nonce',
+  'sid',
+  'auth_time',
+  'email',
+  'email_verified',
+  'preferred_username',
+  'name',
+  'azp',
+  'acr',
+  'amr',
+  'at_hash',
+  'c_hash',
+]);
 const schema = z
   .object({
     oidcEnabled: z.boolean(),
     internalAuthenticationEnabled: z.boolean(),
-    displayName: z.string().trim().min(1).max(80),
+    displayName: z.string().trim().max(80),
     authority: z.string().trim().max(2048),
     clientId: z.string().trim().max(256),
     clientCredential: z.string().max(4096),
-    sessionHours: z.number().int().min(1).max(24),
     recoveryUserIds: z.array(z.string()),
     jitEnabled: z.boolean(),
     requireVerifiedEmail: z.boolean(),
     defaultGroup: z.string().min(1),
+    groupMappings: z
+      .array(
+        z.object({
+          externalGroup: z
+            .string()
+            .trim()
+            .min(1, 'Enter the provider group name.')
+            .max(256),
+          group: z.string().min(1, 'Select a group.'),
+        }),
+      )
+      .max(50),
+    groupsClaim: z.string().trim().max(256),
   })
   .superRefine((value, ctx) => {
+    if (
+      value.oidcEnabled &&
+      value.jitEnabled &&
+      (!value.groupsClaim ||
+        /\s/.test(value.groupsClaim) ||
+        identityClaims.has(value.groupsClaim.toLowerCase()))
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['groupsClaim'],
+        message:
+          'Enter a claim that lists groups. No spaces. Not an identity claim such as sub, email or name.',
+      });
+    const seen = new Set<string>();
+    value.groupMappings.forEach((row, index) => {
+      const pair = `${row.externalGroup}\n${row.group.toLowerCase()}`;
+      if (seen.has(pair))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['groupMappings', index, 'group'],
+          message: 'Duplicate mapping.',
+        });
+      seen.add(pair);
+    });
     if (!value.oidcEnabled && !value.internalAuthenticationEnabled)
       ctx.addIssue({
         code: 'custom',
         path: ['internalAuthenticationEnabled'],
-        message: 'Enable at least one login method.',
+        message: 'Turn on at least one sign-in method.',
       });
     if (value.oidcEnabled) {
       try {
@@ -102,17 +161,21 @@ function defaults(data: AuthenticationSettingsResponse): Values {
   return {
     oidcEnabled: data.oidcEnabled ?? false,
     internalAuthenticationEnabled: data.internalAuthenticationEnabled ?? true,
-    displayName: data.displayName ?? 'authentik',
+    displayName: data.displayName ?? '',
     authority: data.authority ?? '',
     clientId: data.clientId ?? '',
     clientCredential: '',
-    sessionHours: data.sessionHours ?? 8,
     recoveryUserIds: (data.recoveryUserIds ?? []).filter((id) =>
       (data.recoveryAccounts ?? []).some((account) => account.id === id),
     ),
     jitEnabled: data.jitEnabled ?? false,
     requireVerifiedEmail: data.requireVerifiedEmail ?? true,
     defaultGroup: data.defaultGroup ?? 'Viewers',
+    groupMappings: (data.groupMappings ?? []).map((m) => ({
+      externalGroup: m.externalGroup ?? '',
+      group: m.group ?? '',
+    })),
+    groupsClaim: data.groupsClaim ?? 'groups',
   };
 }
 
@@ -134,11 +197,12 @@ function activeValues(
       ? draft.requireVerifiedEmail
       : saved.requireVerifiedEmail,
     defaultGroup: jit ? draft.defaultGroup : saved.defaultGroup,
+    groupMappings: jit ? draft.groupMappings : saved.groupMappings,
+    groupsClaim: jit ? draft.groupsClaim : saved.groupsClaim,
   };
 }
 
 export function AuthenticationSettingsPage() {
-  const [search] = useSearchParams();
   const query = useAuthorizedQuery({
     refetchOnWindowFocus: false,
     queryKey: [key],
@@ -148,36 +212,15 @@ export function AuthenticationSettingsPage() {
   return (
     <SettingsSection
       title="Authentication"
-      description="Connect an identity provider and manage account provisioning."
+      description="Provider sign-in and account provisioning."
     >
-      {search.get('test') && query.data && (
-        <Alert
-          role="status"
-          variant={
-            search.get('test') === 'success' && query.data.data.oidcTested
-              ? 'default'
-              : 'destructive'
-          }
-        >
-          <AlertDescription>
-            {search.get('test') === 'success' && query.data.data.oidcTested
-              ? 'Sign-in test passed. Your administrator session is still active.'
-              : search.get('ssoReason') === 'provider_configuration'
-                ? 'Could not load or use the sign-in provider configuration. Check the Issuer URL, provider connectivity, and OpenFarm server logs.'
-                : 'Sign-in test failed. Check the provider setup and link this administrator account in My profile → Security.'}
-          </AlertDescription>
-        </Alert>
-      )}
       {query.data ? (
         <AuthenticationForm
           key={query.data.data.revision}
           data={query.data.data}
         />
       ) : query.isError ? (
-        <ErrorState
-          title="Could not load authentication settings"
-          onRetry={() => void query.refetch()}
-        />
+        <ErrorState title="Load failed" onRetry={() => void query.refetch()} />
       ) : (
         <Skeleton className="h-40" />
       )}
@@ -216,6 +259,14 @@ function AuthenticationForm({
     form.formState.isDirty,
   );
   const values = form.watch();
+  const groups = data.groups ?? [];
+  const mapsProtectedGroup = values.groupMappings.some((row) =>
+    groups.some((g) => g.isProtected && g.name === row.group),
+  );
+  const mappings = useFieldArray({
+    control: form.control,
+    name: 'groupMappings',
+  });
   const save = useMutation({
     mutationFn: (draft: Values) =>
       httpClient<{ data: AuthenticationSettingsResponse }>(key, {
@@ -229,11 +280,15 @@ function AuthenticationForm({
             authority: draft.authority || null,
             clientId: draft.clientId || null,
             clientSecret: draft.clientCredential || null,
-            sessionHours: draft.sessionHours,
             recoveryUserIds: draft.recoveryUserIds,
             jitEnabled: draft.jitEnabled,
             requireVerifiedEmail: draft.requireVerifiedEmail,
             defaultGroup: draft.defaultGroup,
+            groupMappings: draft.groupMappings.map((m) => ({
+              externalGroup: m.externalGroup.trim(),
+              group: m.group,
+            })),
+            groupsClaim: draft.groupsClaim,
           },
         }),
       }),
@@ -248,24 +303,11 @@ function AuthenticationForm({
       setError(
         await extractErrorDetail(
           failure,
-          'Cannot save authentication settings. Reload the page and try again.',
+          'Save failed. Reload the page. Try again.',
         ),
       ),
   });
-  const test = useMutation({
-    mutationFn: () =>
-      httpClient<{ data: { redirectUri: string } }>(`${key}/test`, {
-        method: 'POST',
-      }),
-    onSuccess: (result) => {
-      window.location.assign(apiUrl(result.data.redirectUri));
-    },
-    onError: async (failure) =>
-      setError(
-        await extractErrorDetail(failure, 'Could not start the sign-in test.'),
-      ),
-  });
-  const disabled = test.isPending || save.isPending || !!data.recoveryMode;
+  const disabled = save.isPending || !!data.recoveryMode;
   const errors = form.formState.errors;
   function toggle(
     name:
@@ -307,10 +349,11 @@ function AuthenticationForm({
       | 'authority'
       | 'clientId'
       | 'clientCredential'
-      | 'sessionHours',
+      | 'groupsClaim',
     label: string,
     help?: string,
     type = 'text',
+    placeholder?: string,
   ) {
     return (
       <SettingsRow
@@ -328,14 +371,12 @@ function AuthenticationForm({
         <Input
           id={`authentication-${name}`}
           type={type}
-          className={type === 'number' ? 'w-24' : undefined}
+          placeholder={placeholder}
           autoComplete={type === 'password' ? 'new-password' : 'off'}
           disabled={disabled}
-          min={type === 'number' ? 1 : undefined}
-          max={name === 'sessionHours' ? 24 : undefined}
           aria-invalid={!!errors[name]}
           aria-describedby={`authentication-${name}-help authentication-${name}-error`}
-          {...form.register(name, { valueAsNumber: type === 'number' })}
+          {...form.register(name)}
         />
         <FieldError id={`authentication-${name}-error`}>
           {errors[name]?.message}
@@ -343,7 +384,12 @@ function AuthenticationForm({
       </SettingsRow>
     );
   }
-  function groupSelect(name: 'defaultGroup', id: string) {
+  function groupSelect(
+    name: 'defaultGroup' | `groupMappings.${number}.group`,
+    options: GroupSummary[],
+    id: string,
+    label?: string,
+  ) {
     const error = form.getFieldState(name, form.formState).error;
     return (
       <>
@@ -359,6 +405,7 @@ function AuthenticationForm({
               <SelectTrigger
                 id={id}
                 ref={field.ref}
+                aria-label={label}
                 className="w-full"
                 aria-invalid={!!error}
                 aria-describedby={error ? `${id}-error` : undefined}
@@ -367,7 +414,7 @@ function AuthenticationForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {(data.groups ?? []).map((g) => (
+                  {options.map((g) => (
                     <SelectItem key={g.id} value={g.name ?? ''}>
                       {g.name}
                     </SelectItem>
@@ -400,7 +447,7 @@ function AuthenticationForm({
             onClick={() =>
               void navigator.clipboard.writeText(value).then(
                 () => toast.success(`${label} copied.`),
-                () => toast.error(`Could not copy ${label.toLowerCase()}.`),
+                () => toast.error('Copy failed.'),
               )
             }
           >
@@ -424,8 +471,7 @@ function AuthenticationForm({
       {data.recoveryMode && (
         <Alert role="status">
           <AlertDescription>
-            Deployment recovery mode is active. Turn it off before changing
-            authentication settings.
+            Recovery mode is on. Turn it off to change authentication settings.
           </AlertDescription>
         </Alert>
       )}
@@ -436,11 +482,11 @@ function AuthenticationForm({
             <Link className="underline" to="/settings/server">
               public URL
             </Link>{' '}
-            before enabling single sign-on.
+            to turn on OIDC.
           </AlertDescription>
         </Alert>
       )}
-      <SettingsSubhead>Login methods</SettingsSubhead>
+      <SettingsSubhead>Sign-in methods</SettingsSubhead>
       <SettingsRows>
         {toggle(
           'internalAuthenticationEnabled',
@@ -450,16 +496,15 @@ function AuthenticationForm({
         {toggle(
           'oidcEnabled',
           'OIDC authentication',
-          'Enable provider sign-in and configure account provisioning.',
+          'Provider sign-in and account provisioning.',
         )}
       </SettingsRows>
       <FieldError>{errors.internalAuthenticationEnabled?.message}</FieldError>
       {data.oidcEnabled && !values.oidcEnabled && (
         <Alert role="status">
           <AlertDescription>
-            Saving will end existing OIDC sessions and disable JIT provisioning.
-            Saved provider credentials will be retained. Unsaved edits to hidden
-            settings will not be applied.
+            Save ends OIDC sessions and turns off JIT. Saved provider
+            credentials stay. Unsaved edits to hidden settings are not applied.
           </AlertDescription>
         </Alert>
       )}
@@ -470,27 +515,23 @@ function AuthenticationForm({
             {input(
               'displayName',
               'Provider name',
-              'Shown on the sign-in button.',
+              'Used in “Sign in with …”. Blank = SSO.',
             )}
             {input(
               'authority',
               'Issuer URL',
-              'For authentik, use the per-application issuer base URL, including its trailing slash. Do not append /authorize.',
+              'Copy the exact issuer from the provider, with any trailing slash. Do not add /authorize.',
             )}
             {input('clientId', 'Client ID')}
             {input(
               'clientCredential',
               'Client credential',
               data.clientCredentialConfigured
-                ? 'Configured. Leave blank to keep the saved credential.'
-                : 'Enter the confidential client credential.',
+                ? undefined
+                : 'Enter the client credential.',
               'password',
-            )}
-            {input(
-              'sessionHours',
-              'Session duration (hours)',
-              'After this deadline, users must sign in through the provider again.',
-              'number',
+              // The server never returns the credential: dots mark a saved one, blank keeps it.
+              data.clientCredentialConfigured ? '••••••••••••' : undefined,
             )}
           </SettingsRows>
           {(data.callbackUrl || data.logoutUrl) && (
@@ -499,48 +540,10 @@ function AuthenticationForm({
               {address(
                 'Back-channel logout URI',
                 data.logoutUrl,
-                'Optional. Register this address with the provider to end OpenFarm sessions centrally.',
+                'Optional. Add this address to the provider. Provider sign-out then ends OpenFarm sessions.',
               )}
             </SettingsRows>
           )}
-          <FieldSet
-            aria-label="Provider sign-in test"
-            className="gap-2 rounded-lg border bg-card p-3.5 md:p-[18px]"
-          >
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={
-                  disabled || form.formState.isDirty || !data.oidcEnabled
-                }
-                onClick={() => test.mutate()}
-                aria-describedby="authentication-test-status authentication-test-help"
-              >
-                {test.isPending && <Spinner data-icon="inline-start" />}
-                {test.isPending ? 'Starting…' : 'Test sign-in'}
-              </Button>
-              <p
-                id="authentication-test-status"
-                className="text-sm text-muted-foreground"
-              >
-                {data.oidcTested
-                  ? 'Saved provider configuration tested.'
-                  : 'Saved provider configuration not tested.'}
-              </p>
-            </div>
-            <p
-              id="authentication-test-help"
-              className="text-sm text-muted-foreground"
-            >
-              Save the provider and{' '}
-              <Link className="underline" to="/profile?tab=security">
-                link your administrator account
-              </Link>{' '}
-              before testing. Your current session stays active. A successful
-              test is required before disabling internal authentication.
-            </p>
-          </FieldSet>
         </>
       )}
       {values.oidcEnabled && (
@@ -550,13 +553,13 @@ function AuthenticationForm({
             {toggle(
               'jitEnabled',
               'Create accounts on first sign-in (JIT)',
-              'Create passwordless accounts for new users allowed by the provider.',
+              'Passwordless accounts for users the provider allows.',
             )}
             {values.jitEnabled &&
               toggle(
                 'requireVerifiedEmail',
                 'Require verified email',
-                'Require email_verified=true when creating an account at first sign-in.',
+                'Create accounts only if email_verified is true.',
               )}
           </SettingsRows>
           {values.jitEnabled && (
@@ -565,11 +568,103 @@ function AuthenticationForm({
                 label="Default group"
                 htmlFor="authentication-defaultGroup"
                 wide
-                help="Initial access for new accounts. Administrator groups are excluded."
+                help="Group for new accounts and for users with no matching mapping."
               >
-                {groupSelect('defaultGroup', 'authentication-defaultGroup')}
+                {groupSelect(
+                  'defaultGroup',
+                  groups.filter((g) => !g.isProtected),
+                  'authentication-defaultGroup',
+                )}
               </SettingsRow>
+              {input(
+                'groupsClaim',
+                'Groups claim',
+                'ID token claim that lists the user’s groups or roles, e.g. groups or entitlements.',
+              )}
             </SettingsRows>
+          )}
+          {values.jitEnabled && (
+            <>
+              <SettingsSubhead>Group mapping</SettingsSubhead>
+              <SettingsHint>
+                Applied at every sign-in. A user whose Groups claim lists the
+                value gets the OpenFarm group. If you remove a mapping, OpenFarm
+                removes its group from users at their next sign-in. Groups
+                assigned under Users &amp; groups do not change.
+              </SettingsHint>
+              <div className="mt-2 flex flex-col gap-2">
+                {mappings.fields.map((row, index) => {
+                  const rowError = errors.groupMappings?.[index]?.externalGroup;
+                  return (
+                    <div
+                      key={row.id}
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2"
+                    >
+                      <div>
+                        <Input
+                          aria-label={`Claim value ${index + 1}`}
+                          autoComplete="off"
+                          disabled={disabled}
+                          aria-invalid={!!rowError}
+                          aria-describedby={
+                            rowError
+                              ? `authentication-groupMappings-${index}-error`
+                              : undefined
+                          }
+                          {...form.register(
+                            `groupMappings.${index}.externalGroup`,
+                          )}
+                        />
+                        <FieldError
+                          id={`authentication-groupMappings-${index}-error`}
+                        >
+                          {rowError?.message}
+                        </FieldError>
+                      </div>
+                      <div>
+                        {groupSelect(
+                          `groupMappings.${index}.group`,
+                          groups,
+                          `authentication-groupMappings-${index}-group`,
+                          `OpenFarm group ${index + 1}`,
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={disabled}
+                        aria-label={`Remove mapping ${index + 1}`}
+                        onClick={() => mappings.remove(index)}
+                      >
+                        <XIcon />
+                      </Button>
+                    </div>
+                  );
+                })}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  disabled={disabled || mappings.fields.length >= 50}
+                  onClick={() =>
+                    mappings.append({ externalGroup: '', group: '' })
+                  }
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Add mapping
+                </Button>
+                {mapsProtectedGroup && (
+                  <Alert role="status">
+                    <AlertDescription>
+                      A protected group has full access, including settings.
+                      Every user in the mapped provider group gets that access.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </>
           )}
         </>
       )}
@@ -577,11 +672,10 @@ function AuthenticationForm({
         <>
           <SettingsSubhead>Recovery access</SettingsSubhead>
           <SettingsHint>
-            Regular users must use OIDC. Selected recovery administrators can
-            still use passwords. Select administrators whose passwords you have
-            tested. Keep one available if the provider is unavailable. Include
-            your current administrator when saving from a password session, or
-            sign in through OIDC first.
+            Users must sign in with OIDC. Recovery administrators can still use
+            a password. Select administrators with a tested password. Keep one
+            available for provider outages. Select your own account when you
+            save from a password session. Or sign in with OIDC first.
           </SettingsHint>
           <SettingsRows>
             {(data.recoveryAccounts ?? []).map((account) => (
@@ -628,8 +722,8 @@ function AuthenticationForm({
         {values.oidcEnabled && (
           <>
             {' '}
-            Changing the provider, client credential, or session duration ends
-            existing SSO sessions. JIT changes apply to new account creation.
+            Changing the provider or client credential ends existing SSO
+            sessions. JIT changes apply to new account creation.
           </>
         )}
       </SettingsHint>

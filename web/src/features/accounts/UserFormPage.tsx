@@ -81,10 +81,7 @@ export function UserFormPage() {
     return (
       <Page>
         <PageHeader above={back} title="User" />
-        <ErrorState
-          title="Could not load the user"
-          onRetry={() => void query.refetch()}
-        />
+        <ErrorState title="Load failed" onRetry={() => void query.refetch()} />
       </Page>
     );
   if (!query.data)
@@ -218,7 +215,7 @@ function UserForm({
         });
       }
     } catch (e) {
-      toast.error(await extractErrorDetail(e, 'Could not save user.'));
+      toast.error(await extractErrorDetail(e, 'Save failed.'));
     }
   });
 
@@ -272,9 +269,9 @@ function UserForm({
           {user?.isExternallyManaged && (
             <Alert>
               <AlertDescription>
-                This account is managed by your identity provider. Update its
-                name, email, username, and lifecycle there. You can disable
-                access here in an emergency.
+                The provider manages this account. Change its name, email and
+                username in the provider. Disable the account here to block
+                access.
               </AlertDescription>
             </Alert>
           )}
@@ -453,7 +450,7 @@ function UserForm({
           title={`Remove ${user.name || user.email}?`}
           description={
             user?.isExternallyManaged
-              ? 'This cannot be undone. If JIT is enabled and the provider still allows access, this user can create a new account at sign-in. Disable the account instead to block access.'
+              ? 'This cannot be undone. If JIT is on and the provider allows the user, a new account is created at the next sign-in. Disable the account to block access.'
               : 'This cannot be undone.'
           }
           confirmLabel="Remove"
@@ -471,9 +468,7 @@ function UserForm({
                 navigate(listUrl, { replace: true });
               })
               .catch(async (e) =>
-                toast.error(
-                  await extractErrorDetail(e, 'Could not remove user.'),
-                ),
+                toast.error(await extractErrorDetail(e, 'Remove failed.')),
               );
           }}
         />

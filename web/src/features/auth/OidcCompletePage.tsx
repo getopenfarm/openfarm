@@ -39,9 +39,9 @@ export function OidcCompletePage() {
       {failed ? (
         <>
           <ErrorState
-            title="Could not finish sign-in"
+            title="Sign-in failed"
             onRetry={() => window.location.reload()}
-            description="Check that cookies are allowed, then try signing in again."
+            description="Turn on cookies. Then sign in again."
           />
           <Button asChild>
             <Link to="/login">Return to sign in</Link>

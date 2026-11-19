@@ -103,9 +103,7 @@ it('validates the scope and preserves the form after a failed create', async () 
     throw new Error('offline');
   });
   await user.click(screen.getByRole('button', { name: 'Create token' }));
-  expect(
-    await screen.findByText('Could not create token.'),
-  ).toBeInTheDocument();
+  expect(await screen.findByText('Create failed.')).toBeInTheDocument();
   expect(screen.getByLabelText('Name')).toHaveValue('Inventory');
 });
 it('clamps the six-month default to the last day of the destination month', () => {
@@ -124,7 +122,7 @@ it('reports clipboard failure with a manual-copy fallback', async () => {
   );
   await user.click(screen.getByRole('button', { name: 'Copy' }));
   expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Select the credential and copy it manually.',
+    'Select the credential. Copy it manually.',
   );
 });
 

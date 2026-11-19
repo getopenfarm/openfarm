@@ -79,7 +79,7 @@ export function TokenCreatePage() {
       markClean();
       void client.invalidateQueries({ queryKey: tokenKey() });
     } catch (e) {
-      setError(await tokenError(e, 'Could not create token.'));
+      setError(await tokenError(e, 'Create failed.'));
     }
   }
   return (
@@ -97,7 +97,7 @@ export function TokenCreatePage() {
       {!options.data ? (
         options.isError ? (
           <ErrorState
-            title="Could not load permissions"
+            title="Load failed"
             onRetry={() => void options.refetch()}
           />
         ) : (

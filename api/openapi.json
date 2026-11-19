@@ -981,37 +981,6 @@
         ]
       }
     },
-    "/api/v1/admin/settings/authentication/test": {
-      "post": {
-        "tags": [
-          "Admin"
-        ],
-        "operationId": "OpenFarmApiEndpointsSettingsTestAuthenticationEndpoint",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TestAuthenticationResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
     "/api/v1/settings/fees": {
       "get": {
         "tags": [
@@ -8638,19 +8607,6 @@
         }
       }
     },
-    "/api/v1/auth/sso/test": {
-      "get": {
-        "tags": [
-          "Auth"
-        ],
-        "operationId": "OpenFarmApiEndpointsAuthStartOidcTestEndpoint",
-        "responses": {
-          "204": {
-            "description": "No Content"
-          }
-        }
-      }
-    },
     "/api/v1/auth/csrf": {
       "get": {
         "tags": [
@@ -10354,10 +10310,6 @@
           "clientCredentialConfigured": {
             "type": "boolean"
           },
-          "sessionHours": {
-            "type": "integer",
-            "format": "int32"
-          },
           "recoveryUserIds": {
             "type": "array",
             "items": {
@@ -10372,6 +10324,15 @@
             "type": "boolean"
           },
           "defaultGroup": {
+            "type": "string"
+          },
+          "groupMappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupMapping"
+            }
+          },
+          "groupsClaim": {
             "type": "string"
           },
           "recoveryAccounts": {
@@ -10396,9 +10357,18 @@
           },
           "recoveryMode": {
             "type": "boolean"
+          }
+        }
+      },
+      "GroupMapping": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "externalGroup": {
+            "type": "string"
           },
-          "oidcTested": {
-            "type": "boolean"
+          "group": {
+            "type": "string"
           }
         }
       },
@@ -10425,6 +10395,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "isProtected": {
+            "type": "boolean"
           }
         }
       },
@@ -10466,10 +10439,6 @@
             "type": "string",
             "nullable": true
           },
-          "sessionHours": {
-            "type": "integer",
-            "format": "int32"
-          },
           "recoveryUserIds": {
             "type": "array",
             "items": {
@@ -10485,14 +10454,14 @@
           },
           "defaultGroup": {
             "type": "string"
-          }
-        }
-      },
-      "TestAuthenticationResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "redirectUri": {
+          },
+          "groupMappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupMapping"
+            }
+          },
+          "groupsClaim": {
             "type": "string"
           }
         }

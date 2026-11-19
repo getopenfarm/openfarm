@@ -68,16 +68,13 @@ export function SessionList({
         target === 'all' ? 'Sessions revoked.' : 'Session revoked.',
       );
     } catch (e) {
-      setError(await extractErrorDetail(e, 'Could not revoke session.'));
+      setError(await extractErrorDetail(e, 'Revoke failed.'));
     }
   }
 
   if (!sessions.data)
     return sessions.isError ? (
-      <ErrorState
-        title="Could not load sessions"
-        onRetry={() => void sessions.refetch()}
-      />
+      <ErrorState title="Load failed" onRetry={() => void sessions.refetch()} />
     ) : (
       <Skeleton className="h-32 w-full" />
     );

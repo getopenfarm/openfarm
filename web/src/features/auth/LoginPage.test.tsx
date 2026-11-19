@@ -65,18 +65,26 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     expect(screen.getByLabelText('Username')).toBeInTheDocument();
+    expect(screen.getByLabelText('Username')).toHaveAttribute(
+      'placeholder',
+      'Username',
+    );
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toHaveAttribute(
+      'placeholder',
+      'Password',
+    );
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
 
   it('explains provider startup failures while retaining local sign-in', () => {
     renderLoginPage('/login?ssoError=provider_configuration');
     expect(screen.getByRole('alert')).toHaveTextContent('check the issuer URL');
-    expect(screen.getByRole('alert')).toHaveTextContent('OpenFarm server logs');
+    expect(screen.getByRole('alert')).toHaveTextContent('the server log');
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
   });
 
-  it('offers OIDC alongside local login in optional mode', () => {
+  it('keeps the password form behind a toggle when OIDC is optional', async () => {
     vi.mocked(useLoginProviders).mockReturnValue({
       data: {
         oidcEnabled: true,
@@ -89,7 +97,71 @@ describe('LoginPage', () => {
     expect(
       screen.getByRole('link', { name: 'Sign in with authentik' }),
     ).toHaveAttribute('href', '/api/v1/auth/sso/login?returnTo=%2F');
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Use username and password' }));
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('opens the password form after a failed SSO sign-in when it is allowed', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: true,
+        internalAuthenticationEnabled: true,
+        displayName: 'authentik',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage('/login?ssoError=unavailable');
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('keeps the recovery form closed after a failed SSO sign-in', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: true,
+        internalAuthenticationEnabled: false,
+        displayName: 'authentik',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage('/login?ssoError=unavailable');
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+  });
+
+  it('shows no form until the sign-in methods load', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: undefined,
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+  });
+
+  it('shows the password form when the sign-in methods fail to load', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: undefined,
+      isError: true,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useLoginProviders>);
+    renderLoginPage();
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('labels the button with the neutral name for an unnamed provider', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: true,
+        internalAuthenticationEnabled: true,
+        displayName: 'SSO',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage();
+    expect(
+      screen.getByRole('link', { name: 'Sign in with SSO' }),
+    ).toBeInTheDocument();
   });
 
   it('reserves the password form for recovery when OIDC is required', async () => {
@@ -102,6 +174,11 @@ describe('LoginPage', () => {
       isError: false,
     } as ReturnType<typeof useLoginProviders>);
     renderLoginPage();
+    expect(
+      screen.getByText(
+        'Sign in with SSO. Password sign-in is for recovery administrators only.',
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
     await userEvent
       .setup()
