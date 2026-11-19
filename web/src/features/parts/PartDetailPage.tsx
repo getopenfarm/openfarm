@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronDownIcon, InfoIcon, TriangleAlertIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -75,7 +75,7 @@ const compactHeader = 'border-b px-[18px] py-3.5';
 const compactTitle = 'text-sm font-semibold';
 
 function PartFileFacts({ part }: { part: PartResponse }) {
-  const facts: [string, string][] = [
+  const facts: [string, ReactNode][] = [
     ['File', part.originalFileName ?? '—'],
     [
       'Size',
@@ -97,6 +97,18 @@ function PartFileFacts({ part }: { part: PartResponse }) {
   ];
   if (part.estimation?.machineModel)
     facts.push(['Printer', part.estimation.machineModel]);
+  // Required: dispatch only sends the file to a printer with this plate on its bed, and blocks a file that names none.
+  // Not while the estimate is still resolving, when the file has not been read yet.
+  if (part.estimateStatus !== 'Resolving')
+    facts.push([
+      'Build plate',
+      part.estimation?.buildPlate ?? (
+        <span className="inline-flex items-center gap-1.5">
+          <TriangleAlertIcon className="size-3.5 text-kind-amber" />
+          No plate
+        </span>
+      ),
+    ]);
   if (part.slicer?.engine) {
     facts.push([
       'Slicer',
@@ -114,7 +126,10 @@ function PartFileFacts({ part }: { part: PartResponse }) {
       {facts.map(([label, value]) => (
         <div key={label} className="contents">
           <dt className="text-muted-foreground">{label}</dt>
-          <dd className="min-w-0 truncate" title={value}>
+          <dd
+            className="min-w-0 truncate"
+            title={typeof value === 'string' ? value : undefined}
+          >
             {value}
           </dd>
         </div>

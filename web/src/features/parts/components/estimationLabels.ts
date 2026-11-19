@@ -20,7 +20,6 @@ export function estimationProfileNames(estimation: EstimationDetails) {
     estimation.machineProfileName ?? estimation.machineModel,
     estimation.processProfileName,
     ...(estimation.filamentProfileNames ?? []),
-    estimation.buildPlate,
   ].filter(Boolean);
 }
 

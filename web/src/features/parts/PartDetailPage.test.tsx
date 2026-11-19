@@ -110,6 +110,57 @@ describe('PartDetailPage', () => {
     ).toBeEnabled();
   });
 
+  it('shows the build plate the file was made for in its own row', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/hubs/farm'))
+          return Promise.reject(new Error('No hub'));
+        if (url.endsWith('/parts/part-1'))
+          return Promise.resolve(
+            jsonResponse({
+              ...partBody('part-1', 'Bracket'),
+              estimation: {
+                source: 'EmbeddedSlicedMetadata',
+                machineModel: 'Bambu Lab P1S',
+                buildPlate: 'Textured PEI Plate',
+              },
+            }),
+          );
+        return Promise.resolve(jsonResponse({ items: [] }));
+      }),
+    );
+    renderPage('part-1');
+    expect(await screen.findByText('Build plate')).toBeInTheDocument();
+    expect(screen.getByText('Textured PEI Plate')).toBeInTheDocument();
+  });
+
+  it('warns "No plate" when the file names no build plate', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input.toString();
+        if (url.includes('/hubs/farm'))
+          return Promise.reject(new Error('No hub'));
+        if (url.endsWith('/parts/part-1'))
+          return Promise.resolve(
+            jsonResponse({
+              ...partBody('part-1', 'Bracket'),
+              estimation: {
+                source: 'EmbeddedSlicedMetadata',
+                machineModel: 'Bambu Lab P1S',
+              },
+            }),
+          );
+        return Promise.resolve(jsonResponse({ items: [] }));
+      }),
+    );
+    renderPage('part-1');
+    expect(await screen.findByText('Build plate')).toBeInTheDocument();
+    expect(screen.getByText('No plate')).toBeInTheDocument();
+  });
+
   it('hides Remove when the user cannot remove parts', async () => {
     vi.stubGlobal(
       'fetch',
