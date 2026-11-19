@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using OpenFarm.Application.Auth;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Infrastructure.Identity;
@@ -11,8 +12,14 @@ public sealed record ExternalProfile(string? Username, string? Email, string? Di
 public sealed class ProvisioningConflictException(string message) : ArgumentException(message);
 
 public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManager<ApplicationUser> users,
-    OidcSettings oidc, ProvisioningSettings settings, TimeProvider time)
+    OidcSettings oidc, ProvisioningSettings settings, TimeProvider time, ILogger<ExternalProvisioningService> logger)
 {
+    private ApplicationUser? Reject(string reason)
+    {
+        OidcSignInLog.Rejected(logger, reason);
+        return null;
+    }
+
     // Shared with account administration, so Identity's username/email uniqueness checks cannot race.
     public Task<int> LockAsync(CancellationToken ct) => db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(71426499)", ct);
 
@@ -37,11 +44,13 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
         await LockAsync(ct);
         var linked = await users.FindByLoginAsync(oidc.ProviderKey, subject);
         if (linked is not null) return linked;
-        if (!settings.JitEnabled || (settings.RequireVerifiedEmail && !profile.EmailVerified)) return null;
+        if (!settings.JitEnabled) return Reject("not_linked_and_jit_disabled");
+        if (settings.RequireVerifiedEmail && !profile.EmailVerified) return Reject("email_unverified");
         var username = profile.Username?.Trim();
-        if (string.IsNullOrEmpty(username) || username.Length > 256 || string.IsNullOrWhiteSpace(profile.Email)
-            || profile.Email.Length > 256 || !System.Net.Mail.MailAddress.TryCreate(profile.Email, out _)
-            || profile.DisplayName?.Length > 256) return null;
+        if (string.IsNullOrEmpty(username)) return Reject("username_claim_missing");
+        if (string.IsNullOrWhiteSpace(profile.Email) || !System.Net.Mail.MailAddress.TryCreate(profile.Email, out _))
+            return Reject("email_claim_missing_or_invalid");
+        if (username.Length > 256 || profile.Email.Length > 256 || profile.DisplayName?.Length > 256) return Reject("claim_too_long");
         return await CreateAsync(subject, username, profile.Email.Trim(), profile.DisplayName, ct);
     }
 

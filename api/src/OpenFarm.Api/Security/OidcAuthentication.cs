@@ -40,6 +40,9 @@ public static class OidcAuthentication
     private static string Flow(AuthenticationProperties? properties) =>
         properties?.Items.ContainsKey("link") == true ? "link" : properties?.Items.ContainsKey("test") == true ? "test" : "sign-in";
 
+    private static void SignInRejected(HttpContext http, string reason) => OidcSignInLog.Rejected(
+        http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication"), reason);
+
     private static void FailLink(HttpContext http, string reason)
     {
         var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("OpenFarm.OidcAuthentication");
@@ -240,9 +243,15 @@ public static class OidcAuthentication
             result = await accounts.SignInAsync(subjects[0].Value, http.Request.Headers.UserAgent.ToString(), ct, profile,
                 providerSessionId, DateTimeOffset.FromUnixTimeMilliseconds(milliseconds));
         }
-        catch (ArgumentException) { result = null; }
-        catch (InvalidOperationException) { result = null; }
-        catch (Microsoft.EntityFrameworkCore.DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: "23505" }) { result = null; }
+        catch (ArgumentException e)
+        {
+            result = null;
+            // Messages are fixed strings from our own code (provisioning, group, session id); Loggable bounds them anyway.
+            SignInRejected(http, e is ProvisioningConflictException ? "account_conflict" : Loggable(e.Message));
+        }
+        catch (InvalidOperationException) { result = null; SignInRejected(http, "duplicate_claim_or_invalid_settings"); }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+        { result = null; SignInRejected(http, "identity_conflict"); }
         if (result is null)
         {
             http.Response.Redirect("/login?ssoError=unavailable");

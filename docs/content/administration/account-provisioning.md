@@ -63,6 +63,25 @@ Set `email_verified_address` only after the user confirms that address.
 Clear it when the address changes, including changes from administrators or synchronized sources.
 Do not return `True` unconditionally unless another trusted process verifies every current address.
 
+### Troubleshoot a failed sign-in
+
+A refused sign-in always shows the same message on the login page.
+The server log has one `OidcSignInRejected` warning that names the cause. It never contains claim values.
+
+| Log reason | Cause | Fix |
+| --- | --- | --- |
+| `email_unverified` | The ID token has `email_verified=false`. | [Configure verified email](#configure-verified-email-in-authentik). |
+| `username_claim_missing`, `email_claim_missing_or_invalid` | The ID token has no `preferred_username`, or no valid `email`. | Select the `profile` and `email` scope mappings on the authentik provider. OpenFarm reads the ID token only, not the userinfo endpoint. |
+| `claim_too_long` | A username, email, or name has more than 256 characters. | Shorten the value in authentik. |
+| `account_conflict` | An OpenFarm account already uses this username, email, or identity. | Link the existing account in My profile › Security. JIT never merges accounts. |
+| `Username, email or identity is invalid or already in use.` | The username has characters other than letters, digits, and `- . _ @ +`, or another account has the same email. | Change the authentik username or email, or link the existing account. |
+| `Provisioning can use only existing, unprotected OpenFarm groups.` | The default group does not exist or is protected. | Select an existing, unprotected default group in Settings → Authentication. |
+| `not_linked_and_jit_disabled` | The identity is not linked and JIT is off. | Enable JIT, or link the account in My profile. |
+| `account_disabled_or_removed` | The account is disabled, or was removed during sign-in. JIT does not re-enable it. | Re-enable the account under **Users & Groups**. |
+| `provider_logout_receipt` | The provider ended this session before sign-in finished. | Sign in again. |
+| `provider_disabled_or_settings_changed`, `identity_conflict` | Authentication settings changed, or two first sign-ins raced. | Try again. |
+| `duplicate_claim_or_invalid_settings` | The ID token repeats a claim, or the saved settings are invalid. | Check the provider's claim mappings and the saved settings. |
+
 ## Manage access and offboarding
 
 JIT accounts have no local password. Local password reset is blocked.

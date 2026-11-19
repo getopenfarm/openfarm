@@ -31,6 +31,7 @@ Settings → Authentication opts into first-login passwordless account creation;
 `ExternalProvisioningService` shares account administration's transaction advisory lock for username/email/identity creation races.
 JIT resolves existing external logins first, never matches by email, and never enables a disabled account.
 `ApplicationUser.ProvisioningProvider/ProvisioningExternalId` binds each JIT account to the configured OIDC issuer and opaque subject.
+Every refused OIDC sign-in redirects to the same generic `ssoError=unavailable` (so the login page never reveals local account state); `OidcSignInLog.Rejected` logs the fixed reason code server-side. A new refusal path must log one.
 Managed users cannot acquire passwords or edit identity fields through local APIs.
 New accounts receive one configured, existing, unprotected local group. All later permissions are managed locally.
 Administrators can disable or remove JIT accounts. Removal deletes the identity link, allowing a later JIT enrollment if provider access remains allowed.

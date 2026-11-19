@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using OpenFarm.Application.Auth;
 using OpenFarm.Domain.ActivityLog;
 using OpenFarm.Infrastructure.Identity;
@@ -15,7 +16,8 @@ public sealed record OidcLinkTicket(Guid UserId, Guid SessionId, string Nonce, s
 /// <summary>Explicit linking and opt-in JIT creation. Existing identities are resolved only by issuer and subject.</summary>
 public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<ApplicationUser> users,
     BrowserSessionService sessions, OidcSettings settings, IDataProtectionProvider protection, TimeProvider time,
-    ExternalProvisioningService provisioning, AuthenticationConfiguration configuration, ServerConfigurationOverrides serverPolicy)
+    ExternalProvisioningService provisioning, AuthenticationConfiguration configuration, ServerConfigurationOverrides serverPolicy,
+    ILogger<OidcAccountService> logger)
 {
     private const string LinkTokenName = "PendingLink";
     private readonly IDataProtector _protector = protection.CreateProtector("OpenFarm.OidcLink.v1");
@@ -145,23 +147,29 @@ public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<Applica
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await provisioning.LockAsync(ct);
-        if (!settings.Enabled || !await configuration.LockCurrentAsync(ct)) return null;
+        if (!settings.Enabled || !await configuration.LockCurrentAsync(ct)) return Reject("provider_disabled_or_settings_changed");
         var user = profile is null ? await users.FindByLoginAsync(settings.ProviderKey, subject)
-            : await provisioning.ResolveJitAsync(subject, profile, ct);
+            : await provisioning.ResolveJitAsync(subject, profile, ct); // logs its own refusal reason
         if (user is null) return null;
         await LockUserAsync(user.Id, ct);
         await db.Entry(user).ReloadAsync(ct);
-        if (db.Entry(user).State == EntityState.Detached || !user.IsEnabled) return null;
+        if (db.Entry(user).State == EntityState.Detached || !user.IsEnabled) return Reject("account_disabled_or_removed");
         var now = time.GetUtcNow();
         var authorizationTime = authorizationStartedAt ?? now;
         if (await db.OidcLogoutReceipts.AnyAsync(r => r.Provider == settings.SessionIdentity && r.ExpiresAtUtc > now
             && ((providerSessionId != null && r.SessionId == providerSessionId && (r.Subject == null || r.Subject == subject))
-                || (r.SessionId == null && r.Subject == subject && r.ReceivedAtUtc >= authorizationTime)), ct)) return null;
+                || (r.SessionId == null && r.Subject == subject && r.ReceivedAtUtc >= authorizationTime)), ct)) return Reject("provider_logout_receipt");
         var result = await sessions.CreateAsync(user.Id, device, ct, external: true, oidcSubject: subject, oidcSessionId: providerSessionId);
         Audit(user.Id, "OidcSignedIn");
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return result;
+    }
+
+    private LoginResult? Reject(string reason)
+    {
+        OidcSignInLog.Rejected(logger, reason);
+        return null;
     }
 
     private Task<int> LockUserAsync(Guid userId, CancellationToken ct) =>
