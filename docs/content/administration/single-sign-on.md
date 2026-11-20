@@ -35,7 +35,7 @@ Before you start:
    - **Configure the Provider**:
      - **Client type**: `Confidential`. Note the **Client ID** and **Client Secret**.
      - Redirect URI: add `https://openfarm.company/api/v1/auth/sso/callback` with matching mode `Strict`.
-     - **Signing Key**: select an RSA key. Do not leave it empty.
+     - **Signing Key**: select `authentik Self-signed Certificate`, or your own certificate. Do not leave it empty.
      - **Logout URI**: `https://openfarm.company/api/v1/auth/sso/backchannel-logout`
      - **Logout Method**: **Back-channel**
    - **Configure Bindings**: bind the users or groups that may sign in to OpenFarm.

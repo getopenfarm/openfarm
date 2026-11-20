@@ -13,7 +13,9 @@ For setup, see [Single sign-on with authentik](single-sign-on.md) and [Account p
 - OpenFarm reads claims from the ID token only. It never calls the userinfo endpoint.
 - The issuer in the token must match the **Issuer URL** exactly, including the trailing slash.
 - Authentik's global issuer mode, **Same identifier is used for all providers**, is not supported.
-- The provider must sign tokens with an asymmetric key, such as RSA with RS256. Shared-secret HS256 signing is not supported.
+- The provider must sign tokens with a certificate key (RSA or ECDSA), so that OpenFarm can check them with the provider's published keys.
+  An empty **Signing Key** in authentik means shared-secret HS256 signing, which is not supported.
+  Authentik creates `authentik Self-signed Certificate` at its first startup. It is valid for one year, but OpenFarm does not check certificate expiry.
 - A changed subject identifier prevents existing identity links from matching. Changing the issuer requires an identity migration plan.
 
 ## Authentication settings
