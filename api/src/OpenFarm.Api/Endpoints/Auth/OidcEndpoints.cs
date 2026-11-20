@@ -33,8 +33,11 @@ public sealed class OidcIdentityEndpoint(OidcSettings settings, OpenFarmDbContex
     }
 }
 
-public sealed record BeginOidcLinkRequest(string Password);
-public sealed record BeginOidcLinkResponse(string RedirectUri);
+/// <param name="Password">Needed only when the session's password sign-in is older than the recent sign-in window.</param>
+public sealed record BeginOidcLinkRequest(string? Password);
+/// <param name="RedirectUri">Where the browser continues, unless <paramref name="PasswordRequired"/>.</param>
+/// <param name="PasswordRequired">Confirm the current password and send the request again.</param>
+public sealed record BeginOidcLinkResponse(string? RedirectUri, bool PasswordRequired);
 [Permission("auth:self")]
 public sealed class BeginOidcLinkEndpoint(OidcSettings settings, OidcAccountService accounts) : Endpoint<BeginOidcLinkRequest, BeginOidcLinkResponse>
 {
@@ -43,14 +46,15 @@ public sealed class BeginOidcLinkEndpoint(OidcSettings settings, OidcAccountServ
     {
         if (!settings.Enabled) { await Send.NotFoundAsync(ct); return; }
         if (!await SessionCookies.ValidateAsync(HttpContext)) return;
-        if (string.IsNullOrEmpty(req.Password) || req.Password.Length > 1024) { AddError("Enter your current local password."); await Send.ErrorsAsync(cancellation: ct); return; }
+        if (req.Password?.Length > 1024) { AddError("Enter your current local password."); await Send.ErrorsAsync(cancellation: ct); return; }
         try
         {
-            var ticket = await accounts.BeginLinkAsync(SessionCookies.UserId(HttpContext), Guid.Parse(User.FindFirst("sid")!.Value),
+            var start = await accounts.BeginLinkAsync(SessionCookies.UserId(HttpContext), Guid.Parse(User.FindFirst("sid")!.Value),
                 req.Password, HttpContext.Request.Cookies[SessionCookies.RefreshName] ?? "", ct);
-            if (ticket is null) { AddError("Could not confirm this account. Check your current password and try again."); await Send.ErrorsAsync(cancellation: ct); return; }
-            HttpContext.Response.Cookies.Append(OidcAuthentication.LinkCookie, ticket, OidcAuthentication.LinkCookieOptions(HttpContext));
-            Response = new("/api/v1/auth/sso/link");
+            if (start.PasswordRequired) { Response = new(null, true); return; }
+            if (start.Ticket is null) { AddError("Could not confirm this account. Check your current password and try again."); await Send.ErrorsAsync(cancellation: ct); return; }
+            HttpContext.Response.Cookies.Append(OidcAuthentication.LinkCookie, start.Ticket, OidcAuthentication.LinkCookieOptions(HttpContext));
+            Response = new("/api/v1/auth/sso/link", false);
         }
         catch (ArgumentException e) { AddError(e.Message); await Send.ErrorsAsync(cancellation: ct); }
     }

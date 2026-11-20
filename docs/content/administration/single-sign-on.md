@@ -70,10 +70,10 @@ The page shows the exact **Redirect URI** and **Back-channel logout URI** for yo
 ### Link your administrator account
 
 1. Open **My profile → Security**.
-2. Enter your password under **Current password**.
-3. Select **Link** with the provider name. With no provider name, select **Link SSO**.
+2. Under **Sign-in methods**, select **Link** with the provider name. With no provider name, select **Link SSO**.
+3. If OpenFarm asks, enter your password. It asks only when you signed in more than 10 minutes ago.
 4. Sign in to authentik with your account.
-5. Return to OpenFarm and check that the account shows as linked.
+5. Return to OpenFarm and check that the provider row shows **Linked**.
 
 Each existing user links their own account the same way. OpenFarm never links accounts by email address.
 

@@ -561,6 +561,54 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         (await owner.GetAsync(callback)).Headers.Location!.OriginalString.Should().Be("/profile?tab=security&sso=failed&ssoReason=session_changed");
     }
 
+    [Fact]
+    public async Task Linking_SkipsThePasswordRightAfterSignIn_AndAsksForItOnceTheWindowPasses()
+    {
+        await using var kit = new OidcKit(factory);
+        using var owner = kit.CreateClient();
+        var userId = await kit.AuthenticateAsync(owner);
+        var fresh = await CsrfPostAsync(owner, "/api/v1/auth/sso/link", new { });
+        fresh.EnsureSuccessStatusCode();
+        var started = (await fresh.Content.ReadFromJsonAsync<BeginOidcLinkResponse>())!;
+        started.Should().Be(new BeginOidcLinkResponse("/api/v1/auth/sso/link", false));
+        fresh.Headers.GetValues("Set-Cookie").Should().Contain(c => c.StartsWith(OidcAuthentication.LinkCookie + "="));
+
+        using (var scope = kit.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+            var signedIn = DateTimeOffset.UtcNow - BrowserSessionService.RecentSignInWindow - TimeSpan.FromMinutes(1);
+            await db.BrowserSessions.Where(s => s.UserId == userId).ExecuteUpdateAsync(s => s.SetProperty(x => x.CreatedAtUtc, signedIn));
+        }
+        var stale = await CsrfPostAsync(owner, "/api/v1/auth/sso/link", new { });
+        stale.EnsureSuccessStatusCode();
+        (await stale.Content.ReadFromJsonAsync<BeginOidcLinkResponse>()).Should().Be(new BeginOidcLinkResponse(null, true));
+        stale.Headers.Contains("Set-Cookie").Should().BeFalse();
+        using (var scope = kit.App.Services.CreateScope())
+            (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Users.SingleAsync(u => u.Id == userId))
+                .AccessFailedCount.Should().Be(0, "asking for the password is not a failed attempt");
+
+        (await CsrfPostAsync(owner, "/api/v1/auth/sso/link", new { password = "incorrect" })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        using (var scope = kit.App.Services.CreateScope())
+            (await scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>().Users.SingleAsync(u => u.Id == userId))
+                .AccessFailedCount.Should().Be(1);
+        await BeginLinkAsync(owner);
+        var callback = await kit.CallbackAsync(owner, "/api/v1/auth/sso/link", "window-" + userId);
+        (await owner.GetAsync(callback)).Headers.Location!.OriginalString.Should().EndWith("sso=linked");
+    }
+
+    [Fact]
+    public async Task Linking_FromAnOidcSession_AlwaysAsksForThePassword()
+    {
+        await using var kit = new OidcKit(factory);
+        using var scope = kit.App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        var sessions = scope.ServiceProvider.GetRequiredService<BrowserSessionService>();
+        var userId = await db.Users.Where(u => u.UserName == "admin").Select(u => u.Id).SingleAsync();
+        var external = await sessions.CreateAsync(userId, "SSO", CancellationToken.None, external: true);
+        var sid = Guid.Parse(new JwtSecurityTokenHandler().ReadJwtToken(external.Token).Claims.Single(c => c.Type == "sid").Value);
+        (await sessions.IsRecentPasswordSignInAsync(userId, sid, CancellationToken.None)).Should().BeFalse();
+    }
+
     private static async Task BeginLinkAsync(HttpClient client) =>
         (await CsrfPostAsync(client, "/api/v1/auth/sso/link", new { password = "admin-openfarm" })).EnsureSuccessStatusCode();
 
@@ -578,7 +626,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
             var sid = Guid.Parse(new JwtSecurityTokenHandler().ReadJwtToken(session.Token).Claims.Single(c => c.Type == "sid").Value);
             credential = session.RefreshToken!;
             proof = (await scope.ServiceProvider.GetRequiredService<OidcAccountService>()
-                .BeginLinkAsync(userId, sid, "admin-openfarm", credential, CancellationToken.None))!;
+                .BeginLinkAsync(userId, sid, "admin-openfarm", credential, CancellationToken.None)).Ticket!;
         }
         using (var scope = kit.App.Services.CreateScope())
             await scope.ServiceProvider.GetRequiredService<OidcAccountService>().CompleteLinkAsync(proof, credential, "one-use-" + userId, CancellationToken.None);

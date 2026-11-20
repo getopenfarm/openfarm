@@ -115,6 +115,17 @@ Optional. A mapping row can target **Administrators**. Every user in that authen
 
 Add the mapping row as in [Map provider groups to OpenFarm groups](#map-provider-groups-to-openfarm-groups), and select **Administrators** as the OpenFarm group.
 
+## Remove a user's access
+
+Removing a JIT account in OpenFarm does not end access. If authentik still lets the user through, the next sign-in creates a new account with the default group or the mapped groups. Groups and extra permissions that you assigned by hand are lost.
+
+To end access:
+
+1. Remove the user from the OpenFarm application bindings in authentik, or deactivate the user in authentik.
+2. In OpenFarm, disable the account under **Users & Groups**. This ends its sessions, connected apps, and tokens at once. JIT never enables a disabled account again.
+
+Remove the account only to clean up, for example a test account.
+
 ## Configuration verification
 
 1. Sign in with a new test user. Check that OpenFarm creates the account with the default group, or with the mapped groups.

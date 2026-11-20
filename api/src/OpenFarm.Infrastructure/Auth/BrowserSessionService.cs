@@ -27,6 +27,8 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
     public static readonly TimeSpan SessionMaxLifetime = TimeSpan.FromDays(14);
     /// <summary>An OIDC session's sliding window: each refresh extends it, never past <see cref="SessionMaxLifetime"/>.</summary>
     public static readonly TimeSpan OidcIdleLifetime = TimeSpan.FromDays(3);
+    /// <summary>How long a password sign-in proves the account owner is present, so linking SSO needs no password again.</summary>
+    public static readonly TimeSpan RecentSignInWindow = TimeSpan.FromMinutes(10);
     private static readonly SearchValues<char> LowerHex = SearchValues.Create("0123456789abcdef");
 
     private readonly IDataProtector _protector = protection.CreateProtector("OpenFarm.RefreshRetry.v1");
@@ -172,6 +174,17 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
     }
 
     /// <summary>Browser sessions only: an app's session id never authenticates the REST API or the hub.</summary>
+    /// <summary>
+    /// True when this browser session began with a password sign-in within <see cref="RecentSignInWindow"/>. Only the
+    /// password login creates a non-OIDC browser session, and refresh never moves <see cref="BrowserSession.CreatedAtUtc"/>.
+    /// </summary>
+    public async Task<bool> IsRecentPasswordSignInAsync(Guid userId, Guid sessionId, CancellationToken ct)
+    {
+        var since = time.GetUtcNow() - RecentSignInWindow;
+        return await db.BrowserSessions.AsNoTracking().AnyAsync(s => s.Id == sessionId && s.UserId == userId
+            && s.ClientId == null && s.OidcConfigurationIdentity == null && s.RevokedAtUtc == null && s.CreatedAtUtc >= since, ct);
+    }
+
     public async Task<bool> IsActiveAsync(Guid userId, Guid sessionId, CancellationToken ct)
     {
         var now = time.GetUtcNow();

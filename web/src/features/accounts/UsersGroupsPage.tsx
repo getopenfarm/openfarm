@@ -36,6 +36,7 @@ import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
   type AccountResponse,
   type GroupResponse,
+  removeUserDescription,
   useAdministration,
   useRemoveUser,
 } from './api';
@@ -325,7 +326,7 @@ export function UsersGroupsPage() {
         open={removeOpen}
         onOpenChange={setRemoveOpen}
         title={`Remove ${removing?.name || removing?.email}?`}
-        description="This cannot be undone."
+        description={removeUserDescription(removing)}
         confirmLabel="Remove"
         destructive
         isPending={removeUser.isPending}

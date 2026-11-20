@@ -7,11 +7,15 @@ import { httpClient } from '@/lib/api/httpClient';
 import { ProfilePage } from './ProfilePage';
 
 const profileState = vi.hoisted(() => ({ managed: false }));
+const closePasswordForm = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api/httpClient', () => ({ httpClient: vi.fn() }));
-vi.mock('./OidcSecurity', () => ({
-  OidcSecurity: ({ children }: { children: import('react').ReactNode }) =>
-    children,
+vi.mock('./SignInMethods', () => ({
+  SignInMethods: ({
+    passwordForm,
+  }: {
+    passwordForm: (close: () => void) => import('react').ReactNode;
+  }) => passwordForm(closePasswordForm),
 }));
 vi.mock('@/lib/auth/permissions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/permissions')>()),
@@ -116,6 +120,24 @@ describe('Profile form feedback', () => {
       'Password change failed.',
     );
     expect(screen.getByLabelText('New password')).toHaveValue('new-password');
+  });
+
+  it('focuses the current password and closes the form after a change or Cancel', async () => {
+    closePasswordForm.mockClear();
+    http.mockResolvedValue(undefined);
+    setup('security');
+    const user = userEvent.setup();
+    expect(screen.getByLabelText('Current password')).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(closePasswordForm).toHaveBeenCalledTimes(1);
+    await user.type(screen.getByLabelText('Current password'), 'old-password');
+    await user.type(screen.getByLabelText('New password'), 'new-password');
+    await user.type(
+      screen.getByLabelText('Confirm new password'),
+      'new-password',
+    );
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
+    await waitFor(() => expect(closePasswordForm).toHaveBeenCalledTimes(2));
   });
 
   it('keeps session confirmation pending, reports failure, and returns focus after cancel', async () => {

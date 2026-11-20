@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ConsentResponse } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
+import { connectReturnTo } from '@/lib/auth/connectResume';
 import { ConsentPage } from './ConsentPage';
 
 vi.mock('@/lib/api/httpClient', () => ({ httpClient: vi.fn() }));
@@ -55,7 +56,10 @@ function Where() {
   const location = useLocation();
   return <p>at {location.pathname + location.search}</p>;
 }
-function setup(data: ConsentResponse | Response = consent()) {
+function setup(
+  data: ConsentResponse | Response = consent(),
+  entry = '/connect?request=req1',
+) {
   http.mockImplementation(async (_url, options) => {
     if (options?.method === 'POST')
       return { data: { redirectUri: 'https://claude.ai/cb?code=abc' } };
@@ -67,7 +71,7 @@ function setup(data: ConsentResponse | Response = consent()) {
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/connect?request=req1']}>
+      <MemoryRouter initialEntries={[entry]}>
         <Routes>
           <Route path="/connect" element={<ConsentPage />} />
           <Route path="/login" element={<Where />} />
@@ -81,6 +85,7 @@ const posts = () => http.mock.calls.filter(([, o]) => o?.method === 'POST');
 const originalLocation = window.location;
 let assign: ReturnType<typeof vi.fn>;
 beforeEach(() => {
+  sessionStorage.clear();
   http.mockReset();
   logout.mockClear();
   assign = vi.fn();
@@ -218,6 +223,25 @@ it('signs out and comes back to this request after sign-in', async () => {
   await user.click(await screen.findByRole('button', { name: 'Sign out' }));
   expect(logout).toHaveBeenCalled();
   expect(
-    await screen.findByText('at /login?returnTo=%2Fconnect%3Frequest%3Dreq1'),
+    await screen.findByText(
+      /^at \/login\?returnTo=%2Fconnect%3Fresume%3D[0-9a-f]{32}$/,
+    ),
   ).toBeInTheDocument();
+});
+
+it('loads the request stashed before sign-in when it comes back with a resume id', async () => {
+  const returnTo = connectReturnTo(`/connect?request=${'r'.repeat(3000)}`);
+  setup(consent(), returnTo);
+  expect(await screen.findByText('Label printers.read')).toBeInTheDocument();
+  expect(http).toHaveBeenCalledWith(
+    `/api/v1/auth/oauth/consent?request=${'r'.repeat(3000)}`,
+  );
+});
+
+it('shows an expired request for a resume id nothing was stashed for', async () => {
+  setup(consent(), '/connect?resume=unknown');
+  expect(
+    await screen.findByText('Start again from your AI assistant.'),
+  ).toBeInTheDocument();
+  expect(http).not.toHaveBeenCalled();
 });

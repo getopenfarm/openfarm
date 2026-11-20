@@ -23,6 +23,11 @@ import type {
   ConsentResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
+import {
+  clearConnectRequest,
+  connectReturnTo,
+  resolveConnectRequest,
+} from '@/lib/auth/connectResume';
 import { useAuth } from '@/lib/auth/useAuth';
 import {
   ConnectFrame,
@@ -70,7 +75,8 @@ async function problemCode(error: unknown) {
 /** The consent screen an AI assistant's sign-in lands on (akaun's `/oauth/authorize`). */
 export function ConsentPage() {
   const [params] = useSearchParams();
-  const request = params.get('request') ?? '';
+  const request =
+    params.get('request') ?? resolveConnectRequest(params.get('resume')) ?? '';
   useConnectTitle();
   const query = useQuery({
     queryKey: [consentUrl, request],
@@ -167,6 +173,7 @@ function ConsentForm({
       );
       const target = response.data.redirectUri;
       if (!target) throw new Error('No redirect');
+      clearConnectRequest();
       setReturning(true);
       window.location.assign(target);
     } catch (e) {
@@ -183,7 +190,7 @@ function ConsentForm({
     try {
       await auth.logout();
       navigate(
-        `/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`,
+        `/login?returnTo=${encodeURIComponent(connectReturnTo(location.pathname + location.search))}`,
         { replace: true },
       );
     } catch {

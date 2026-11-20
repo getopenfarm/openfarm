@@ -41,6 +41,7 @@ import { AccessEditor } from './AccessEditor';
 import {
   type AccountResponse,
   adminKey,
+  removeUserDescription,
   useAdministration,
   useRemoveUser,
   whoAmIKey,
@@ -448,11 +449,7 @@ function UserForm({
           open={removeOpen}
           onOpenChange={setRemoveOpen}
           title={`Remove ${user.name || user.email}?`}
-          description={
-            user?.isExternallyManaged
-              ? 'This cannot be undone. If JIT is on and the provider allows the user, a new account is created at the next sign-in. Disable the account to block access.'
-              : 'This cannot be undone.'
-          }
+          description={removeUserDescription(user)}
           confirmLabel="Remove"
           destructive
           isPending={removeUser.isPending}

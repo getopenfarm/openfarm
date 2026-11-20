@@ -41,6 +41,8 @@ Browser sessions expire fourteen days after sign-in. Refreshing an access token 
 
 Disabling an account blocks and revokes its sessions and tokens. Enabling it again does not restore old credentials. See [API access](../development/api.md) for personal tokens.
 
+To block an account that signs in through SSO, disable it. Do not remove it: with JIT on, the next sign-in creates a new account. See [Remove a user's access](account-provisioning.md#remove-a-users-access).
+
 ## Forgotten administrator password
 
 Another administrator can reset the password in **Users & groups**. The initial password settings apply only when OpenFarm creates the first account. They do not replace an existing password. Keep more than one trusted administrator account and test your installation backup.

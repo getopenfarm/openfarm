@@ -704,11 +704,12 @@ function AuthenticationForm({
       )}
       {!values.internalAuthenticationEnabled && (
         <>
-          <SettingsSubhead>Recovery access</SettingsSubhead>
+          <SettingsSubhead>Local administrators</SettingsSubhead>
           <SettingsHint>
-            Users must sign in with OIDC. Recovery administrators can still use
-            a password. Select administrators with a tested password. Keep one
-            available for provider outages. Select your own account when you
+            Users must sign in with OIDC. Local administrators can still use a
+            password through Local sign-in on the login page, or at
+            /login?local=1. Select administrators with a tested password. Keep
+            one available for provider outages. Select your own account when you
             save from a password session. Or sign in with OIDC first.
           </SettingsHint>
           <SettingsRows>

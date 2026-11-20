@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenFarm.Api.IntegrationTests.Mcp;
+using OpenFarm.Api.Security;
 using OpenFarm.Infrastructure.Auth.OAuth;
 using OpenFarm.Infrastructure.Identity;
 using OpenFarm.Infrastructure.Persistence;
@@ -176,5 +177,40 @@ public sealed class OAuthConsentTests(OAuthFactory factory)
         }
         // A refused selection does not use up the request.
         await OAuthKit.ApproveAsync(browser, request, "printers.read");
+    }
+
+    /// <summary>The path an unauthenticated user returns to after SSO; <c>LocalReturnTo</c> drops anything over 2048 characters.</summary>
+    private async Task<string> ConnectReturnToAsync(string redirect, string state)
+    {
+        var client = await _kit.ClientAsync(redirect: redirect);
+        return "/connect?request=" + await _kit.RequestAsync(client, OAuthKit.Pkce().Challenge, state: state);
+    }
+
+    [Fact]
+    public async Task ConnectReturnTo_SurvivesTheSsoRoundTrip_ForARealisticClient()
+    {
+        var returnTo = await ConnectReturnToAsync("https://client.example/oauth/callback", Convert.ToBase64String(new byte[32]));
+        OidcAuthentication.LocalReturnTo(returnTo).Should().Be(returnTo);
+        // A margin, so growth of the payload format is noticed before it reaches a real client.
+        returnTo.Length.Should().BeLessThan(1024);
+    }
+
+    [Fact]
+    public async Task ConnectReturnTo_StillSurvives_ForALongRedirectAndState()
+    {
+        var returnTo = await ConnectReturnToAsync("https://client.example/" + new string('a', 600), new string('s', 300));
+        OidcAuthentication.LocalReturnTo(returnTo).Should().Be(returnTo);
+    }
+
+    [Fact]
+    public async Task ConnectReturnTo_FallsBackToTheDashboard_WhenRedirectAndStateAreAtTheirLimits()
+    {
+        // Known gap: the largest redirect (2048) and state (1024) OpenFarm accepts exceed the 2048-character
+        // returnTo cap, so an SSO sign-in started there lands on "/" instead of the consent page.
+        // The SPA avoids the cap by keeping the request in sessionStorage (connectResume.ts); this is the
+        // fallback when storage is unavailable.
+        var returnTo = await ConnectReturnToAsync("https://client.example/" + new string('a', 2048 - "https://client.example/".Length), new string('s', 1024));
+        returnTo.Length.Should().BeGreaterThan(2048);
+        OidcAuthentication.LocalReturnTo(returnTo).Should().Be("/");
     }
 }

@@ -57,6 +57,36 @@ export function LoginPage() {
   const ready = !!providers.data || providers.isError;
   const params = new URLSearchParams(window.location.search);
   const ssoError = params.get('ssoError');
+  const localOnly = sso && !internalOn;
+  const providerDown = ssoError === 'provider_configuration';
+  const defaultOpen =
+    !sso ||
+    (!!ssoError && internalOn) ||
+    (localOnly && (providerDown || params.get('local') === '1'));
+  const [open, setOpen] = useState(defaultOpen);
+  const methodName = internalOn ? 'username and password' : 'local sign-in';
+  const trigger = (
+    <CollapsibleTrigger asChild>
+      <Button
+        type="button"
+        variant="ghost"
+        size={internalOn ? 'default' : 'sm'}
+        className={`group w-full text-muted-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground ${internalOn ? '' : 'mt-2 text-xs'}`}
+      >
+        {open
+          ? `Hide ${methodName}`
+          : internalOn
+            ? 'Use username and password'
+            : 'Local sign-in'}
+        {(internalOn || open) && (
+          <ChevronDownIcon
+            data-icon="inline-end"
+            className="transition-transform group-data-[state=open]:rotate-180"
+          />
+        )}
+      </Button>
+    </CollapsibleTrigger>
+  );
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { username: '', password: '' },
@@ -133,39 +163,22 @@ export function LoginPage() {
           </Button>
         )}
         {ready && (
-          <Collapsible defaultOpen={!sso || (!!ssoError && internalOn)}>
-            {sso && (
-              <>
-                {!internalOn && (
-                  <p className="mb-2 text-center text-sm text-muted-foreground">
-                    Sign in with SSO. Password sign-in is for recovery
-                    administrators only.
-                  </p>
-                )}
-                <CollapsibleTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="group w-full text-muted-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground"
-                  >
-                    {internalOn
-                      ? 'Use username and password'
-                      : 'Use recovery account'}
-                    <ChevronDownIcon
-                      data-icon="inline-end"
-                      className="transition-transform group-data-[state=open]:rotate-180"
-                    />
-                  </Button>
-                </CollapsibleTrigger>
-              </>
-            )}
+          <Collapsible open={open} onOpenChange={setOpen}>
+            {sso && internalOn && trigger}
             <CollapsibleContent
               className={
                 sso
-                  ? 'pt-3 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1'
+                  ? 'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1'
                   : undefined
               }
             >
+              {localOnly && (
+                <p className="mb-3 text-center text-sm text-muted-foreground">
+                  {providerDown
+                    ? 'SSO is unavailable. Administrators can sign in with a local account.'
+                    : 'Local administrator sign-in'}
+                </p>
+              )}
               <Form {...form}>
                 <form
                   onSubmit={form.handleSubmit(onSubmit)}
@@ -257,6 +270,7 @@ export function LoginPage() {
                 </form>
               </Form>
             </CollapsibleContent>
+            {sso && !internalOn && trigger}
           </Collapsible>
         )}
       </div>

@@ -3117,11 +3117,14 @@ export interface OidcIdentityResponse {
 }
 
 export interface BeginOidcLinkResponse {
-  redirectUri?: string;
+  /** @nullable */
+  redirectUri?: string | null;
+  passwordRequired?: boolean;
 }
 
 export interface BeginOidcLinkRequest {
-  password?: string;
+  /** @nullable */
+  password?: string | null;
 }
 
 export interface CsrfResponse {

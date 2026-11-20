@@ -11,9 +11,11 @@ Redirect URIs use the configured canonical public URL, including behind an HTTP 
 
 Identity's `AspNetUserLogins` maps the SHA-256 authority key plus validated `sub` to the existing user.
 There is no email matching or retained provider token. Optional JIT provisioning are described below.
-Linking requires a browser JWT, antiforgery, a current password proof with lockout, and the original refresh-cookie session.
+Linking requires a browser JWT, antiforgery, the original refresh-cookie session, and proof of the account owner: a password sign-in less than ten minutes old (`BrowserSessionService.RecentSignInWindow`, read from the session's `CreatedAtUtc`, which refresh never moves) or else a current password with lockout. Without either, `POST /sso/link` answers `passwordRequired` and the profile page asks for the password; that answer is not a failed attempt. The proof exists because a stolen session alone must not be able to attach another provider identity as a lasting sign-in.
 A five-minute protected ticket contains a nonce, owner, session and security stamp. A hashed one-use nonce in `AspNetUserTokens`
 prevents replay across processes; a new attempt supersedes the old one. User-row locking serializes linking and session creation with account edits.
+
+An AI assistant's consent request (`/connect?request=…`) can exceed the 2048-character `returnTo` cap once it travels through the sign-in round-trip, so the SPA keeps it in `sessionStorage` and returns through a short `/connect?resume=<id>` (`web/src/lib/auth/connectResume.ts`); without storage it falls back to the full URL.
 
 OIDC success creates an ordinary OpenFarm browser session and refresh cookie. The SPA restores its JWT through the existing refresh endpoint.
 `BrowserSessions.OidcConfigurationIdentity` binds external sessions to authority and client ID. External sessions slide (`BrowserSessionService.OidcIdleLifetime`, three days, extended on each refresh) up to the fixed cap

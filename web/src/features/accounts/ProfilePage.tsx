@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { ErrorState } from '@/components/empty-state/EmptyState';
@@ -23,8 +23,8 @@ import { httpClient } from '@/lib/api/httpClient';
 import { type CurrentUser, useIdentity } from '@/lib/auth/permissions';
 import { sessionsKey, useUpdateProfile, whoAmIKey } from './api';
 import { ConnectedAppList } from './ConnectedAppList';
-import { OidcSecurity } from './OidcSecurity';
 import { SessionList } from './SessionList';
+import { SignInMethods } from './SignInMethods';
 import { TokenList } from './TokenList';
 
 const tabs = [
@@ -74,9 +74,9 @@ export function ProfilePage() {
           <Skeleton className="h-48 max-w-[640px]" />
         ))}
       {tab === 'security' && (
-        <OidcSecurity>
-          <SecurityTab />
-        </OidcSecurity>
+        <SignInMethods
+          passwordForm={(close) => <ChangePasswordForm onClose={close} />}
+        />
       )}
       {tab === 'tokens' && (
         <SettingsSection
@@ -194,8 +194,11 @@ function ProfileTab({ user }: { user: CurrentUser }) {
   );
 }
 
-function SecurityTab() {
+function ChangePasswordForm({ onClose }: { onClose: () => void }) {
   const client = useQueryClient();
+  const currentRef = useRef<HTMLInputElement>(null);
+  // Opened from the Password row: start where the typing starts.
+  useEffect(() => currentRef.current?.focus(), []);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -221,9 +224,9 @@ function SecurityTab() {
       setConfirmPassword('');
       void client.invalidateQueries({ queryKey: whoAmIKey });
       void client.invalidateQueries({ queryKey: sessionsKey() });
+      onClose();
     } catch (e) {
       setError(await extractErrorDetail(e, 'Password change failed.'));
-    } finally {
       setPending(false);
     }
   }
@@ -238,6 +241,7 @@ function SecurityTab() {
           <SettingsRows>
             <SettingsRow label="Current password" htmlFor="current-password">
               <Input
+                ref={currentRef}
                 id="current-password"
                 type="password"
                 required
@@ -288,10 +292,20 @@ function SecurityTab() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <Button type="submit" className="mt-4" disabled={mismatch || pending}>
-          {pending && <Spinner data-icon="inline-start" />}
-          {pending ? 'Changing password…' : 'Change password'}
-        </Button>
+        <div className="mt-4 flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mismatch || pending}>
+            {pending && <Spinner data-icon="inline-start" />}
+            {pending ? 'Changing password…' : 'Change password'}
+          </Button>
+        </div>
       </form>
     </SettingsSection>
   );

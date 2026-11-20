@@ -117,7 +117,7 @@ describe('LoginPage', () => {
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
   });
 
-  it('keeps the recovery form closed after a failed SSO sign-in', () => {
+  it('keeps the local form closed after a failed SSO sign-in', () => {
     vi.mocked(useLoginProviders).mockReturnValue({
       data: {
         oidcEnabled: true,
@@ -164,26 +164,50 @@ describe('LoginPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('reserves the password form for recovery when OIDC is required', async () => {
-    vi.mocked(useLoginProviders).mockReturnValue({
-      data: {
-        oidcEnabled: true,
-        internalAuthenticationEnabled: false,
-        displayName: 'authentik',
-      },
-      isError: false,
-    } as ReturnType<typeof useLoginProviders>);
-    renderLoginPage();
-    expect(
-      screen.getByText(
-        'Sign in with SSO. Password sign-in is for recovery administrators only.',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
-    await userEvent
-      .setup()
-      .click(screen.getByRole('button', { name: 'Use recovery account' }));
-    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  describe('when OIDC is required', () => {
+    beforeEach(() => {
+      vi.mocked(useLoginProviders).mockReturnValue({
+        data: {
+          oidcEnabled: true,
+          internalAuthenticationEnabled: false,
+          displayName: 'authentik',
+        },
+        isError: false,
+      } as ReturnType<typeof useLoginProviders>);
+    });
+
+    it('hides the password form behind a quiet local sign-in link', async () => {
+      renderLoginPage();
+      expect(screen.queryByText(/recovery/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: 'Local sign-in' }));
+      expect(screen.getByLabelText('Password')).toBeInTheDocument();
+      expect(screen.getByText('Local administrator sign-in')).toBeVisible();
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: 'Hide local sign-in' }));
+      expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Local sign-in' }),
+      ).toBeInTheDocument();
+    });
+
+    it('opens the local form for ?local=1', () => {
+      renderLoginPage('/login?local=1');
+      expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    });
+
+    it('opens the local form with a hint when the provider is unavailable', () => {
+      renderLoginPage('/login?ssoError=provider_configuration');
+      expect(screen.getByLabelText('Password')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'SSO is unavailable. Administrators can sign in with a local account.',
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
   it('blocks submission and shows inline errors when fields are empty', async () => {

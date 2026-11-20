@@ -159,6 +159,34 @@ describe('UserFormPage', () => {
       }),
     );
   });
+  it('warns from the list that removing an SSO account does not block it', async () => {
+    const user = userEvent.setup();
+    http.mockImplementation(async (url: string, init?: RequestInit) =>
+      init?.method
+        ? undefined
+        : {
+            data:
+              url === '/api/v1/admin/users'
+                ? [
+                    {
+                      ...(data[url] as Record<string, unknown>[])[0],
+                      isExternallyManaged: true,
+                    },
+                  ]
+                : data[url],
+          },
+    );
+    renderAt('/users-groups');
+    await user.click(
+      await screen.findByRole('button', { name: 'Actions for Mei Ling' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Remove user' }),
+    );
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'Disable the account to block access.',
+    );
+  });
   it('opens the add form from the keyboard and creates a user', async () => {
     const user = userEvent.setup();
     const router = renderAt('/users-groups');

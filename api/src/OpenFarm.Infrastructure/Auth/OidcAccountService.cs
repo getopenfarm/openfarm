@@ -11,6 +11,13 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.Auth;
 
+/// <summary>The start of a link: a protected ticket, or a request to confirm the password first.</summary>
+public sealed record OidcLinkStart(string? Ticket, bool PasswordRequired)
+{
+    public static readonly OidcLinkStart Refused = new(null, false);
+    public static readonly OidcLinkStart NeedsPassword = new(null, true);
+}
+
 public sealed record OidcLinkTicket(Guid UserId, Guid SessionId, string Nonce, string? SecurityStamp, DateTimeOffset ExpiresAtUtc);
 
 /// <summary>Explicit linking and opt-in JIT creation. Existing identities are resolved only by issuer and subject.</summary>
@@ -22,30 +29,39 @@ public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<Applica
     private const string LinkTokenName = "PendingLink";
     private readonly IDataProtector _protector = protection.CreateProtector("OpenFarm.OidcLink.v1");
 
-    public async Task<string?> BeginLinkAsync(Guid userId, Guid sessionId, string password, string credential, CancellationToken ct)
+    /// <summary>
+    /// Proof of the account owner is a password sign-in within <see cref="BrowserSessionService.RecentSignInWindow"/>
+    /// or, without <paramref name="password"/>, nothing: then the caller asks for it. Only a wrong password counts
+    /// toward lockout.
+    /// </summary>
+    public async Task<OidcLinkStart> BeginLinkAsync(Guid userId, Guid sessionId, string? password, string credential, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         await provisioning.LockAsync(ct);
-        if (!await configuration.LockCurrentAsync(ct)) return null;
+        if (!await configuration.LockCurrentAsync(ct)) return OidcLinkStart.Refused;
         await LockUserAsync(userId, ct);
         await LockSessionAsync(sessionId, ct);
         var user = await users.FindByIdAsync(userId.ToString());
         if (user is null || !user.IsEnabled || await users.IsLockedOutAsync(user)
-            || !await MatchesBrowserAsync(userId, sessionId, credential, ct)) return null;
-        if (!await users.CheckPasswordAsync(user, password))
+            || !await MatchesBrowserAsync(userId, sessionId, credential, ct)) return OidcLinkStart.Refused;
+        if (string.IsNullOrEmpty(password))
+        {
+            if (!await sessions.IsRecentPasswordSignInAsync(userId, sessionId, ct)) return OidcLinkStart.NeedsPassword;
+        }
+        else if (!await users.CheckPasswordAsync(user, password))
         {
             await users.AccessFailedAsync(user);
             await transaction.CommitAsync(ct);
-            return null;
+            return OidcLinkStart.Refused;
         }
-        await users.ResetAccessFailedCountAsync(user);
+        else await users.ResetAccessFailedCountAsync(user);
         if (await db.UserLogins.AnyAsync(l => l.UserId == userId && l.LoginProvider == settings.ProviderKey, ct))
             throw new ArgumentException("This account is already linked to the sign-in provider.");
         var ticket = new OidcLinkTicket(userId, sessionId, Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
             user.SecurityStamp, time.GetUtcNow().AddMinutes(5));
         Check(await users.SetAuthenticationTokenAsync(user, settings.ProviderKey, LinkTokenName, BrowserSessionService.Hash(ticket.Nonce)));
         await transaction.CommitAsync(ct);
-        return _protector.Protect(JsonSerializer.Serialize(ticket));
+        return new(_protector.Protect(JsonSerializer.Serialize(ticket)), false);
     }
 
     public OidcLinkTicket? ReadTicket(string? value)

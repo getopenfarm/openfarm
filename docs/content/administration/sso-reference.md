@@ -148,7 +148,7 @@ An entry also appears for a user who has no groups or entitlements, so it is not
 
 ## Recover access
 
-If authentik is unavailable, select **Use recovery account** on the login page and sign in as a selected recovery administrator.
+If authentik is unavailable, select **Local sign-in** on the login page (or open `/login?local=1`) and sign in as a selected recovery administrator.
 
 If a settings mistake locks everyone out, set this deployment override and recreate the container:
 
