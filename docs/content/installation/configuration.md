@@ -23,6 +23,7 @@ The production image includes default settings. To change them, enter overrides 
 | `DataProtection__CertificatePath`, `DataProtection__CertificatePassword` | Optional PKCS#12 certificate protecting stored printer-credential encryption keys at rest. |
 | `PUID`, `PGID`, `TZ` | Data ownership and log time zone. |
 | `Slicing__MaxConcurrentSlicingOperations` | Maximum number of slicing operations that can run at the same time. Default: `2`. |
+| `Dispatch__MaxConcurrent` | Maximum number of printers that can receive a job at the same time (slicing, upload and start). Default: `3`. `1` sends one job at a time. |
 
 Use [deploy/.env.example](https://github.com/getopenfarm/openfarm/blob/main/deploy/.env.example) for the current supported examples. Farm currency and prices are configured in the application under [Settings](../administration/settings.md).
 

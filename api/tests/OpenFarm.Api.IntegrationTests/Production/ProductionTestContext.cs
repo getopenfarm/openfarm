@@ -204,9 +204,9 @@ public abstract class ProductionTestContext(CustomWebApplicationFactory factory)
     }
 
     // Failed sends are retried in place; tests do not wait the real pauses.
-    protected ProductionDispatchBackgroundService Worker(TimeSpan? startConfirmGrace = null) => new(Factory.Services.GetRequiredService<IServiceScopeFactory>(),
+    protected ProductionDispatchBackgroundService Worker(TimeSpan? startConfirmGrace = null, int maxConcurrentDispatches = 3) => new(Factory.Services.GetRequiredService<IServiceScopeFactory>(),
         Factory.Services.GetRequiredService<ILogger<ProductionDispatchBackgroundService>>(), [TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50)],
-        startConfirmGrace);
+        startConfirmGrace, maxConcurrentDispatches);
 
     /// <summary>The printer reports its state now, as idle telemetry would.</summary>
     protected async Task ReportIdleAsync(Guid printerId)

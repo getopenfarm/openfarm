@@ -113,8 +113,12 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
     /// <c>Printing</c> confirmation, so without this it could be matched a second time to a different
     /// idle printer during that window.
     /// </summary>
-    public Task<IReadOnlyList<DispatchCandidate>> GetUnassignedCandidatesAsync(CancellationToken cancellationToken) =>
-        GetCandidatesAsync(job => job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Unassigned && job.PrinterId == null, cancellationToken);
+    /// <param name="reserved">
+    /// Jobs (to the printer each is reserved for) the dispatcher is slicing or sending right now: still undispatched in the
+    /// database, but in flight all the same, so they are left out here and counted by the backfill queries below.
+    /// </param>
+    public Task<IReadOnlyList<DispatchCandidate>> GetUnassignedCandidatesAsync(CancellationToken cancellationToken, IReadOnlyDictionary<Guid, Guid>? reserved = null) =>
+        GetCandidatesAsync(job => job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Unassigned && job.PrinterId == null, cancellationToken, reserved: reserved);
 
     /// <summary>FR-007c — every Queued job pinned to this exact printer, never matched against any other (research.md R4 step 4).</summary>
     public Task<IReadOnlyList<DispatchCandidate>> GetPinnedCandidatesAsync(Guid printerId, CancellationToken cancellationToken) =>
@@ -123,10 +127,12 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
                 && job.PinnedPrinterId == printerId && job.PrinterId == null,
             cancellationToken);
 
-    public async Task<IReadOnlyList<DispatchCandidate>> GetBackfillRetryCandidatesAsync(Guid printerId, CancellationToken ct)
+    public async Task<IReadOnlyList<DispatchCandidate>> GetBackfillRetryCandidatesAsync(
+        Guid printerId, CancellationToken ct, IReadOnlyDictionary<Guid, Guid>? reserved = null)
     {
+        var held = Held(reserved);
         var candidates = await GetCandidatesAsync(j => j.Status == PrintJobStatus.Queued && j.DispatchedAtUtc == null
-            && j.PrinterId == null && (j.AssignmentMode == AssignmentMode.Unassigned || j.PinnedPrinterId == printerId), ct, DemandMode.Backfill);
+            && j.PrinterId == null && (j.AssignmentMode == AssignmentMode.Unassigned || j.PinnedPrinterId == printerId), ct, DemandMode.Backfill, held);
         var ready = new List<DispatchCandidate>();
         foreach (var candidate in candidates)
         {
@@ -135,19 +141,47 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
             if (!requirement.RecipeActive) continue;
             var demand = await dbContext.ProductionDemands.AsNoTracking().FirstAsync(d => d.Id == requirement.RunLineId, ct);
             var requirementIds = dbContext.PartRequirements.Where(r => r.RunLineId == demand.Id).Select(r => r.Id);
-            var occupancy = await dbContext.PrintJobs.Where(j => j.Id != job.Id && requirementIds.Contains(j.PartRequirementId)
+            var occupied = await dbContext.PrintJobs.Where(j => j.Id != job.Id && requirementIds.Contains(j.PartRequirementId)
                 && (j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused
                     || j.Status == PrintJobStatus.Queued && (j.DispatchedAtUtc != null || j.AssignmentMode == AssignmentMode.Pinned)))
-                .Select(j => j.PrinterId ?? j.PinnedPrinterId).Where(id => id != null).Distinct().CountAsync(ct);
+                .Select(j => j.PrinterId ?? j.PinnedPrinterId).Where(id => id != null).Distinct().ToListAsync(ct);
+            var occupancy = occupied.Count;
+            if (held.Count > 0)
+            {
+                var inFlight = await ReservedOnAsync(await requirementIds.ToListAsync(ct), held, ct);
+                occupancy = occupied.Concat(inFlight.Select(r => (Guid?)r.PrinterId)).Distinct().Count();
+            }
             if (occupancy < demand.BackfillPrinterCap) ready.Add(candidate);
         }
         return ready;
     }
 
-    private async Task<IReadOnlyList<DispatchCandidate>> GetCandidatesAsync(
-        System.Linq.Expressions.Expression<Func<PrintJob, bool>> predicate, CancellationToken cancellationToken, DemandMode mode = DemandMode.Finite)
+    private static Dictionary<Guid, Guid> Held(IReadOnlyDictionary<Guid, Guid>? reserved) =>
+        reserved is null ? new() : reserved.ToDictionary(p => p.Key, p => p.Value);
+
+    /// <summary>
+    /// The reserved jobs (see <see cref="GetUnassignedCandidatesAsync"/>) that belong to these requirements, with their printer
+    /// and units: what a line's printer cap and unit ceiling must count, since the database does not show them as dispatched yet.
+    /// A job whose dispatch is already saved is left out; the persisted counts have it.
+    /// </summary>
+    private async Task<List<(Guid PrinterId, int Units)>> ReservedOnAsync(
+        List<Guid> requirementIds, Dictionary<Guid, Guid> held, CancellationToken ct)
     {
+        if (held.Count == 0) return [];
+        var ids = held.Keys.ToList();
+        var jobs = await dbContext.PrintJobs.AsNoTracking()
+            .Where(j => ids.Contains(j.Id) && requirementIds.Contains(j.PartRequirementId) && j.DispatchedAtUtc == null)
+            .Select(j => new { j.Id, j.PlateQuantity, j.TargetUnits }).ToListAsync(ct);
+        return jobs.Select(j => (held[j.Id], j.TargetUnits ?? j.PlateQuantity)).ToList();
+    }
+
+    private async Task<IReadOnlyList<DispatchCandidate>> GetCandidatesAsync(
+        System.Linq.Expressions.Expression<Func<PrintJob, bool>> predicate, CancellationToken cancellationToken, DemandMode mode = DemandMode.Finite,
+        IReadOnlyDictionary<Guid, Guid>? reserved = null)
+    {
+        var reservedIds = reserved?.Keys.ToList() ?? [];
         var jobs = await dbContext.PrintJobs.Where(predicate)
+            .Where(j => !reservedIds.Contains(j.Id))
             .Where(j => dbContext.PartRequirements.Any(r => r.Id == j.PartRequirementId
                 && dbContext.ProductionDemands.Any(d => d.Id == r.RunLineId && d.Mode == mode)))
             .Include(j => j.Filaments)
@@ -205,15 +239,19 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
         Guid jobId,
         decimal requiredNozzleDiameterMm,
         IReadOnlyList<(string? MaterialType, string? ColorHex)> filamentRequirement,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<Guid, Guid>? reserved = null)
     {
         var idlePrinters = await dbContext.Printers
             .Where(p => p.Status == PrinterStatus.Idle && p.Id != excludePrinterId)
             .ToListAsync(cancellationToken);
 
+        // A printer a send is reserved for is as busy as one holding a dispatched job, though the database does not say so yet.
+        var busyPrinterIds = Held(reserved).Values.ToHashSet();
         var qualifying = new List<(Guid, int)>();
         foreach (var printer in idlePrinters)
         {
+            if (busyPrinterIds.Contains(printer.Id)) continue;
             if (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand) && !printer.IsReachable) continue;
             if (await dbContext.PrintJobs.AnyAsync(j => j.PrinterId == printer.Id && (j.Status == PrintJobStatus.Queued || j.Status == PrintJobStatus.Printing || j.Status == PrintJobStatus.Paused), cancellationToken)) continue;
             if (!ProductionDispatchMatcher.CanServe(await ResolvePrinterNozzlesMmAsync(printer, cancellationToken),
@@ -243,8 +281,11 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
     /// data-model.md's "one cap, counted together across every distinct printed part" note for an
     /// Assembly-targeted backfill line.
     /// </summary>
-    public async Task<IReadOnlyList<BackfillLineCandidate>> GetBackfillCandidatesAsync(CancellationToken cancellationToken, Guid? printerId = null)
+    public async Task<IReadOnlyList<BackfillLineCandidate>> GetBackfillCandidatesAsync(
+        CancellationToken cancellationToken, Guid? printerId = null, IReadOnlyDictionary<Guid, Guid>? reserved = null)
     {
+        var held = Held(reserved);
+        var heldIds = held.Keys.ToList();
         var lines = await dbContext.ProductionDemands.AsNoTracking().Where(line => line.Mode == DemandMode.Backfill && line.State == DemandState.Enabled
             && (line.ProductionRunId == null || dbContext.ProductionRuns.Any(run => run.Id == line.ProductionRunId
                 && (run.Status == ProductionRunStatus.Active || run.Status == ProductionRunStatus.Complete)))
@@ -289,12 +330,15 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
 
             // A job created for this line that could not be sent (and now waits out its backoff) is the line's pending
             // work: creating another one every attempt would pile up jobs behind a failure that has not been fixed.
+            // A job being sent right now is not waiting; it counts as occupancy and units below.
             if (await dbContext.PrintJobs.AnyAsync(j => requirementIdsForLine.Contains(j.PartRequirementId)
                     && j.Status == PrintJobStatus.Queued && j.PrinterId == null && j.DispatchedAtUtc == null
-                    && j.AssignmentMode == AssignmentMode.Unassigned, cancellationToken))
+                    && j.AssignmentMode == AssignmentMode.Unassigned && !heldIds.Contains(j.Id), cancellationToken))
             {
                 linesWithAWaitingJob.Add(line.Id);
             }
+
+            var inFlight = await ReservedOnAsync(requirementIdsForLine, held, cancellationToken);
 
             var occupiedPrinterIds = await dbContext.PrintJobs
                 .Where(j => requirementIdsForLine.Contains(j.PartRequirementId) &&
@@ -305,7 +349,7 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
                 .Where(id => id != null)
                 .Distinct()
                 .ToListAsync(cancellationToken);
-            occupancyByLine[line.Id] = occupiedPrinterIds.Count;
+            occupancyByLine[line.Id] = occupiedPrinterIds.Concat(inFlight.Select(r => (Guid?)r.PrinterId)).Distinct().Count();
 
             // Units still printing count too: with a printer cap above 1, completed units alone let the ceiling overshoot.
             var producedOrPrintingUnits = await dbContext.PrintJobs
@@ -315,7 +359,8 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
                 .Select(j => new { j.Status, j.PlateQuantity, j.TargetUnits, j.ObjectExecutionJson })
                 .ToListAsync(cancellationToken);
             cumulativeUnitsByLine[line.Id] = producedOrPrintingUnits.Sum(j => j.Status == PrintJobStatus.Completed
-                ? PrintJob.ProducedUnitsFor(j.Status, j.PlateQuantity, j.TargetUnits, j.ObjectExecutionJson) : j.TargetUnits ?? j.PlateQuantity);
+                ? PrintJob.ProducedUnitsFor(j.Status, j.PlateQuantity, j.TargetUnits, j.ObjectExecutionJson) : j.TargetUnits ?? j.PlateQuantity)
+                + inFlight.Sum(r => r.Units);
         }
 
         var coverage = new Dictionary<Guid, decimal>();

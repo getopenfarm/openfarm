@@ -52,6 +52,25 @@ id. The others leave it to that printer and wake it. That printer may take an ea
 Once it holds a job, the printers that left the match to it are woken again, so the job does not wait for their next status
 report. A manual printer sends no status reports.
 
+## Several printers at once
+
+Choosing a job is one decision at a time farm-wide (`ProductionDispatchBackgroundService._decide`), because a decision reads
+the whole unassigned pool and two of them must not pick the same job. Slicing, upload and the send retries are not part of
+it: they run after the decision, concurrently for different printers, at most `Dispatch:MaxConcurrent` (default 3,
+`1` = one at a time). A printer never has two attempts; a request that arrives during one waits and is signalled again when
+it ends.
+
+- The job stays `Queued` and undispatched in the database while it is prepared, so cancel, run removal, telemetry and the
+  `Starting` phase see what they always did. The dispatcher keeps it in an in-memory reservation instead (job → printer),
+  and the matching queries take that map: reserved jobs are not candidates, a reserved printer is not an "other idle
+  qualifying printer", and backfill counts them as occupancy and units, not as a waiting job (which would hold the line
+  back to one send at a time).
+- A new place that counts jobs in flight (occupancy, ceilings, "is this printer busy") must count reservations too.
+- A printer whose decision found nothing while a send was reserved is asked to look again if that send ends without sending
+  (the reserved job may be why). Only those printers, never every idle one, so a failure that repeats cannot make printers
+  wake each other for ever.
+- Reservations are not saved. A crash loses nothing: the job was never dispatched, and boot reconciliation is unchanged.
+
 ## Enough filament
 
 A printer is only a candidate when its loaded filament covers the job. For each requirement the job needs its estimate

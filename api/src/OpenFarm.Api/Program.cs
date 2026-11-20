@@ -439,7 +439,10 @@ builder.Services.AddScoped<RfidNotifications>();
 builder.Services.AddScoped<OpenFarm.Application.Common.ICommandHandler<AttachSpoolRfidCommand, OpenFarm.Domain.FilamentTracking.Spool>, AttachSpoolRfidCommandHandler>();
 builder.Services.AddScoped<IProductionEventPublisher, FarmHubProductionEventPublisher>();
 
-builder.Services.AddSingleton<ProductionDispatchBackgroundService>();
+// Dispatch__MaxConcurrent: printers that may be slicing or sending at once (1 = one at a time).
+builder.Services.AddSingleton(sp => new ProductionDispatchBackgroundService(
+    sp.GetRequiredService<IServiceScopeFactory>(), sp.GetRequiredService<ILogger<ProductionDispatchBackgroundService>>(),
+    maxConcurrentDispatches: builder.Configuration.GetValue("Dispatch:MaxConcurrent", 3)));
 if (!args.Contains("export-openapi")) builder.Services.AddHostedService(sp => sp.GetRequiredService<ProductionDispatchBackgroundService>());
 // Must be Singleton, not Scoped — same reasoning as IPartProcessingDispatcher's registration above.
 builder.Services.AddSingleton<IProductionDispatcher>(sp => sp.GetRequiredService<ProductionDispatchBackgroundService>());

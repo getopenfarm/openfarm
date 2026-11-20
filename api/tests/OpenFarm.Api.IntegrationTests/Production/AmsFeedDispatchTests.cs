@@ -491,4 +491,105 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         using var scope = Factory.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<IPrintJobRepository>().GetActiveJobByDispatchedPrinterIdAsync(printerId, default);
     }
+
+    private static async Task<bool> UntilAsync(Func<bool> condition, TimeSpan? timeout = null)
+    {
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        while (!condition() && timer.Elapsed < (timeout ?? TimeSpan.FromSeconds(10))) await Task.Delay(50);
+        return condition();
+    }
+
+    private bool WasSent(PrintJob job) => Recorder.SendProgress.Any(p => p.JobId == job.Id && p.Stage == PrintSendStage.Sent);
+
+    /// <summary>
+    /// The tests of this class share one database, and every worker wakes every idle printer. A test that leaves idle printers and an
+    /// unassigned job behind has later tests' printers pick that job up instead of their own: take them out of play.
+    /// </summary>
+    private async Task RetireAsync(Guid[] printerIds, params Guid[] runIds)
+    {
+        var jobIds = new List<Guid>();
+        foreach (var runId in runIds) jobIds.AddRange((await JobsAsync(runId)).Select(j => j.Id));
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        foreach (var job in await db.PrintJobs.Where(j => jobIds.Contains(j.Id) && j.Status == PrintJobStatus.Queued).ToListAsync()) job.MarkCancelled();
+        foreach (var printer in await db.Printers.Where(p => printerIds.Contains(p.Id)).ToListAsync()) printer.ObserveStatus("FAILED");
+        await db.SaveChangesAsync();
+    }
+
+    [Theory]
+    [InlineData(3, true)]
+    [InlineData(1, false)]
+    public async Task Printers_AreSent_AtTheSameTime_UpToTheLimit(int limit, bool bothAtOnce)
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var first = await PrinterAsync();
+        var second = await PrinterAsync();
+        var firstRun = await RunAsync(client, part.Id, pinned: first.Id);
+        var secondRun = await RunAsync(client, part.Id, pinned: second.Id);
+
+        // Both sends wait here until released: a send that held the others back would never let the second one in.
+        var entered = new ConcurrentDictionary<string, bool>();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Recorder.BeforeSend = async serial =>
+        {
+            if (serial != first.SerialNumber && serial != second.SerialNumber) return;
+            entered[serial] = true;
+            await release.Task;
+        };
+        using var worker = Worker(maxConcurrentDispatches: limit);
+        await worker.StartAsync(default);
+        try
+        {
+            (await UntilAsync(() => !entered.IsEmpty)).Should().BeTrue("a send has started");
+            if (bothAtOnce) (await UntilAsync(() => entered.Count == 2)).Should().BeTrue("the second printer is sent while the first still is");
+            else
+            {
+                await Task.Delay(500);
+                entered.Count.Should().Be(1, "a limit of one lets the second printer wait for the first");
+            }
+
+            release.SetResult();
+            var jobs = new[] { await WaitForJobAsync(firstRun.Id, WasSent), await WaitForJobAsync(secondRun.Id, WasSent) };
+
+            jobs.Select(j => j.PrinterId).Should().BeEquivalentTo([first.Id, second.Id]);
+            jobs.Should().OnlyContain(j => WasSent(j));
+        }
+        finally
+        {
+            release.TrySetResult();
+            await worker.StopAsync(default);
+            Recorder.BeforeSend = null;
+            await RetireAsync([first.Id, second.Id], firstRun.Id, secondRun.Id);
+        }
+    }
+
+    [Fact]
+    public async Task ManyIdlePrinters_OneJob_IsSentOnce()
+    {
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var printerIds = new[] { (await PrinterAsync()).Id, (await PrinterAsync()).Id, (await PrinterAsync()).Id };
+        var run = await RunAsync(client, part.Id);
+
+        // Every idle printer decides at the start, at the same time; a slow send keeps the job in flight while they do.
+        Recorder.BeforeSend = _ => Task.Delay(300);
+        using var worker = Worker();
+        await worker.StartAsync(default);
+        try
+        {
+            var job = await WaitForJobAsync(run.Id, WasSent);
+
+            WasSent(job).Should().BeTrue();
+            await Task.Delay(500);
+            Recorder.SendProgress.Count(p => p.JobId == job.Id && p.Stage == PrintSendStage.Slicing)
+                .Should().Be(1, "the job went to one printer only");
+        }
+        finally
+        {
+            await worker.StopAsync(default);
+            Recorder.BeforeSend = null;
+            await RetireAsync(printerIds, run.Id);
+        }
+    }
 }

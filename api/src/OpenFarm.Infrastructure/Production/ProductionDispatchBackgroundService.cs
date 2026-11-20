@@ -21,11 +21,17 @@ namespace OpenFarm.Infrastructure.Production;
 
 /// <summary>
 /// Bounded <see cref="Channel{T}"/> of printer ids (research.md R4) — mirrors
-/// <c>PartProcessingBackgroundService</c>'s shape, but consumed by exactly one worker, never several:
-/// a dispatch decision reads the whole farm's Unassigned candidate pool and must not race a concurrent
-/// decision for a different printer into double-booking the same job (see
-/// <c>ProductionDispatchQueryService.GetUnassignedCandidatesAsync</c>'s own remarks on the
-/// dispatch-in-flight window this closes). <see cref="PrintJob.Dispatch(Guid)"/>/<see cref="PrintJob.RevertDispatch"/>
+/// <c>PartProcessingBackgroundService</c>'s shape. One attempt per printer, in two parts:
+/// <list type="bullet">
+/// <item><b>Decide</b>, one at a time behind <see cref="_decide"/>: a decision reads the whole farm's Unassigned candidate pool
+/// and must not race a decision for another printer into double-booking the same job (see
+/// <c>ProductionDispatchQueryService.GetUnassignedCandidatesAsync</c>'s own remarks on the dispatch-in-flight window).</item>
+/// <item><b>Prepare and send</b> (slice, upload, retries), concurrently for different printers, at most
+/// <c>maxConcurrentDispatches</c> at a time. The job stays <c>Queued</c> and undispatched in the database meanwhile, so
+/// cancel, run removal and telemetry see what they always saw; the matching queries are told about it through
+/// <see cref="_reserved"/> instead.</item>
+/// </list>
+/// <see cref="PrintJob.Dispatch(Guid)"/>/<see cref="PrintJob.RevertDispatch"/>
 /// bracket the connector call (constitution Durable Recovery guardrail): marked dispatched before
 /// <see cref="IPrinterConnector.StartJobAsync"/> is attempted so a crash mid-call is caught by
 /// <see cref="ReconcileAsync"/> on the next boot, then immediately reverted in place if the call itself
@@ -37,7 +43,24 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     private readonly Channel<Guid> _channel;
     private readonly ConcurrentDictionary<Guid, byte> _pending = new();
 
-    // Printers that deferred an unassigned match, keyed by the printer they deferred to. Only the worker loop touches it.
+    // One decision at a time, farm-wide. Held for the queries and the checks before a send, never for the send itself.
+    private readonly SemaphoreSlim _decide = new(1, 1);
+
+    // Caps attempts in progress (slicing is CPU-heavy). Taken before the gate, so a decision never waits on a slot while holding it.
+    private readonly SemaphoreSlim _slots;
+
+    // Printers with an attempt running: a printer never has two. Ends when the attempt does (completed task).
+    private readonly ConcurrentDictionary<Guid, Task> _attempting = new();
+
+    // Jobs a running attempt is about to send, to the printer it chose: not dispatched in the database yet, so the matching
+    // queries count them as in flight (candidates, idle printers, backfill occupancy) through this map.
+    private readonly ConcurrentDictionary<Guid, Guid> _reserved = new();
+
+    // Printers whose decision found nothing while a send was reserved: the reserved job (or its line's printer cap) may have been
+    // why. They look again if that send ends without sending, which the serial loop gave for free.
+    private readonly ConcurrentDictionary<Guid, byte> _mayHaveSkipped = new();
+
+    // Printers that deferred an unassigned match, keyed by the printer they deferred to. Only touched behind _decide.
     private readonly Dictionary<Guid, HashSet<Guid>> _deferredTo = [];
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ProductionDispatchBackgroundService> _logger;
@@ -50,18 +73,20 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     private readonly TimeSpan _startConfirmGrace;
 
     // Consecutive failed sends per printer, so a printer that cannot take a file does not fail the whole queue one job at a time.
-    // ponytail: in-memory, lost on restart; persist on Printer if restarts hide a flapping printer. Only the worker loop touches it.
-    private readonly Dictionary<Guid, (int Count, DateTimeOffset AtUtc)> _sendFailures = [];
+    // ponytail: in-memory, lost on restart; persist on Printer if restarts hide a flapping printer.
+    private readonly ConcurrentDictionary<Guid, (int Count, DateTimeOffset AtUtc)> _sendFailures = [];
 
     /// <param name="sendRetryDelays">Test seam: the pauses between send attempts (one fewer than the attempts).</param>
     /// <param name="startConfirmGrace">Test seam: see <see cref="_startConfirmGrace"/>.</param>
+    /// <param name="maxConcurrentDispatches">How many printers may be slicing or sending at once; 1 is the old one-at-a-time behaviour.</param>
     public ProductionDispatchBackgroundService(IServiceScopeFactory scopeFactory, ILogger<ProductionDispatchBackgroundService> logger,
-        IReadOnlyList<TimeSpan>? sendRetryDelays = null, TimeSpan? startConfirmGrace = null)
+        IReadOnlyList<TimeSpan>? sendRetryDelays = null, TimeSpan? startConfirmGrace = null, int maxConcurrentDispatches = 3)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _sendRetryDelays = sendRetryDelays ?? DefaultSendRetryDelays;
         _startConfirmGrace = startConfirmGrace ?? TimeSpan.FromMinutes(3);
+        _slots = new SemaphoreSlim(Math.Max(1, maxConcurrentDispatches));
         _channel = Channel.CreateBounded<Guid>(new BoundedChannelOptions(100)
         {
             FullMode = BoundedChannelFullMode.Wait,
@@ -88,28 +113,92 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             {
                 foreach (var printerId in _pending.Keys)
                 {
-                    if (!_pending.TryRemove(printerId, out _)) continue;
-                    try
-                    {
-                        await ProcessDispatchAttemptAsync(printerId, stoppingToken);
-                        await WakeDeferredAsync(printerId, stoppingToken);
-                    }
-                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                    {
-                        // Ordinary host shutdown mid-attempt — nothing was left dispatch-in-flight by this
-                        // path specifically (see ProcessDispatchAttemptAsync's own revert-on-failure), and
-                        // anything a prior lifetime did leave in-flight is ReconcileAsync's job on next boot.
-                    }
-                    catch (Exception ex)
-                    {
-                        LogDispatchAttemptFailed(_logger, printerId, ex);
-                    }
+                    // One attempt per printer: a request that arrives meanwhile stays pending, and the attempt signals again when it ends.
+                    if (_attempting.ContainsKey(printerId) || !_pending.TryRemove(printerId, out _)) continue;
+                    var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _attempting[printerId] = done.Task;
+                    _ = RunAttemptAsync(printerId, done, stoppingToken);
                 }
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Expected on shutdown while idling for the next channel item.
+        }
+        finally
+        {
+            // Attempts see the same stopping token; let them unwind before the host goes on.
+            await Task.WhenAll(_attempting.Values);
+        }
+    }
+
+    /// <summary>One printer's attempt: decide behind the gate, then send outside it. Never throws.</summary>
+    private async Task RunAttemptAsync(Guid printerId, TaskCompletionSource done, CancellationToken stoppingToken)
+    {
+        var wakeOthers = false;
+        try
+        {
+            await _slots.WaitAsync(stoppingToken);
+            try
+            {
+                Func<Task<bool>>? send;
+                await _decide.WaitAsync(stoppingToken);
+                try
+                {
+                    send = await ProcessDispatchAttemptAsync(printerId, stoppingToken);
+                    try
+                    {
+                        await WakeDeferredAsync(printerId, stoppingToken);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        // Only a nudge to other printers: it must not strand the send this decision just reserved.
+                        LogDispatchAttemptFailed(_logger, printerId, ex);
+                    }
+                }
+                finally
+                {
+                    _decide.Release();
+                }
+
+                if (send is not null)
+                {
+                    var sent = false;
+                    try { sent = await send(); }
+                    finally { wakeOthers = !sent; }
+                }
+            }
+            finally
+            {
+                _slots.Release();
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Ordinary host shutdown mid-attempt — nothing was left dispatch-in-flight by this
+            // path specifically (see ProcessDispatchAttemptAsync's own revert-on-failure), and
+            // anything a prior lifetime did leave in-flight is ReconcileAsync's job on next boot.
+        }
+        catch (Exception ex)
+        {
+            LogDispatchAttemptFailed(_logger, printerId, ex);
+        }
+        finally
+        {
+            _attempting.TryRemove(printerId, out _);
+            done.SetResult();
+            // A job this attempt held back from the others is free again: printers that found nothing meanwhile look once more.
+            // Only those, never every idle printer, so a failure that repeats cannot make printers wake each other for ever.
+            if (wakeOthers)
+            {
+                foreach (var other in _mayHaveSkipped.Keys)
+                {
+                    if (other != printerId && _mayHaveSkipped.TryRemove(other, out _)) RequestDispatchAttempt(other);
+                }
+            }
+
+            // A request that came in while this attempt ran was left pending: wake the loop for it.
+            if (_pending.ContainsKey(printerId)) _channel.Writer.TryWrite(printerId);
         }
     }
 
@@ -154,10 +243,38 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         }
     }
 
-    private async Task ProcessDispatchAttemptAsync(Guid printerId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Runs the decision (call it behind <see cref="_decide"/>). Returns what is left to do once the gate is open — the slow
+    /// send, true when the file was sent — or null when the attempt ended here. The send keeps this attempt's scope until it ends.
+    /// </summary>
+    private async Task<Func<Task<bool>>?> ProcessDispatchAttemptAsync(Guid printerId, CancellationToken cancellationToken)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var services = scope.ServiceProvider;
+        var scope = _scopeFactory.CreateScope();
+        Func<Task<bool>>? send = null;
+        try
+        {
+            send = await DecideAsync(scope.ServiceProvider, printerId, cancellationToken);
+        }
+        finally
+        {
+            if (send is null) scope.Dispose();
+        }
+
+        if (send is null)
+        {
+            if (!_reserved.IsEmpty) _mayHaveSkipped[printerId] = 0;
+            return null;
+        }
+
+        return async () =>
+        {
+            try { return await send(); }
+            finally { scope.Dispose(); }
+        };
+    }
+
+    private async Task<Func<Task<bool>>?> DecideAsync(IServiceProvider services, Guid printerId, CancellationToken cancellationToken)
+    {
         var printerRepository = services.GetRequiredService<IPrinterRepository>();
         var jobRepository = services.GetRequiredService<IPrintJobRepository>();
         var requirementRepository = services.GetRequiredService<IPartRequirementRepository>();
@@ -168,7 +285,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         if (printer is null || printer.Status != PrinterStatus.Idle
             || (PrinterModelCatalog.SupportsLiveIntegration(printer.Brand) && !printer.IsReachable))
         {
-            return;
+            return null;
         }
 
         if (await jobRepository.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken) is { } active)
@@ -184,29 +301,28 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 RequestDispatchAttempt(printerId);
             }
 
-            return;
+            return null;
         }
 
         if (_sendFailures.TryGetValue(printerId, out var failures) && DateTimeOffset.UtcNow < failures.AtUtc + SendCooldown(failures.Count))
         {
-            return;
+            return null;
         }
 
         var nozzlesMm = await queryService.ResolvePrinterNozzlesMmAsync(printer, cancellationToken);
         if (nozzlesMm.Count == 0)
         {
-            return;
+            return null;
         }
 
         var loadedMaterials = await queryService.ResolveLoadedMaterialsAsync(printer, cancellationToken);
-        var candidates = await queryService.FilterReadyAsync(printer.Id, await queryService.GetUnassignedCandidatesAsync(cancellationToken), cancellationToken);
+        var candidates = await queryService.FilterReadyAsync(printer.Id, await queryService.GetUnassignedCandidatesAsync(cancellationToken, _reserved), cancellationToken);
         var pinnedCandidates = await queryService.FilterReadyAsync(printer.Id, await queryService.GetPinnedCandidatesAsync(printer.Id, cancellationToken), cancellationToken);
         var jobId = ProductionDispatchMatcher.SelectNextJob(nozzlesMm, loadedMaterials, candidates, pinnedCandidates);
         if (jobId is null)
         {
             // FR-006b — backfill is only ever consulted once no finite (Unassigned or Pinned) job matched.
-            await TryDispatchBackfillAsync(services, printer, nozzlesMm, loadedMaterials, queryService, jobRepository, cancellationToken);
-            return;
+            return await TryDispatchBackfillAsync(services, printer, nozzlesMm, loadedMaterials, queryService, jobRepository, cancellationToken);
         }
 
         // FR-007b/research.md R11 — only an Unassigned match can be contested by another idle
@@ -220,7 +336,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         {
             var capabilityScore = printer.FeedReadings.Where(u => u.Kind == FeedUnitKindCatalog.MultiMaterialUnit).Sum(u => u.Slots.Count);
             var otherQualifying = await queryService.GetOtherIdleQualifyingPrintersAsync(
-                printer.Id, unassignedMatch.JobId, unassignedMatch.RequiredNozzleDiameterMm, unassignedMatch.FilamentRequirement, cancellationToken);
+                printer.Id, unassignedMatch.JobId, unassignedMatch.RequiredNozzleDiameterMm, unassignedMatch.FilamentRequirement, cancellationToken, _reserved);
 
             if (!ProductionDispatchMatcher.IsPreferredAmongQualifyingPrinters(printer.Id, capabilityScore, otherQualifying))
             {
@@ -235,7 +351,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                     deferring.Add(printer.Id);
                 }
 
-                return;
+                return null;
             }
         }
 
@@ -246,7 +362,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             // Lost a race against another dispatch decision (or a manual pin/cancel) between the
             // candidate query above and this re-check — simply skip; the printer's own next trigger
             // (or this reconciliation pass on next boot) will try again against whatever is left.
-            return;
+            return null;
         }
 
         var requirement = await requirementRepository.GetByIdAsync(job.PartRequirementId, cancellationToken);
@@ -256,23 +372,23 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         if (requirement is null || part is null || part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete)
         {
             LogMissingDispatchTarget(_logger, job.Id);
-            return;
+            return null;
         }
 
         var runLine = await services.GetRequiredService<IProductionDemandRepository>().GetAsync(requirement.RunLineId, cancellationToken);
         if (runLine is null || !await queryService.CanDispatchDemandAsync(runLine.Id, cancellationToken))
         {
             LogMissingDispatchTarget(_logger, job.Id);
-            return;
+            return null;
         }
 
-        await DispatchJobAsync(services, printer, job, part, runLine.RevisionMode, jobRepository, cancellationToken);
+        return await DispatchJobAsync(services, printer, job, part, runLine.RevisionMode, jobRepository, cancellationToken);
     }
 
     /// <summary>
-    /// Once a printer that others deferred a match to holds a job, wakes them: the match may still be waiting (that printer took
-    /// an earlier job of its own), and a manual printer gets no telemetry to wake it. Waking only once it holds a job means it
-    /// no longer contends, so two printers never keep waking each other.
+    /// Once a printer that others deferred a match to holds a job (dispatched, or reserved for a send in progress), wakes them:
+    /// the match may still be waiting (that printer took an earlier job of its own), and a manual printer gets no telemetry to
+    /// wake it. Waking only once it holds a job means it no longer contends, so two printers never keep waking each other.
     /// </summary>
     private async Task WakeDeferredAsync(Guid printerId, CancellationToken cancellationToken)
     {
@@ -283,7 +399,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         using var scope = _scopeFactory.CreateScope();
         var jobs = scope.ServiceProvider.GetRequiredService<IPrintJobRepository>();
-        if (await jobs.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken) is null)
+        if (!_reserved.Values.Contains(printerId) && await jobs.GetActiveJobByDispatchedPrinterIdAsync(printerId, cancellationToken) is null)
         {
             return;
         }
@@ -301,24 +417,24 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     /// occupancy cap and cumulative-unit ceiling, then dispatches it exactly like any other matched
     /// job — never a batch, never queued ahead of real demand.
     /// </summary>
-    private async Task TryDispatchBackfillAsync(
+    private async Task<Func<Task<bool>>?> TryDispatchBackfillAsync(
         IServiceProvider services, Printer printer, IReadOnlyList<decimal> nozzlesMm,
         IReadOnlyList<(string? MaterialType, string? ColorHex, decimal? NozzleMm)> loadedMaterials, ProductionDispatchQueryService queryService,
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
         var retries = await queryService.FilterReadyAsync(printer.Id,
-            await queryService.GetBackfillRetryCandidatesAsync(printer.Id, cancellationToken), cancellationToken);
+            await queryService.GetBackfillRetryCandidatesAsync(printer.Id, cancellationToken, _reserved), cancellationToken);
         var retryId = ProductionDispatchMatcher.SelectNextJob(nozzlesMm, loadedMaterials, retries);
         if (retryId is { } waitingId)
         {
             var waiting = await jobRepository.GetByIdAsync(waitingId, cancellationToken);
-            if (waiting is null) return;
+            if (waiting is null) return null;
             var req = await services.GetRequiredService<IPartRequirementRepository>().GetByIdAsync(waiting.PartRequirementId, cancellationToken);
             var current = req is null ? null : await services.GetRequiredService<IPartRepository>().GetByIdAsync(req.PartId, cancellationToken);
-            if (current is not null) await DispatchJobAsync(services, printer, waiting, current, RevisionMode.FollowLatest, jobRepository, cancellationToken);
-            return;
+            return current is null ? null
+                : await DispatchJobAsync(services, printer, waiting, current, RevisionMode.FollowLatest, jobRepository, cancellationToken);
         }
-        var backfillCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken, printer.Id);
+        var backfillCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken, printer.Id, _reserved);
         var readyBackfill = new List<BackfillLineCandidate>();
         foreach (var candidate in backfillCandidates)
         {
@@ -330,7 +446,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var requirementId = ProductionDispatchMatcher.SelectNextBackfillLine(nozzlesMm, loadedMaterials, backfillCandidates);
         if (requirementId is null)
         {
-            return;
+            return null;
         }
 
         var db = services.GetRequiredService<OpenFarm.Infrastructure.Persistence.OpenFarmDbContext>();
@@ -341,20 +457,20 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         var part = requirement is null ? null : await partRepository.GetByIdAsync(requirement.PartId, cancellationToken);
         if (requirement is null || part is null || part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete)
         {
-            return;
+            return null;
         }
 
         var runLine = await services.GetRequiredService<IProductionDemandRepository>().GetAsync(requirement.RunLineId, cancellationToken);
         if (runLine is null || !await queryService.CanDispatchDemandAsync(runLine.Id, cancellationToken))
         {
-            return;
+            return null;
         }
 
         await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM \"RunLines\" WHERE \"Id\" = {runLine.Id} FOR UPDATE", cancellationToken);
         await db.Entry(runLine).ReloadAsync(cancellationToken);
-        if (!await queryService.CanDispatchDemandAsync(runLine.Id, cancellationToken)) return;
-        var freshCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken, printer.Id);
-        if (!freshCandidates.Any(c => c.PartRequirementId == requirement.Id && c.CurrentOccupancy < c.BackfillPrinterCap)) return;
+        if (!await queryService.CanDispatchDemandAsync(runLine.Id, cancellationToken)) return null;
+        var freshCandidates = await queryService.GetBackfillCandidatesAsync(cancellationToken, printer.Id, _reserved);
+        if (!freshCandidates.Any(c => c.PartRequirementId == requirement.Id && c.CurrentOccupancy < c.BackfillPrinterCap)) return null;
         var nextQueuePosition = (await jobRepository.GetMaxQueuePositionAsync(cancellationToken) ?? 0) + 1024;
         var filamentSpecs = ProductionJobRequirements.FromPart(part);
 
@@ -367,14 +483,18 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         await jobRepository.SaveChangesAsync(cancellationToken);
         await claim.CommitAsync(cancellationToken);
 
-        await DispatchJobAsync(services, printer, newJob, part, runLine.RevisionMode, jobRepository, cancellationToken);
+        return await DispatchJobAsync(services, printer, newJob, part, runLine.RevisionMode, jobRepository, cancellationToken);
     }
 
-    private async Task DispatchJobAsync(
+    /// <returns>
+    /// The send, to run once the decision gate is open, or null when nothing is left to do (blocked, or a manual printer, whose
+    /// assignment is complete here). The job is reserved for this printer until the send returns.
+    /// </returns>
+    private async Task<Func<Task<bool>>?> DispatchJobAsync(
         IServiceProvider services, Printer printer, PrintJob job, Part part, RevisionMode revisionMode,
         IPrintJobRepository jobRepository, CancellationToken cancellationToken)
     {
-        if (part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return;
+        if (part.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return null;
         var effective = await services.GetRequiredService<ProductionJobRequirements>().ResolveAsync(job, part, cancellationToken);
         var quantityStorage = services.GetRequiredService<IPartFileStorage>();
         var quantityPath = effective.RevisionHash == part.RevisionHash ? part.StoragePath
@@ -385,12 +505,12 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             || job.ObjectExecution is { } legacy && legacy.Manifest.Units.Any(u => u.ObjectIds.Count != 1))
         {
             await BlockAsync(job, "The saved quantity or object grouping disagrees with this file. Reprocess the Part and recreate this job.", cancellationToken);
-            return;
+            return null;
         }
         var currentPrinter = await services.GetRequiredService<IPrinterRepository>().GetByIdAsync(printer.Id, cancellationToken);
         if (currentPrinter is null || currentPrinter.Status != PrinterStatus.Idle
             || part.NozzleDiameterMm is not { } nozzleMm || !currentPrinter.ConfirmedNozzlesMm().Contains(nozzleMm)
-            || await services.GetRequiredService<ProductionProfileReadiness>().GetIssueAsync(printer.Id, part, effective.Requirements, cancellationToken, effective.RevisionHash, job) is not null) return;
+            || await services.GetRequiredService<ProductionProfileReadiness>().GetIssueAsync(printer.Id, part, effective.Requirements, cancellationToken, effective.RevisionHash, job) is not null) return null;
         if (revisionMode == RevisionMode.FollowLatest && !job.HasFilamentRequirementOverride)
         {
             job.SetFilamentRequirements(effective.Requirements, false);
@@ -413,7 +533,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             {
                 var partRepository = services.GetRequiredService<IPartRepository>();
                 var freshPart = await partRepository.GetByIdAsync(part.Id, cancellationToken) ?? part;
-                if (freshPart.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return;
+                if (freshPart.PrintRequirementsStatus != OpenFarm.Domain.Parts.PrintRequirementsStatus.Complete) return null;
                 job.Dispatch(printer.Id, freshPart.RevisionHash, freshPart.RevisionNumber);
             }
             else
@@ -425,33 +545,44 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             await StageJobEventAsync(services, job, "PrintJobDispatched", cancellationToken);
             await jobRepository.SaveChangesAsync(cancellationToken);
             await PublishDispatchedAsync(services, job, printer.Id, cancellationToken);
-            return;
+            return null;
         }
 
-        var sent = false;
-        try
+        // Slicing and sending take minutes; the caller runs this after the gate is open so other printers decide meanwhile.
+        // Until it returns the job is reserved for this printer, which keeps every other decision away from it.
+        _reserved[job.Id] = printer.Id;
+        return async () =>
         {
-            sent = await DispatchToLiveIntegratedPrinterAsync(services, printer, job, part, nozzleMm, revisionMode, jobRepository, cancellationToken);
-        }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            // Nothing thrown before the send was confirmed may leave the job in flight, holding its printer until a restart.
-            LogDispatchAttemptFailed(_logger, printer.Id, ex);
-            await BlockAsync(job, "Unexpected error while sending. See the server log.", cancellationToken);
-        }
-        finally
-        {
-            // Whatever stopped this attempt, pages showing its progress go back to the job's own state.
-            if (!sent)
+            var sent = false;
+            try
             {
-                try
-                {
-                    await services.GetRequiredService<IProductionEventPublisher>()
-                        .PrintJobSendProgressAsync(job.Id, printer.Id, PrintSendStage.Ended, null, 1, null, CancellationToken.None);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException) { LogSendProgressFailed(_logger, job.Id, ex); }
+                sent = await DispatchToLiveIntegratedPrinterAsync(services, printer, job, part, nozzleMm, revisionMode, jobRepository, cancellationToken);
             }
-        }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Nothing thrown before the send was confirmed may leave the job in flight, holding its printer until a restart.
+                LogDispatchAttemptFailed(_logger, printer.Id, ex);
+                await BlockAsync(job, "Unexpected error while sending. See the server log.", cancellationToken);
+            }
+            finally
+            {
+                // Persisted state (dispatched, or reverted and blocked) is final by now, so releasing the reservation leaves no gap.
+                _reserved.TryRemove(job.Id, out _);
+
+                // Whatever stopped this attempt, pages showing its progress go back to the job's own state.
+                if (!sent)
+                {
+                    try
+                    {
+                        await services.GetRequiredService<IProductionEventPublisher>()
+                            .PrintJobSendProgressAsync(job.Id, printer.Id, PrintSendStage.Ended, null, 1, null, CancellationToken.None);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException) { LogSendProgressFailed(_logger, job.Id, ex); }
+                }
+            }
+
+            return sent;
+        };
     }
 
     /// <returns>Whether the job was sent.</returns>
@@ -683,8 +814,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 }
                 // A blip (Wi-Fi, a busy broker) is retried here instead of costing a backoff and a new slice — but only while the
                 // printer is still idle: one that started meanwhile may have taken this very send, and it must not get it twice.
-                // ponytail: the pause holds the single dispatch loop (~40 s worst case), so other printers wait too; move retries
-                // onto a per-printer task if a farm ever feels it.
+                // The pause holds this printer's slot, not the farm's decision gate (~40 s worst case).
                 if (attempt <= _sendRetryDelays.Count && ex is not BambuTransferException)
                 {
                     LogSendRetrying(_logger, job.Id, printer.Id, attempt, ex);
@@ -705,7 +835,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             }
         }
 
-        _sendFailures.Remove(printer.Id);
+        _sendFailures.TryRemove(printer.Id, out _);
         try
         {
             job.ClearBlock();
