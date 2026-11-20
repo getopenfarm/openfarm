@@ -5,6 +5,11 @@ description: Create farm accounts, grant permissions, and manage active browser 
 
 Administrators create accounts under **Users & groups**. There is no public self-registration or email password-recovery flow.
 
+Existing accounts can also sign in through authentik after explicit linking. See [single sign-on](single-sign-on.md) for setup and login policies.
+
+For automatic account creation at first sign-in, enable [JIT provisioning](account-provisioning.md).
+Managed accounts use OIDC without a local password. Their identity details are read-only in OpenFarm.
+
 ## Add a user
 
 1. Choose **Add user**.
@@ -35,6 +40,8 @@ Users connect AI assistants themselves, from **My profile → Connected apps** o
 Browser sessions expire fourteen days after sign-in. Refreshing an access token does not extend this period. If you change your own password, your current browser session stays active and other sessions end. If an administrator resets the password, all sessions end. Either type of password change revokes personal access tokens.
 
 Disabling an account blocks and revokes its sessions and tokens. Enabling it again does not restore old credentials. See [API access](../development/api.md) for personal tokens.
+
+To block an account that signs in through SSO, disable it. Do not remove it: with JIT on, the next sign-in creates a new account. See [Remove a user's access](account-provisioning.md#remove-a-users-access).
 
 ## Forgotten administrator password
 

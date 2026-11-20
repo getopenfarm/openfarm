@@ -8,10 +8,11 @@ import { ProfilePage } from '@/features/accounts/ProfilePage';
 import { TokenCreatePage } from '@/features/accounts/TokenCreatePage';
 import { UserFormPage } from '@/features/accounts/UserFormPage';
 import { UsersGroupsPage } from '@/features/accounts/UsersGroupsPage';
+import { AuthenticationSettingsPage } from '@/features/settings/AuthenticationSettingsPage';
 import { GeneralSettingsPage } from '@/features/settings/GeneralSettingsPage';
 import { CurrencyProvider } from '@/features/settings/generalSettings';
 import {
-  AiAssistantsSettingsPage,
+  IntegrationsSettingsPage,
   ServerSettingsPage,
 } from '@/features/settings/ServerSettingsPage';
 import { AssembliesPage } from '../features/assemblies/AssembliesPage';
@@ -22,6 +23,7 @@ import { AuditLogPage } from '../features/audit-log/AuditLogPage';
 import { ConnectErrorPage } from '../features/auth/ConnectErrorPage';
 import { ConsentPage } from '../features/auth/ConsentPage';
 import { LoginPage } from '../features/auth/LoginPage';
+import { OidcCompletePage } from '../features/auth/OidcCompletePage';
 import { CostCatalogPage } from '../features/cost-catalog/CostCatalogPage';
 import { CostItemFormPage } from '../features/cost-catalog/CostItemFormPage';
 import { LegacyCostCatalogRedirect } from '../features/cost-catalog/LegacyCostCatalogRedirect';
@@ -59,6 +61,7 @@ import { AppShell } from './layout/AppShell';
 import { ProtectedRoute } from './layout/ProtectedRoute';
 
 const routes: RouteObject[] = [
+  { path: '/auth/complete', element: <OidcCompletePage /> },
   {
     path: '/login',
     element: <LoginPage />,
@@ -329,6 +332,10 @@ const routes: RouteObject[] = [
             ],
           },
           {
+            path: '/activity-log',
+            element: <Navigate to="/audit-log" replace />,
+          },
+          {
             path: '/audit-log/:id',
             element: <AuditEntryPage />,
             handle: { title: 'Audit entry' },
@@ -358,9 +365,18 @@ const routes: RouteObject[] = [
                 handle: { title: 'Server' },
               },
               {
+                path: 'authentication',
+                element: <AuthenticationSettingsPage />,
+                handle: { title: 'Authentication' },
+              },
+              {
                 path: 'integrations/ai-assistants',
-                element: <AiAssistantsSettingsPage />,
-                handle: { title: 'AI assistants' },
+                element: <Navigate to="/settings/integrations" replace />,
+              },
+              {
+                path: 'integrations',
+                element: <IntegrationsSettingsPage />,
+                handle: { title: 'Integrations' },
               },
               {
                 path: 'printer-costs',

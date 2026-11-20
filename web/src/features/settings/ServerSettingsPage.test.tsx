@@ -5,7 +5,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AccessContext, AdministratorContext } from '@/lib/auth/AccessContext';
 import {
-  AiAssistantsSettingsPage,
+  IntegrationsSettingsPage,
   ServerSettingsPage,
 } from './ServerSettingsPage';
 import { SettingsLayout } from './SettingsLayout';
@@ -57,17 +57,15 @@ function setup({
         children: [
           { path: 'server', element: <ServerSettingsPage /> },
           {
-            path: 'integrations/ai-assistants',
-            element: <AiAssistantsSettingsPage />,
+            path: 'integrations',
+            element: <IntegrationsSettingsPage />,
           },
         ],
       },
     ],
     {
       initialEntries: [
-        kind === 'mcp'
-          ? '/settings/integrations/ai-assistants'
-          : '/settings/server',
+        kind === 'mcp' ? '/settings/integrations' : '/settings/server',
       ],
     },
   );
@@ -99,6 +97,14 @@ it('selects a mode by keyboard and saves without a password', async () => {
   const user = userEvent.setup();
   const { writes } = setup();
   const mode = await screen.findByRole('combobox', { name: 'MCP access' });
+  expect(
+    screen.getByRole('heading', { name: 'Integrations' }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Integrations' })).toHaveAttribute(
+    'href',
+    '/settings/integrations',
+  );
+  expect(screen.getByText('Model Context Protocol (MCP)')).toBeInTheDocument();
   expect(mode).toHaveTextContent('Disabled');
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(screen.queryByLabelText('Current password')).not.toBeInTheDocument();
@@ -171,12 +177,12 @@ it('keeps changes after a save failure and permits a retry', async () => {
 it('reports loading errors and hides installation links for non-administrators', async () => {
   setup({ failLoad: true, administrator: false });
   expect(
-    await screen.findByText('Could not load server settings'),
+    await screen.findByText('Could not load integration settings'),
   ).toBeInTheDocument();
   expect(
     screen.queryByRole('link', { name: 'Server' }),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByRole('link', { name: 'AI assistants' }),
+    screen.queryByRole('link', { name: 'Integrations' }),
   ).not.toBeInTheDocument();
 });

@@ -12,7 +12,7 @@ describe('estimationLabels', () => {
     expect(estimationSourceLabel('EmbeddedSlicedMetadata')).toBe('Sliced file');
   });
 
-  it('lists the machine profile without repeating the model', () => {
+  it('lists the machine profile without repeating the model, and leaves the plate to its own row', () => {
     expect(
       estimationProfileNames({
         source: 'ProjectPresets',
@@ -22,11 +22,6 @@ describe('estimationLabels', () => {
         filamentProfileNames: ['Aliz PETG'],
         buildPlate: 'High Temp Plate',
       }),
-    ).toEqual([
-      'Bambu Lab P1S 0.4 nozzle',
-      '0.20mm Standard',
-      'Aliz PETG',
-      'High Temp Plate',
-    ]);
+    ).toEqual(['Bambu Lab P1S 0.4 nozzle', '0.20mm Standard', 'Aliz PETG']);
   });
 });

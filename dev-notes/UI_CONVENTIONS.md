@@ -63,7 +63,7 @@ protection when changing these flows.
 `/users-groups/users/new` adds a user and `/users-groups/users/:id` edits one in
 place (Remove in the header, `FormFooter` Save, unsaved-change prompt). Two
 parts copy Akaun's `/users-groups` and `/profile` instead: groups edit inline
-beside the group list with a dirty-only Reset/Save footer and "Delete group",
+beside the group list with a dirty-only Reset/Save footer and "Remove group",
 and My Profile saves each section on its own with inline form errors. The Users
 & Groups list uses shared Skeleton loading feedback.
 

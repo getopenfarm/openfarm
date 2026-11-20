@@ -41,6 +41,7 @@ import { AccessEditor } from './AccessEditor';
 import {
   type AccountResponse,
   adminKey,
+  removeUserDescription,
   useAdministration,
   useRemoveUser,
   whoAmIKey,
@@ -81,10 +82,7 @@ export function UserFormPage() {
     return (
       <Page>
         <PageHeader above={back} title="User" />
-        <ErrorState
-          title="Could not load the user"
-          onRetry={() => void query.refetch()}
-        />
+        <ErrorState title="Load failed" onRetry={() => void query.refetch()} />
       </Page>
     );
   if (!query.data)
@@ -218,7 +216,7 @@ function UserForm({
         });
       }
     } catch (e) {
-      toast.error(await extractErrorDetail(e, 'Could not save user.'));
+      toast.error(await extractErrorDetail(e, 'Save failed.'));
     }
   });
 
@@ -232,6 +230,7 @@ function UserForm({
       <FieldLabel htmlFor={`user-${key}`}>{label}</FieldLabel>
       <Input
         id={`user-${key}`}
+        readOnly={user?.isExternallyManaged}
         type={key === 'email' ? 'email' : 'text'}
         autoComplete="off"
         placeholder={placeholder}
@@ -268,23 +267,33 @@ function UserForm({
         onSubmit={(e) => void submit(e)}
       >
         <FieldGroup className="max-w-3xl flex-1 gap-6">
+          {user?.isExternallyManaged && (
+            <Alert>
+              <AlertDescription>
+                The provider manages this account. Change its name, email and
+                username in the provider. Disable the account here to block
+                access.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="grid gap-4 md:grid-cols-2">
             {text('name', 'Full name', 'e.g. Mei Ling Tan')}
             {text('email', 'Email', 'name@example.com')}
             {text('username', 'Username', 'username')}
-            {id
-              ? text(
-                  'password',
-                  'Reset password',
-                  'Leave blank to keep current',
-                  'Leave blank to keep the current password. A new one signs the user out everywhere.',
-                )
-              : text(
-                  'password',
-                  'Temporary password',
-                  'Set an initial password',
-                  'Share it with the user. They can change it in their profile.',
-                )}
+            {!user?.isExternallyManaged &&
+              (id
+                ? text(
+                    'password',
+                    'Reset password',
+                    'Leave blank to keep current',
+                    'Leave blank to keep the current password. A new one signs the user out everywhere.',
+                  )
+                : text(
+                    'password',
+                    'Temporary password',
+                    'Set an initial password',
+                    'Share it with the user. They can change it in their profile.',
+                  ))}
           </div>
           <div className="flex items-center justify-between gap-4 rounded-md border px-3.5 py-3">
             <div className="min-w-0">
@@ -440,7 +449,7 @@ function UserForm({
           open={removeOpen}
           onOpenChange={setRemoveOpen}
           title={`Remove ${user.name || user.email}?`}
-          description="This cannot be undone."
+          description={removeUserDescription(user)}
           confirmLabel="Remove"
           destructive
           isPending={removeUser.isPending}
@@ -456,9 +465,7 @@ function UserForm({
                 navigate(listUrl, { replace: true });
               })
               .catch(async (e) =>
-                toast.error(
-                  await extractErrorDetail(e, 'Could not remove user.'),
-                ),
+                toast.error(await extractErrorDetail(e, 'Remove failed.')),
               );
           }}
         />

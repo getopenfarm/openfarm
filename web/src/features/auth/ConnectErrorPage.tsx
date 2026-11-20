@@ -44,7 +44,7 @@ export function ConnectMessage({ code }: { code: string | null }) {
         description={
           <>
             Use an access token, or ask an administrator to enable sign-in in
-            Settings → AI assistants.{' '}
+            Settings → Integrations.{' '}
             <a
               href="https://getopenfarm.github.io/docs/administration/ai-assistants#prepare-the-server"
               target="_blank"

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -97,6 +97,96 @@ describe('UsersGroupsPage', () => {
 });
 
 describe('UserFormPage', () => {
+  it('keeps externally managed identity fields read-only', async () => {
+    const user = userEvent.setup();
+    http.mockImplementation(async (url: string, init?: RequestInit) =>
+      init?.method
+        ? undefined
+        : {
+            data:
+              url === '/api/v1/admin/users'
+                ? [
+                    {
+                      ...(data[url] as Record<string, unknown>[])[0],
+                      isExternallyManaged: true,
+                    },
+                  ]
+                : data[url],
+          },
+    );
+    renderAt('/users-groups/users/u1');
+    expect(await screen.findByLabelText('Full name')).toHaveAttribute(
+      'readonly',
+    );
+    expect(screen.getByLabelText('Email')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Username')).toHaveAttribute('readonly');
+    expect(screen.queryByLabelText('Reset password')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeEnabled();
+    expect(
+      screen.getByRole('switch', { name: 'Account enabled' }),
+    ).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'Disable the account to block access.',
+    );
+  });
+  it('removes an empty group with the same verb as a user', async () => {
+    const user = userEvent.setup();
+    http.mockImplementation(async (url: string, init?: RequestInit) =>
+      init?.method
+        ? undefined
+        : {
+            data:
+              url === '/api/v1/admin/groups'
+                ? [{ ...(data[url] as object[])[0], memberCount: 0 }]
+                : data[url],
+          },
+    );
+    renderAt('/users-groups?tab=groups');
+    await user.click(
+      await screen.findByRole('button', { name: 'Actions for Operators' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Remove group' }),
+    );
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'Remove group "Operators"?',
+    );
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await waitFor(() =>
+      expect(http).toHaveBeenCalledWith('/api/v1/admin/groups/g1', {
+        method: 'DELETE',
+      }),
+    );
+  });
+  it('warns from the list that removing an SSO account does not block it', async () => {
+    const user = userEvent.setup();
+    http.mockImplementation(async (url: string, init?: RequestInit) =>
+      init?.method
+        ? undefined
+        : {
+            data:
+              url === '/api/v1/admin/users'
+                ? [
+                    {
+                      ...(data[url] as Record<string, unknown>[])[0],
+                      isExternallyManaged: true,
+                    },
+                  ]
+                : data[url],
+          },
+    );
+    renderAt('/users-groups');
+    await user.click(
+      await screen.findByRole('button', { name: 'Actions for Mei Ling' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Remove user' }),
+    );
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'Disable the account to block access.',
+    );
+  });
   it('opens the add form from the keyboard and creates a user', async () => {
     const user = userEvent.setup();
     const router = renderAt('/users-groups');

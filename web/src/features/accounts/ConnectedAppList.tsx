@@ -45,16 +45,13 @@ export function ConnectedAppList({ userId }: { userId?: string }) {
       setOpen(false);
       toast.success('App access revoked.');
     } catch (e) {
-      setError(await extractErrorDetail(e, 'Could not revoke app access.'));
+      setError(await extractErrorDetail(e, 'Revoke failed.'));
     }
   }
 
   if (!query.data)
     return query.isError ? (
-      <ErrorState
-        title="Could not load connected apps"
-        onRetry={() => void query.refetch()}
-      />
+      <ErrorState title="Load failed" onRetry={() => void query.refetch()} />
     ) : (
       <Skeleton className="h-32 w-full" />
     );

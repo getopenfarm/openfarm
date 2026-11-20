@@ -75,6 +75,9 @@ const sidebars: SidebarsConfig = {
       label: 'Administration',
       items: [
         'administration/accounts',
+        'administration/single-sign-on',
+        'administration/account-provisioning',
+        'administration/sso-reference',
         'administration/ai-assistants',
         'administration/settings',
       ],

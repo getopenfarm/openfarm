@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import { ErrorState } from '@/components/empty-state/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccessContext, AdministratorContext } from '@/lib/auth/AccessContext';
+import { connectReturnTo } from '@/lib/auth/connectResume';
 import {
   routePermission,
   settingsPath,
@@ -24,7 +25,7 @@ export function ProtectedRoute() {
       );
     return (
       <Navigate
-        to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`}
+        to={`/login?returnTo=${encodeURIComponent(connectReturnTo(location.pathname + location.search))}`}
         replace
       />
     );
@@ -43,6 +44,7 @@ export function ProtectedRoute() {
   if (
     !can(routePermission(location.pathname)) ||
     ((location.pathname.startsWith('/settings/server') ||
+      location.pathname.startsWith('/settings/authentication') ||
       location.pathname.startsWith('/settings/integrations')) &&
       !identity.data.isAdministrator)
   ) {

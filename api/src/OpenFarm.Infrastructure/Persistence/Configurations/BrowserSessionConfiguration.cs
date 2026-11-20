@@ -10,6 +10,10 @@ public sealed class BrowserSessionConfiguration : IEntityTypeConfiguration<Brows
     {
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Device).HasMaxLength(256);
+        builder.Property(s => s.OidcConfigurationIdentity).HasMaxLength(64);
+        builder.Property(s => s.OidcSubject).HasMaxLength(255);
+        builder.Property(s => s.OidcSessionId).HasMaxLength(255);
+        builder.HasIndex(s => new { s.OidcConfigurationIdentity, s.OidcSessionId });
         builder.HasIndex(s => new { s.UserId, s.ExpiresAtUtc });
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Property(s => s.ClientId).HasMaxLength(36);

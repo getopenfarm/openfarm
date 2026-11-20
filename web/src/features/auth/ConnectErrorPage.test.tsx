@@ -13,6 +13,7 @@ const at = (code: string) =>
 it('explains that sign-in is off, with the docs link', () => {
   at('disabled');
   expect(screen.getByText('Sign-in is off')).toBeInTheDocument();
+  expect(screen.getByText(/Settings → Integrations/)).toBeInTheDocument();
   expect(
     screen.getByRole('link', { name: 'How to turn on sign-in' }),
   ).toHaveAttribute(

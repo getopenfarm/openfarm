@@ -6,7 +6,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { httpClient } from '@/lib/api/httpClient';
 import { ProfilePage } from './ProfilePage';
 
+const profileState = vi.hoisted(() => ({ managed: false }));
+const closePasswordForm = vi.hoisted(() => vi.fn());
+
 vi.mock('@/lib/api/httpClient', () => ({ httpClient: vi.fn() }));
+vi.mock('./SignInMethods', () => ({
+  SignInMethods: ({
+    passwordForm,
+  }: {
+    passwordForm: (close: () => void) => import('react').ReactNode;
+  }) => passwordForm(closePasswordForm),
+}));
 vi.mock('@/lib/auth/permissions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/permissions')>()),
   useIdentity: () => ({
@@ -15,6 +25,7 @@ vi.mock('@/lib/auth/permissions', async (importOriginal) => ({
       displayName: 'Mei',
       email: 'mei@example.com',
       username: 'mei',
+      isExternallyManaged: profileState.managed,
     },
     isError: false,
   }),
@@ -42,9 +53,23 @@ function setup(tab = 'profile') {
 
 beforeEach(() => {
   http.mockReset();
+  profileState.managed = false;
 });
 
 describe('Profile form feedback', () => {
+  it('shows centrally managed profile details without editable fields or a save action', () => {
+    profileState.managed = true;
+    setup();
+    expect(
+      screen.getByText('The provider manages these details.'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Display name')).toBeDisabled();
+    expect(screen.getByLabelText('Email')).toBeDisabled();
+    expect(screen.getByLabelText('Username')).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Save' }),
+    ).not.toBeInTheDocument();
+  });
   it('keeps the section save workflow and disables conflicting controls while saving', async () => {
     let finish!: () => void;
     http.mockImplementation(
@@ -92,9 +117,27 @@ describe('Profile form feedback', () => {
     await user.type(confirm, 'new-password');
     await user.click(screen.getByRole('button', { name: 'Change password' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not change password.',
+      'Password change failed.',
     );
     expect(screen.getByLabelText('New password')).toHaveValue('new-password');
+  });
+
+  it('focuses the current password and closes the form after a change or Cancel', async () => {
+    closePasswordForm.mockClear();
+    http.mockResolvedValue(undefined);
+    setup('security');
+    const user = userEvent.setup();
+    expect(screen.getByLabelText('Current password')).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(closePasswordForm).toHaveBeenCalledTimes(1);
+    await user.type(screen.getByLabelText('Current password'), 'old-password');
+    await user.type(screen.getByLabelText('New password'), 'new-password');
+    await user.type(
+      screen.getByLabelText('Confirm new password'),
+      'new-password',
+    );
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
+    await waitFor(() => expect(closePasswordForm).toHaveBeenCalledTimes(2));
   });
 
   it('keeps session confirmation pending, reports failure, and returns focus after cancel', async () => {
@@ -121,7 +164,7 @@ describe('Profile form feedback', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     await act(async () => reject(new Error('Unavailable')));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Could not revoke session.',
+      'Revoke failed.',
     );
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(revoke).toHaveFocus());

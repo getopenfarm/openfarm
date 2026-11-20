@@ -74,7 +74,7 @@ export function GroupPanel({
       onSelect(result.data.id);
       if (isMobile) setSheetOpen(true);
     } catch (e) {
-      toast.error(await extractErrorDetail(e, 'Could not add group.'));
+      toast.error(await extractErrorDetail(e, 'Add failed.'));
     } finally {
       setCreating(false);
     }
@@ -203,7 +203,7 @@ function GroupDetail({
       await client.invalidateQueries({ queryKey: [adminKey] });
       toast.success('Group saved.');
     } catch (e) {
-      toast.error(await extractErrorDetail(e, 'Could not save group.'));
+      toast.error(await extractErrorDetail(e, 'Save failed.'));
     } finally {
       setSaving(false);
     }
@@ -213,11 +213,11 @@ function GroupDetail({
     try {
       await httpClient(`${adminKey}/groups/${group.id}`, { method: 'DELETE' });
       setDeleteOpen(false);
-      toast.success('Group deleted.');
+      toast.success('Group removed.');
       onDeleted();
       await client.invalidateQueries({ queryKey: [adminKey] });
     } catch (e) {
-      toast.error(await extractErrorDetail(e, 'Could not delete group.'));
+      toast.error(await extractErrorDetail(e, 'Remove failed.'));
     } finally {
       setDeleting(false);
     }
@@ -242,7 +242,7 @@ function GroupDetail({
             onSelect={() => setDeleteOpen(true)}
           >
             <Trash2Icon />
-            Delete group
+            Remove group
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
@@ -352,9 +352,9 @@ function GroupDetail({
     <ConfirmDialog
       open={deleteOpen}
       onOpenChange={setDeleteOpen}
-      title={`Delete group "${group.name}"?`}
+      title={`Remove group "${group.name}"?`}
       description="This cannot be undone."
-      confirmLabel="Delete"
+      confirmLabel="Remove"
       destructive
       isPending={deleting}
       closeOnConfirm={false}

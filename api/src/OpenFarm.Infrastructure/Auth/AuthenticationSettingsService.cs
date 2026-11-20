@@ -1,0 +1,126 @@
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using OpenFarm.Domain.ActivityLog;
+using OpenFarm.Application.Auth;
+using OpenFarm.Infrastructure.Identity;
+using OpenFarm.Infrastructure.Persistence;
+
+namespace OpenFarm.Infrastructure.Auth;
+
+public sealed record AuthenticationRecoveryAccount(Guid Id, string Username);
+public sealed record AuthenticationSettingsResponse(Guid Revision, bool OidcEnabled, bool InternalAuthenticationEnabled, string DisplayName, string? Authority,
+    string? ClientId, bool ClientCredentialConfigured, Guid[] RecoveryUserIds, bool JitEnabled,
+    bool RequireVerifiedEmail,
+    string DefaultGroup, GroupMapping[] GroupMappings, string GroupsClaim, string AdditionalScopes, AuthenticationRecoveryAccount[] RecoveryAccounts,
+    GroupSummary[] Groups, string? CallbackUrl, string? LogoutUrl, bool RecoveryMode);
+public sealed record UpdateAuthenticationSettingsRequest(Guid Revision, AuthenticationSettingsValues Settings);
+
+public sealed class AuthenticationSettingsService(OpenFarmDbContext db, AuthenticationConfiguration configuration,
+    ServerConfiguration server, ServerConfigurationOverrides policy, TimeProvider time)
+{
+    public async Task<AuthenticationSettingsResponse> ReadAsync(CancellationToken ct)
+    {
+        var saved = await db.AuthenticationSettings.AsNoTracking().SingleAsync(ct);
+        return await ResponseAsync(saved.Revision, configuration.Unprotect(saved), ct);
+    }
+
+    public async Task<AuthenticationSettingsResponse> UpdateAsync(Guid actor, Guid sessionId, UpdateAuthenticationSettingsRequest input, CancellationToken ct)
+    {
+        if (input.Settings is null) throw new ArgumentException("Authentication settings are required.");
+        if (configuration.RecoveryMode) throw new ArgumentException("Turn off deployment recovery mode before changing authentication settings.");
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        // Same administration lock as user/group changes, followed by the configuration row.
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(71426499)", ct);
+        var saved = await db.AuthenticationSettings.FromSqlInterpolated(
+            $"SELECT * FROM \"AuthenticationSettings\" WHERE \"Id\" = {AuthenticationSettingsRecord.SingletonId} FOR UPDATE").SingleAsync(ct);
+        if (saved.Revision != input.Revision) throw new ServerSettingsConflictException();
+        var previous = configuration.Unprotect(saved);
+        var value = input.Settings;
+        if (value.RecoveryUserIds is null
+            || value.DisplayName is null || value.DefaultGroup is null || value.GroupMappings is null || value.GroupsClaim is null || value.AdditionalScopes is null || value.Authority?.Length > 2048
+            || value.ClientId?.Length > 256 || value.ClientSecret?.Length > 4096)
+            throw new ArgumentException("Enter valid authentication settings.");
+        if ((previous.Authority != value.Authority || previous.ClientId != value.ClientId)
+            && previous.ClientSecret is not null && string.IsNullOrWhiteSpace(value.ClientSecret))
+            throw new ArgumentException("Enter the provider's client credential when changing its issuer or client ID.");
+        value = value with { ClientSecret = value.ClientSecret ?? previous.ClientSecret };
+        OidcSettings oidc;
+        var origin = policy.Resolve(await db.ServerSettings.AsNoTracking().SingleAsync(ct)).PublicUrl;
+        try
+        {
+            oidc = new(value);
+            _ = new ProvisioningSettings(value, oidc);
+            oidc.ValidatePublicUrl(origin);
+        }
+        catch (InvalidOperationException) { throw new ArgumentException("Check the issuer URL, client credentials, recovery accounts, and provisioning settings. Enabled SSO needs an HTTPS public URL and issuer; HTTP is allowed only on localhost."); }
+        var recovery = await RecoveryAccountsAsync(ct);
+        if (value.RecoveryUserIds.Any(id => !recovery.Any(a => a.Id == id)))
+            throw new ArgumentException("Recovery accounts must be enabled local administrators with a password.");
+        if (!value.InternalAuthenticationEnabled && !value.RecoveryUserIds.Contains(actor)
+            && !await db.BrowserSessions.AnyAsync(s => s.Id == sessionId && s.UserId == actor
+                && s.OidcConfigurationIdentity == oidc.SessionIdentity && s.RevokedAtUtc == null, ct))
+            throw new ArgumentException("Sign in through this provider or select your current administrator as a recovery account before requiring SSO.");
+        if (value.JitEnabled)
+        {
+            var groups = await db.Roles.AsNoTracking().ToArrayAsync(ct); // a handful of rows
+            static bool Named(ApplicationRole role, string name) => string.Equals(role.Name, name, StringComparison.OrdinalIgnoreCase);
+            if (!groups.Any(r => ExternalProvisioningService.CanBeDefaultGroup(r) && Named(r, value.DefaultGroup)))
+                throw new ArgumentException("The default group must be an existing, unprotected group.");
+            if (value.GroupMappings.Any(m => !groups.Any(r => Named(r, m.Group))))
+                throw new ArgumentException("Each mapped group must be an existing group.");
+        }
+        if (JsonSerializer.Serialize(previous) != JsonSerializer.Serialize(value))
+        {
+            var providerChanged = previous.OidcEnabled != value.OidcEnabled || previous.Authority != value.Authority
+                || previous.ClientId != value.ClientId || previous.ClientSecret != value.ClientSecret;
+            var now = time.GetUtcNow();
+            await db.BrowserSessions.Where(s => s.ClientId == null && s.RevokedAtUtc == null
+                && ((providerChanged && s.OidcConfigurationIdentity != null)
+                    || (!value.InternalAuthenticationEnabled && s.OidcConfigurationIdentity == null && !value.RecoveryUserIds.Contains(s.UserId))))
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
+            // Pending linking proofs must not survive a policy change or provider switch.
+            await db.UserTokens.Where(t => t.Name == "PendingLink").ExecuteDeleteAsync(ct);
+            saved.ProtectedConfiguration = configuration.Protect(value);
+            saved.Revision = Guid.NewGuid();
+            // Deliberately exclude credentials and the encrypted payload from audit details.
+            db.ActivityLogEntries.Add(ActivityLogEntry.Create("AuthenticationSettingsRecord", saved.Id.ToString(), "AuthenticationSettingsChanged", actor,
+                ActorType.Operator, new ActivityLogDetails(ReportedState: JsonSerializer.Serialize(new
+                {
+                    value.OidcEnabled,
+                    value.InternalAuthenticationEnabled,
+                    value.Authority,
+                    value.ClientId,
+                    value.JitEnabled,
+                    value.GroupMappings,
+                    value.GroupsClaim,
+                    value.AdditionalScopes,
+                    ClientCredentialChanged = previous.ClientSecret != value.ClientSecret
+                }))));
+            await db.SaveChangesAsync(ct);
+        }
+        await tx.CommitAsync(ct);
+        return await ResponseAsync(saved.Revision, value, ct);
+    }
+
+    private async Task<AuthenticationRecoveryAccount[]> RecoveryAccountsAsync(CancellationToken ct) =>
+        await (from u in db.Users.AsNoTracking()
+               join membership in db.UserRoles on u.Id equals membership.UserId
+               join role in db.Roles on membership.RoleId equals role.Id
+               where u.IsEnabled && u.PasswordHash != null && u.ProvisioningProvider == null && role.Name == PermissionCatalog.Administrators
+               orderby u.UserName
+               select new AuthenticationRecoveryAccount(u.Id, u.UserName!)).ToArrayAsync(ct);
+
+    private async Task<AuthenticationSettingsResponse> ResponseAsync(Guid revision, AuthenticationSettingsValues value, CancellationToken ct)
+    {
+        var origin = server.Current.PublicUrl;
+        return new(revision, value.OidcEnabled, value.InternalAuthenticationEnabled, value.DisplayName, value.Authority, value.ClientId,
+            !string.IsNullOrEmpty(value.ClientSecret), value.RecoveryUserIds, value.JitEnabled,
+            value.RequireVerifiedEmail,
+            value.DefaultGroup, value.GroupMappings, value.GroupsClaim, value.AdditionalScopes,
+            await RecoveryAccountsAsync(ct), await db.Roles.AsNoTracking()
+                .OrderBy(r => r.Name).Select(r => new GroupSummary(r.Id, r.Name!, r.IsProtected)).ToArrayAsync(ct),
+            origin is null ? null : origin + "/api/v1/auth/sso/callback",
+            origin is null ? null : origin + "/api/v1/auth/sso/backchannel-logout",
+            configuration.RecoveryMode);
+    }
+}

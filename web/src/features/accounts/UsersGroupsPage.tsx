@@ -36,6 +36,7 @@ import { extractErrorDetail } from '@/lib/api/extractErrorDetail';
 import {
   type AccountResponse,
   type GroupResponse,
+  removeUserDescription,
   useAdministration,
   useRemoveUser,
 } from './api';
@@ -256,14 +257,14 @@ export function UsersGroupsPage() {
         <TabsContent value={tab} className="flex flex-col gap-4">
           {query.isError && query.data && (
             <ErrorState
-              title="Could not refresh users and groups"
+              title="Refresh failed"
               description="Showing previous results."
               onRetry={() => query.refetch()}
             />
           )}
           {query.isError && !query.data ? (
             <ErrorState
-              title="Could not load users and groups"
+              title="Load failed"
               onRetry={() => void query.refetch()}
             />
           ) : !query.data ? (
@@ -325,7 +326,7 @@ export function UsersGroupsPage() {
         open={removeOpen}
         onOpenChange={setRemoveOpen}
         title={`Remove ${removing?.name || removing?.email}?`}
-        description="This cannot be undone."
+        description={removeUserDescription(removing)}
         confirmLabel="Remove"
         destructive
         isPending={removeUser.isPending}
@@ -339,9 +340,7 @@ export function UsersGroupsPage() {
               setRemoveOpen(false);
             })
             .catch(async (e) =>
-              toast.error(
-                await extractErrorDetail(e, 'Could not remove user.'),
-              ),
+              toast.error(await extractErrorDetail(e, 'Remove failed.')),
             );
         }}
       />

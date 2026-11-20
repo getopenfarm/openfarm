@@ -23,6 +23,11 @@ import type {
   ConsentResponse,
 } from '@/lib/api/generated/endpoints.schemas';
 import { httpClient } from '@/lib/api/httpClient';
+import {
+  clearConnectRequest,
+  connectReturnTo,
+  resolveConnectRequest,
+} from '@/lib/auth/connectResume';
 import { useAuth } from '@/lib/auth/useAuth';
 import {
   ConnectFrame,
@@ -34,7 +39,7 @@ const consentUrl = '/api/v1/auth/oauth/consent';
 const NOTHING_SELECTED = 'Select at least one available permission.';
 const EXPIRED =
   'Connection request expired. Start again from your AI assistant.';
-const FAILED = 'Could not connect the app. Start again from your AI assistant.';
+const FAILED = 'Connection failed. Start again from your AI assistant.';
 
 const TIERS: Record<string, { heading: string; note?: string; red?: boolean }> =
   {
@@ -70,7 +75,8 @@ async function problemCode(error: unknown) {
 /** The consent screen an AI assistant's sign-in lands on (akaun's `/oauth/authorize`). */
 export function ConsentPage() {
   const [params] = useSearchParams();
-  const request = params.get('request') ?? '';
+  const request =
+    params.get('request') ?? resolveConnectRequest(params.get('resume')) ?? '';
   useConnectTitle();
   const query = useQuery({
     queryKey: [consentUrl, request],
@@ -99,10 +105,7 @@ export function ConsentPage() {
       ) : consent ? (
         <ConsentForm request={request} consent={consent} />
       ) : query.isError ? (
-        <ErrorState
-          title="Could not load the connection request"
-          onRetry={() => void query.refetch()}
-        />
+        <ErrorState title="Load failed" onRetry={() => void query.refetch()} />
       ) : (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-8 w-2/3" />
@@ -170,6 +173,7 @@ function ConsentForm({
       );
       const target = response.data.redirectUri;
       if (!target) throw new Error('No redirect');
+      clearConnectRequest();
       setReturning(true);
       window.location.assign(target);
     } catch (e) {
@@ -186,11 +190,11 @@ function ConsentForm({
     try {
       await auth.logout();
       navigate(
-        `/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`,
+        `/login?returnTo=${encodeURIComponent(connectReturnTo(location.pathname + location.search))}`,
         { replace: true },
       );
     } catch {
-      toast.error('Could not sign out.');
+      toast.error('Sign-out failed.');
     }
   }
 

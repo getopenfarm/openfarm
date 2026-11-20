@@ -19,10 +19,16 @@ public sealed record AppGrant(string[] Scopes, string ClientName);
 /// states which kind it acts on: a browser session never acts as an app, and an app never as a browser session.
 /// </summary>
 public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService jwt, IDataProtectionProvider protection,
-    OAuthSettings oauth, TimeProvider time)
+    OAuthSettings oauth, TimeProvider time, OidcSettings oidc, AuthenticationConfiguration configuration)
 {
     public const string AppCredentialPrefix = "ofr_";
     public static readonly TimeSpan AppLifetime = TimeSpan.FromDays(30);
+    /// <summary>Hard cap from sign-in: a password session's whole life, and the most a sliding OIDC session can reach.</summary>
+    public static readonly TimeSpan SessionMaxLifetime = TimeSpan.FromDays(14);
+    /// <summary>An OIDC session's sliding window: each refresh extends it, never past <see cref="SessionMaxLifetime"/>.</summary>
+    public static readonly TimeSpan OidcIdleLifetime = TimeSpan.FromDays(3);
+    /// <summary>How long a password sign-in proves the account owner is present, so linking SSO needs no password again.</summary>
+    public static readonly TimeSpan RecentSignInWindow = TimeSpan.FromMinutes(10);
     private static readonly SearchValues<char> LowerHex = SearchValues.Create("0123456789abcdef");
 
     private readonly IDataProtector _protector = protection.CreateProtector("OpenFarm.RefreshRetry.v1");
@@ -32,7 +38,25 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
     public static bool IsAppCredential(string value) => value.Length == 68 && value.StartsWith(AppCredentialPrefix, StringComparison.Ordinal)
         && value.AsSpan(4).IndexOfAnyExcept(LowerHex) < 0;
 
-    public async Task<LoginResult> CreateAsync(Guid userId, string device, CancellationToken ct)
+    /// <summary>Permanently revoke incompatible browser sessions when deployment login policy changes.</summary>
+    public async Task<int> ApplyLoginPolicyAsync(CancellationToken ct)
+    {
+        await using var transaction = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+        if (!await configuration.LockCurrentAsync(ct)) return 0;
+        var identity = oidc.Enabled ? oidc.SessionIdentity : null;
+        var enabled = oidc.Enabled;
+        var required = !oidc.InternalAuthenticationEnabled;
+        var recovery = oidc.RecoveryUserIds;
+        var now = time.GetUtcNow();
+        var affected = await db.BrowserSessions.Where(s => s.ClientId == null && s.RevokedAtUtc == null
+            && ((s.OidcConfigurationIdentity != null && (!enabled || s.OidcConfigurationIdentity != identity))
+                || (s.OidcConfigurationIdentity == null && required && !recovery.Contains(s.UserId))))
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAtUtc, now), ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
+        return affected;
+    }
+
+    public async Task<LoginResult> CreateAsync(Guid userId, string device, CancellationToken ct, bool external = false, string? oidcSubject = null, string? oidcSessionId = null)
     {
         var now = time.GetUtcNow();
         var session = new BrowserSession
@@ -41,7 +65,10 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
             UserId = userId,
             CreatedAtUtc = now,
             LastSeenAtUtc = now,
-            ExpiresAtUtc = now.AddDays(14),
+            ExpiresAtUtc = now + (external ? OidcIdleLifetime : SessionMaxLifetime),
+            OidcConfigurationIdentity = external ? oidc.SessionIdentity : null,
+            OidcSubject = external ? oidcSubject : null,
+            OidcSessionId = external ? oidcSessionId : null,
             Device = device[..Math.Min(256, device.Length)],
         };
         var credential = NewCredential();
@@ -101,6 +128,7 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         var session = await db.BrowserSessions.FromSqlInterpolated($"SELECT * FROM \"BrowserSessions\" WHERE \"Id\" = {row.SessionId} FOR UPDATE").SingleAsync(ct);
         var now = time.GetUtcNow();
         if (session.ClientId != clientId) return null;
+        if (clientId is null && !oidc.AllowsBrowserSession(session.UserId, session.OidcConfigurationIdentity)) return null;
         if (clientId is not null && (!oauth.Enabled || session.OAuthConfigurationIdentity != oauth.ConfigurationIdentity)) return null;
         if (session.RevokedAtUtc is not null || session.ExpiresAtUtc <= now || !await db.Users.AnyAsync(u => u.Id == session.UserId && u.IsEnabled, ct)) return null;
         if (row.UsedAtUtc is not null)
@@ -123,6 +151,13 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         row.UsedAtUtc = now;
         row.ProtectedSuccessor = _protector.Protect(next);
         db.SessionCredentials.Add(new SessionCredential { Hash = Hash(next), SessionId = session.Id });
+        // Sliding window for OIDC browser sessions; the cap is fixed at sign-in and never moves.
+        if (session.ClientId is null && session.OidcConfigurationIdentity is not null)
+        {
+            var slid = now + OidcIdleLifetime;
+            var cap = session.CreatedAtUtc + SessionMaxLifetime;
+            session.ExpiresAtUtc = slid < cap ? slid : cap;
+        }
         session.LastSeenAtUtc = now;
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -138,11 +173,24 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         return new(token.Token, token.ExpiresAtUtc, session.UserId, credential, session.ExpiresAtUtc);
     }
 
+    /// <summary>
+    /// True when this browser session began with a password sign-in within <see cref="RecentSignInWindow"/>. Only the
+    /// password login creates a non-OIDC browser session, and refresh never moves <see cref="BrowserSession.CreatedAtUtc"/>.
+    /// </summary>
+    public async Task<bool> IsRecentPasswordSignInAsync(Guid userId, Guid sessionId, CancellationToken ct)
+    {
+        var since = time.GetUtcNow() - RecentSignInWindow;
+        return await db.BrowserSessions.AsNoTracking().AnyAsync(s => s.Id == sessionId && s.UserId == userId
+            && s.ClientId == null && s.OidcConfigurationIdentity == null && s.RevokedAtUtc == null && s.CreatedAtUtc >= since, ct);
+    }
+
     /// <summary>Browser sessions only: an app's session id never authenticates the REST API or the hub.</summary>
     public async Task<bool> IsActiveAsync(Guid userId, Guid sessionId, CancellationToken ct)
     {
         var now = time.GetUtcNow();
-        return await db.BrowserSessions.AnyAsync(s => s.Id == sessionId && s.UserId == userId && s.ClientId == null && s.RevokedAtUtc == null && s.ExpiresAtUtc > now, ct)
+        var session = await db.BrowserSessions.AsNoTracking().SingleOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId
+            && s.ClientId == null && s.RevokedAtUtc == null && s.ExpiresAtUtc > now, ct);
+        return session is not null && oidc.AllowsBrowserSession(userId, session.OidcConfigurationIdentity)
             && await db.Users.AnyAsync(u => u.Id == userId && u.IsEnabled, ct);
     }
 

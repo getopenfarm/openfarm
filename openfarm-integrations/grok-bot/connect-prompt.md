@@ -20,7 +20,7 @@ filament stock, pricing and maintenance.
   tokens and other credentials out of this conversation.
 - If MCP or sign-in is disabled, explain the required setup: an administrator
   sets the Public URL under Settings → Server and selects Sign-in and access
-  tokens under Settings → AI assistants, then saves. Deployment overrides can
+  tokens under Settings → Integrations, then saves. Deployment overrides can
   lock these fields. Do not change server settings to test a connection.
 - If this Grokbot cannot create custom MCP connections or complete OAuth, say
   exactly what is unsupported and give me the manual setup steps using the

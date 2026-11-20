@@ -12,6 +12,7 @@ export interface CurrentUser {
   isAdministrator: boolean;
   groups: string[];
   permissions: string[];
+  isExternallyManaged?: boolean;
 }
 export function useIdentity() {
   const auth = useContext(AuthContext);
@@ -44,7 +45,8 @@ export function Can({
 const settingsPaths = [
   '/settings',
   '/settings/server',
-  '/settings/integrations/ai-assistants',
+  '/settings/authentication',
+  '/settings/integrations',
   '/settings/fees',
   '/settings/printer-costs',
   '/settings/slicing-defaults',
@@ -59,6 +61,7 @@ export function settingsPath(
       (path) =>
         (administrator ||
           (!path.startsWith('/settings/server') &&
+            !path.startsWith('/settings/authentication') &&
             !path.startsWith('/settings/integrations'))) &&
         can(routePermission(path) ?? ''),
     ) ?? null
@@ -70,6 +73,7 @@ export function routePermission(path: string): string | null {
   if (path.startsWith('/settings')) {
     if (
       path.startsWith('/settings/server') ||
+      path.startsWith('/settings/authentication') ||
       path.startsWith('/settings/integrations')
     )
       return 'users:manage';

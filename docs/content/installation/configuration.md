@@ -1,6 +1,6 @@
 ---
 title: Configuration
-description: Configure the public address, AI assistant sign-in, saved keys, database, and number of simultaneous slicing operations.
+description: Configure the public address, MCP sign-in, saved keys, database, and number of simultaneous slicing operations.
 ---
 
 The production image includes default settings. To change them, enter overrides in `.env` next to your Compose file. ASP.NET setting names use double underscores, such as `Seed__AdminPassword`.
@@ -46,9 +46,9 @@ docker compose up -d --force-recreate openfarm
 
 With an HTTPS origin, refresh cookies use the Secure attribute, even if the proxy connects to OpenFarm over HTTP. Sign in through that HTTPS hostname. Those cookies do not work for direct HTTP sign-in over the LAN. For trusted local HTTP hosting, leave the saved public URL blank and omit `ORIGIN`. Removing an override does not clear the saved URL.
 
-## AI assistant sign-in
+## MCP sign-in
 
-MCP is disabled by default. Administrators can enable **Access tokens only** or **Sign-in and access tokens** under **Settings → AI assistants**. The second mode requires an HTTPS public URL, except for localhost development. Changes in Settings apply without restarting.
+MCP is disabled by default. Administrators can enable **Access tokens only** or **Sign-in and access tokens** under **Settings → Integrations**. The second mode requires an HTTPS public URL, except for localhost development. Changes in Settings apply without restarting.
 
 For automated deployments, use:
 

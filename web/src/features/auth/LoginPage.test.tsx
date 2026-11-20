@@ -6,15 +6,22 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from '@/lib/auth/AuthProvider';
+import { useLoginProviders } from '@/lib/auth/oidc';
 import { clearToken, getToken } from '@/lib/auth/tokenStorage';
 import { LoginPage } from './LoginPage';
+
+vi.mock('@/lib/auth/oidc', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/oidc')>()),
+  useLoginProviders: vi.fn(),
+}));
 
 vi.mock('@/lib/auth/session', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/session')>()),
   refreshSession: vi.fn().mockResolvedValue(null),
 }));
 
-function renderLoginPage() {
+function renderLoginPage(path = '/login') {
+  window.history.replaceState(null, '', path);
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -23,7 +30,7 @@ function renderLoginPage() {
     return (
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <MemoryRouter initialEntries={['/login']}>
+          <MemoryRouter initialEntries={[path]}>
             {children}
             <Toaster />
           </MemoryRouter>
@@ -38,10 +45,19 @@ function renderLoginPage() {
 describe('LoginPage', () => {
   beforeEach(() => {
     clearToken();
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: false,
+        internalAuthenticationEnabled: true,
+        displayName: 'authentik',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    window.history.replaceState(null, '', '/');
     clearToken();
   });
 
@@ -49,8 +65,149 @@ describe('LoginPage', () => {
     renderLoginPage();
 
     expect(screen.getByLabelText('Username')).toBeInTheDocument();
+    expect(screen.getByLabelText('Username')).toHaveAttribute(
+      'placeholder',
+      'Username',
+    );
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toHaveAttribute(
+      'placeholder',
+      'Password',
+    );
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  it('explains provider startup failures while retaining local sign-in', () => {
+    renderLoginPage('/login?ssoError=provider_configuration');
+    expect(screen.getByRole('alert')).toHaveTextContent('check the issuer URL');
+    expect(screen.getByRole('alert')).toHaveTextContent('the server log');
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('keeps the password form behind a toggle when OIDC is optional', async () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: true,
+        internalAuthenticationEnabled: true,
+        displayName: 'authentik',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage();
+    expect(
+      screen.getByRole('link', { name: 'Sign in with authentik' }),
+    ).toHaveAttribute('href', '/api/v1/auth/sso/login?returnTo=%2F');
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Use username and password' }));
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('opens the password form after a failed SSO sign-in when it is allowed', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: true,
+        internalAuthenticationEnabled: true,
+        displayName: 'authentik',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage('/login?ssoError=unavailable');
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('keeps the local form closed after a failed SSO sign-in', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: true,
+        internalAuthenticationEnabled: false,
+        displayName: 'authentik',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage('/login?ssoError=unavailable');
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+  });
+
+  it('shows no form until the sign-in methods load', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: undefined,
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+  });
+
+  it('shows the password form when the sign-in methods fail to load', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: undefined,
+      isError: true,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useLoginProviders>);
+    renderLoginPage();
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+  });
+
+  it('labels the button with the neutral name for an unnamed provider', () => {
+    vi.mocked(useLoginProviders).mockReturnValue({
+      data: {
+        oidcEnabled: true,
+        internalAuthenticationEnabled: true,
+        displayName: 'SSO',
+      },
+      isError: false,
+    } as ReturnType<typeof useLoginProviders>);
+    renderLoginPage();
+    expect(
+      screen.getByRole('link', { name: 'Sign in with SSO' }),
+    ).toBeInTheDocument();
+  });
+
+  describe('when OIDC is required', () => {
+    beforeEach(() => {
+      vi.mocked(useLoginProviders).mockReturnValue({
+        data: {
+          oidcEnabled: true,
+          internalAuthenticationEnabled: false,
+          displayName: 'authentik',
+        },
+        isError: false,
+      } as ReturnType<typeof useLoginProviders>);
+    });
+
+    it('hides the password form behind a quiet local sign-in link', async () => {
+      renderLoginPage();
+      expect(screen.queryByText(/recovery/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: 'Local sign-in' }));
+      expect(screen.getByLabelText('Password')).toBeInTheDocument();
+      expect(screen.getByText('Local administrator sign-in')).toBeVisible();
+      await userEvent
+        .setup()
+        .click(screen.getByRole('button', { name: 'Hide local sign-in' }));
+      expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Local sign-in' }),
+      ).toBeInTheDocument();
+    });
+
+    it('opens the local form for ?local=1', () => {
+      renderLoginPage('/login?local=1');
+      expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    });
+
+    it('opens the local form with a hint when the provider is unavailable', () => {
+      renderLoginPage('/login?ssoError=provider_configuration');
+      expect(screen.getByLabelText('Password')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'SSO is unavailable. Administrators can sign in with a local account.',
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
   it('blocks submission and shows inline errors when fields are empty', async () => {

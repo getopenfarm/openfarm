@@ -2153,6 +2153,20 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
 
+                    b.PrimitiveCollection<Guid[]>("ProvisionedGroupIds")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid[]")
+                        .HasDefaultValueSql("'{}'::uuid[]");
+
+                    b.Property<string>("ProvisioningExternalId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("ProvisioningProvider")
+                        .HasMaxLength(69)
+                        .HasColumnType("character varying(69)");
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
@@ -2172,7 +2186,29 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
 
+                    b.HasIndex("ProvisioningProvider", "ProvisioningExternalId")
+                        .IsUnique();
+
                     b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.AuthenticationSettingsRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProtectedConfiguration")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AuthenticationSettings");
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.BrowserSession", b =>
@@ -2203,6 +2239,18 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("OidcConfigurationIdentity")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("OidcSessionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("OidcSubject")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<string>("RedirectUri")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
@@ -2219,6 +2267,8 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ClientId");
+
+                    b.HasIndex("OidcConfigurationIdentity", "OidcSessionId");
 
                     b.HasIndex("UserId", "ExpiresAtUtc");
 
@@ -2260,6 +2310,40 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                     b.HasIndex("CreatedAtUtc");
 
                     b.ToTable("OAuthClients");
+                });
+
+            modelBuilder.Entity("OpenFarm.Infrastructure.Identity.OidcLogoutReceipt", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(69)
+                        .HasColumnType("character varying(69)");
+
+                    b.Property<DateTimeOffset>("ReceivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SessionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("Provider", "SessionId");
+
+                    b.ToTable("OidcLogoutReceipts");
                 });
 
             modelBuilder.Entity("OpenFarm.Infrastructure.Identity.PersonalAccessToken", b =>

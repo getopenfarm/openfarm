@@ -10,7 +10,7 @@ public sealed record ServerSettingsResponse(string? PublicUrl, string McpMode, G
     bool PublicUrlManaged, bool McpModeManaged, bool? McpEnabledOverride);
 
 /// <summary>Settings changes use the permission-checked administrator browser session.</summary>
-public sealed class ServerSettingsService(OpenFarmDbContext db, ServerConfigurationOverrides policy)
+public sealed class ServerSettingsService(OpenFarmDbContext db, ServerConfigurationOverrides policy, OidcSettings oidc, AuthenticationConfiguration? authentication = null)
 {
     public async Task<ServerSettingsResponse> ReadAsync(CancellationToken ct) =>
         Response(await db.ServerSettings.AsNoTracking().SingleAsync(s => s.Id == ServerSettings.SingletonId, ct));
@@ -19,6 +19,8 @@ public sealed class ServerSettingsService(OpenFarmDbContext db, ServerConfigurat
         bool changeUrl, string? publicUrl, string? mode, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(71426499)", ct);
+        if (authentication is not null && !await authentication.LockCurrentAsync(ct)) throw new ServerSettingsConflictException();
         var saved = await db.ServerSettings.FromSqlInterpolated($"SELECT * FROM \"ServerSettings\" WHERE \"Id\" = {ServerSettings.SingletonId} FOR UPDATE").SingleAsync(ct);
         if (saved.Revision != revision) throw new ServerSettingsConflictException();
         var url = saved.PublicUrl;
@@ -36,7 +38,11 @@ public sealed class ServerSettingsService(OpenFarmDbContext db, ServerConfigurat
                 throw new ArgumentException("Select a supported MCP mode.");
         }
         // Validate the entire effective configuration before saving anything.
-        try { _ = new OAuthSettings((policy.Mode ?? nextMode) == McpAccessMode.SignIn && policy.Enabled != false ? "true" : "false", policy.PublicUrl ?? url); }
+        try
+        {
+            _ = new OAuthSettings((policy.Mode ?? nextMode) == McpAccessMode.SignIn && policy.Enabled != false ? "true" : "false", policy.PublicUrl ?? url);
+            oidc.ValidatePublicUrl(policy.PublicUrl ?? url);
+        }
         catch (InvalidOperationException) { throw new ArgumentException("Sign-in needs an HTTPS public URL. HTTP is allowed only for localhost."); }
         var previous = Response(saved);
         saved.Update(url, nextMode);

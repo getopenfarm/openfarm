@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { ErrorState } from '@/components/empty-state/EmptyState';
@@ -24,6 +24,7 @@ import { type CurrentUser, useIdentity } from '@/lib/auth/permissions';
 import { sessionsKey, useUpdateProfile, whoAmIKey } from './api';
 import { ConnectedAppList } from './ConnectedAppList';
 import { SessionList } from './SessionList';
+import { SignInMethods } from './SignInMethods';
 import { TokenList } from './TokenList';
 
 const tabs = [
@@ -68,14 +69,15 @@ export function ProfilePage() {
         (identity.data ? (
           <ProfileTab user={identity.data} />
         ) : identity.isError ? (
-          <ErrorState
-            title="Could not load profile"
-            onRetry={() => identity.refetch()}
-          />
+          <ErrorState title="Load failed" onRetry={() => identity.refetch()} />
         ) : (
           <Skeleton className="h-48 max-w-[640px]" />
         ))}
-      {tab === 'security' && <SecurityTab />}
+      {tab === 'security' && (
+        <SignInMethods
+          passwordForm={(close) => <ChangePasswordForm onClose={close} />}
+        />
+      )}
       {tab === 'tokens' && (
         <SettingsSection
           title="Access tokens"
@@ -94,7 +96,7 @@ export function ProfilePage() {
       {tab === 'sessions' && (
         <SettingsSection
           title="Sessions"
-          description="Browsers signed in as you. A session ends 14 days after sign-in."
+          description="Browsers signed in as you. Sessions end after 14 days. SSO sessions also end after 3 days idle."
         >
           <SessionList />
         </SettingsSection>
@@ -129,17 +131,24 @@ function ProfileTab({ user }: { user: CurrentUser }) {
       await update.mutateAsync({ name, email, username });
       toast.success('Profile saved.');
     } catch (e) {
-      setError(await extractErrorDetail(e, 'Could not update profile.'));
+      setError(await extractErrorDetail(e, 'Update failed.'));
     }
   }
 
   return (
     <SettingsSection
       title="Profile"
-      description="Update your display name, email, and username"
+      description={
+        user.isExternallyManaged
+          ? 'The provider manages these details.'
+          : 'Update your display name, email, and username.'
+      }
     >
       <form onSubmit={submit}>
-        <fieldset disabled={update.isPending} className="contents">
+        <fieldset
+          disabled={update.isPending || user.isExternallyManaged}
+          className="contents"
+        >
           <SettingsRows>
             <SettingsRow label="Display name" htmlFor="profile-name">
               <Input
@@ -174,17 +183,22 @@ function ProfileTab({ user }: { user: CurrentUser }) {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <Button type="submit" className="mt-4" disabled={update.isPending}>
-          {update.isPending && <Spinner data-icon="inline-start" />}
-          {update.isPending ? 'Saving…' : 'Save'}
-        </Button>
+        {!user.isExternallyManaged && (
+          <Button type="submit" className="mt-4" disabled={update.isPending}>
+            {update.isPending && <Spinner data-icon="inline-start" />}
+            {update.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        )}
       </form>
     </SettingsSection>
   );
 }
 
-function SecurityTab() {
+function ChangePasswordForm({ onClose }: { onClose: () => void }) {
   const client = useQueryClient();
+  const currentRef = useRef<HTMLInputElement>(null);
+  // Opened from the Password row: start where the typing starts.
+  useEffect(() => currentRef.current?.focus(), []);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -210,9 +224,9 @@ function SecurityTab() {
       setConfirmPassword('');
       void client.invalidateQueries({ queryKey: whoAmIKey });
       void client.invalidateQueries({ queryKey: sessionsKey() });
+      onClose();
     } catch (e) {
-      setError(await extractErrorDetail(e, 'Could not change password.'));
-    } finally {
+      setError(await extractErrorDetail(e, 'Password change failed.'));
       setPending(false);
     }
   }
@@ -227,6 +241,7 @@ function SecurityTab() {
           <SettingsRows>
             <SettingsRow label="Current password" htmlFor="current-password">
               <Input
+                ref={currentRef}
                 id="current-password"
                 type="password"
                 required
@@ -277,10 +292,20 @@ function SecurityTab() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <Button type="submit" className="mt-4" disabled={mismatch || pending}>
-          {pending && <Spinner data-icon="inline-start" />}
-          {pending ? 'Changing password…' : 'Change password'}
-        </Button>
+        <div className="mt-4 flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={mismatch || pending}>
+            {pending && <Spinner data-icon="inline-start" />}
+            {pending ? 'Changing password…' : 'Change password'}
+          </Button>
+        </div>
       </form>
     </SettingsSection>
   );

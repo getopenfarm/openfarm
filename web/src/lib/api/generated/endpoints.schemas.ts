@@ -300,6 +300,72 @@ export interface GetSlicingReadinessRequest {
   [key: string]: unknown;
 }
 
+export interface GroupMapping {
+  externalGroup?: string;
+  group?: string;
+}
+
+export interface AuthenticationRecoveryAccount {
+  id?: string;
+  username?: string;
+}
+
+export interface GroupSummary {
+  id?: string;
+  name?: string;
+  isProtected?: boolean;
+}
+
+export interface AuthenticationSettingsResponse {
+  revision?: string;
+  oidcEnabled?: boolean;
+  internalAuthenticationEnabled?: boolean;
+  displayName?: string;
+  /** @nullable */
+  authority?: string | null;
+  /** @nullable */
+  clientId?: string | null;
+  clientCredentialConfigured?: boolean;
+  recoveryUserIds?: string[];
+  jitEnabled?: boolean;
+  requireVerifiedEmail?: boolean;
+  defaultGroup?: string;
+  groupMappings?: GroupMapping[];
+  groupsClaim?: string;
+  additionalScopes?: string;
+  recoveryAccounts?: AuthenticationRecoveryAccount[];
+  groups?: GroupSummary[];
+  /** @nullable */
+  callbackUrl?: string | null;
+  /** @nullable */
+  logoutUrl?: string | null;
+  recoveryMode?: boolean;
+}
+
+export interface AuthenticationSettingsValues {
+  oidcEnabled?: boolean;
+  internalAuthenticationEnabled?: boolean;
+  displayName?: string;
+  /** @nullable */
+  authority?: string | null;
+  /** @nullable */
+  clientId?: string | null;
+  /** @nullable */
+  clientSecret?: string | null;
+  recoveryUserIds?: string[];
+  jitEnabled?: boolean;
+  requireVerifiedEmail?: boolean;
+  defaultGroup?: string;
+  groupMappings?: GroupMapping[];
+  groupsClaim?: string;
+  additionalScopes?: string;
+}
+
+export interface UpdateAuthenticationSettingsRequest {
+  revision?: string;
+  settings?: AuthenticationSettingsValues;
+}
+
 export interface FeeDto {
   name?: string;
   type?: string;
@@ -2865,11 +2931,6 @@ export interface UserAccessTokenRequest {
   [key: string]: unknown;
 }
 
-export interface GroupSummary {
-  id?: string;
-  name?: string;
-}
-
 export interface AccountResponse {
   id?: string;
   username?: string;
@@ -2883,6 +2944,7 @@ export interface AccountResponse {
   effectivePermissions?: string[];
   isAdministrator?: boolean;
   sessionCount?: number;
+  isExternallyManaged?: boolean;
 }
 
 export interface GroupResponse {
@@ -3041,6 +3103,30 @@ export interface ConsentDecisionRequest {
   scopes?: string[];
 }
 
+export interface LoginProvidersResponse {
+  oidcEnabled?: boolean;
+  displayName?: string;
+  internalAuthenticationEnabled?: boolean;
+}
+
+export interface OidcIdentityResponse {
+  enabled?: boolean;
+  displayName?: string;
+  linked?: boolean;
+  passwordAllowed?: boolean;
+}
+
+export interface BeginOidcLinkResponse {
+  /** @nullable */
+  redirectUri?: string | null;
+  passwordRequired?: boolean;
+}
+
+export interface BeginOidcLinkRequest {
+  /** @nullable */
+  password?: string | null;
+}
+
 export interface CsrfResponse {
   token?: string;
 }
@@ -3067,6 +3153,7 @@ export interface WhoAmIResult {
   isAdministrator?: boolean;
   groups?: string[];
   permissions?: string[];
+  isExternallyManaged?: boolean;
 }
 
 export interface BomLineResponse {

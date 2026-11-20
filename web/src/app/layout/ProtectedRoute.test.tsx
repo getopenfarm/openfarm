@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '@/lib/auth/AuthProvider';
 import { clearToken, setToken } from '@/lib/auth/tokenStorage';
@@ -37,6 +37,7 @@ function renderProtected(initialEntry: string) {
 }
 describe('ProtectedRoute', () => {
   afterEach(() => {
+    sessionStorage.clear();
     clearToken();
     vi.unstubAllGlobals();
   });
@@ -51,6 +52,38 @@ describe('ProtectedRoute', () => {
     renderProtected('/');
     expect(screen.queryByText('Login screen')).not.toBeInTheDocument();
     expect(await screen.findByText('Login screen')).toBeInTheDocument();
+  });
+  it('keeps a long consent request out of the sign-in return path', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(json({ token: 'csrf' }))
+        .mockResolvedValueOnce(json({}, 401)),
+    );
+    function LoginWhere() {
+      const location = useLocation();
+      return <p>login {location.search}</p>;
+    }
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AuthProvider>
+          <MemoryRouter
+            initialEntries={[`/connect?request=${'x'.repeat(4000)}`]}
+          >
+            <Routes>
+              <Route path="/login" element={<LoginWhere />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/connect" element={<div>Consent</div>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+    const shown = (await screen.findByText(/^login /)).textContent ?? '';
+    expect(shown.length).toBeLessThan(200);
+    expect(decodeURIComponent(shown)).toContain('/connect?resume=');
   });
   it('renders authorized content', async () => {
     setToken('valid');

@@ -29,7 +29,7 @@ export function CopyButton({
       setCopied(true);
       onError('');
     } catch {
-      onError(`Could not copy. Select the ${what} and copy it manually.`);
+      onError(`Copy failed. Select the ${what}. Copy it manually.`);
     }
   }
   return (

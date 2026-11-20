@@ -8,7 +8,7 @@ AI assistants reach OpenFarm through the Model Context Protocol at `POST /mcp`, 
 
 `ServerSecuritySettings` adds a singleton `ServerSettings` row and `BrowserSessions.OAuthConfigurationIdentity`.
 MCP defaults to Disabled; AccessTokens and SignIn are explicit modes. Administrators configure the public URL
-under Settings → Server and the mode under Settings → AI assistants. The endpoints are
+under Settings → Server and the mode under Settings → Integrations. The endpoints are
 `GET/PUT /api/v1/admin/settings/server` and `/api/v1/admin/settings/mcp`: actual Administrators membership,
 a browser session, permission checks, optimistic revision checks and a transaction.
 Audits contain before/after settings, never passwords. Generic farm-settings access cannot change installation security.

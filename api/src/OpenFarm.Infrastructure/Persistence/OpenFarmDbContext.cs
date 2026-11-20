@@ -25,6 +25,9 @@ public sealed class OpenFarmDbContext(DbContextOptions<OpenFarmDbContext> option
 
     public DbSet<BrowserSession> BrowserSessions => Set<BrowserSession>();
 
+    public DbSet<AuthenticationSettingsRecord> AuthenticationSettings => Set<AuthenticationSettingsRecord>();
+    public DbSet<OidcLogoutReceipt> OidcLogoutReceipts => Set<OidcLogoutReceipt>();
+
     public DbSet<SessionCredential> SessionCredentials => Set<SessionCredential>();
 
     public DbSet<OAuthClient> OAuthClients => Set<OAuthClient>();

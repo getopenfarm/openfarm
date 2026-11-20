@@ -120,6 +120,19 @@ export function useConnectedApps(userId?: string) {
           ).data,
   });
 }
+/**
+ * Removing an SSO account does not end access: with JIT on, the next sign-in
+ * creates a new account. Disabling is what blocks it.
+ */
+export function removeUserDescription(
+  user?: {
+    isExternallyManaged?: boolean;
+  } | null,
+): string {
+  return user?.isExternallyManaged
+    ? 'This cannot be undone. If JIT is on and the provider allows the user, a new account is created at the next sign-in. Disable the account to block access.'
+    : 'This cannot be undone.';
+}
 export function useRemoveUser() {
   const client = useQueryClient();
   return useMutation({

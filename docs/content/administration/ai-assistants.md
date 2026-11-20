@@ -16,7 +16,7 @@ There are two ways to connect:
 
 MCP is disabled by default. An administrator must enable it before any assistant can connect.
 
-1. Open **Settings → AI assistants**.
+1. Open **Settings → Integrations**.
 2. Select **Access tokens only** for a compatible local client. For browser sign-in, first set the **Public URL** under **Settings → Server**, then select **Sign-in and access tokens**.
 3. Select **Save**. Changes apply without restarting OpenFarm.
 4. Connect from your assistant. Follow the sign-in or access-token steps below.
@@ -25,7 +25,7 @@ Sign-in requires an HTTPS public URL. HTTP is allowed only for localhost develop
 
 For remote access, route the whole hostname to OpenFarm, including `/mcp`, `/oauth/` and `/.well-known/`. Do not put another login wall in front of discovery or `/oauth/token`. See [Configuration](../installation/configuration.md#https-and-reverse-proxies).
 
-Deployment settings can lock these controls. The page names the setting that controls the field. See [deployment overrides](../installation/configuration.md#ai-assistant-sign-in).
+Deployment settings can lock these controls. The page names the setting that controls the field. See [deployment overrides](../installation/configuration.md#mcp-sign-in).
 
 To check an enabled server, run:
 
@@ -183,7 +183,7 @@ The assistant sends what it reads to its AI service. Give it only the access it 
 
 ## Disconnect
 
-An administrator can select **Disabled** under **Settings → AI assistants** to block all MCP access. Changing the MCP mode or public URL disconnects signed-in apps and cancels pending connection requests. Re-enabling MCP does not restore those app connections. Personal access tokens keep their REST permissions and can use MCP again when token access is enabled. Work already accepted by a printer is not undone.
+An administrator can select **Disabled** under **Settings → Integrations** to block all MCP access. Changing the MCP mode or public URL disconnects signed-in apps and cancels pending connection requests. Re-enabling MCP does not restore those app connections. Personal access tokens keep their REST permissions and can use MCP again when token access is enabled. Work already accepted by a printer is not undone.
 
 - **A signed-in app**: My profile → Connected apps → **Revoke access**. An administrator can do the same on the user's page.
 - **A token**: My profile → Access tokens → **Revoke**.
@@ -201,7 +201,7 @@ An administrator can select **Disabled** under **Settings → AI assistants** to
 
 - **401 Unauthorized**: the token or sign-in is wrong, expired or revoked, or you sent a browser session instead. With sign-in on, the `WWW-Authenticate` header names `resource_metadata`, which the assistant uses to sign in.
 - **The assistant asks for an OAuth login, or says the server needs authentication it cannot do**: sign-in is off. [Prepare the server](#prepare-the-server), or use an access token.
-- **MCP is disabled**: ask an administrator to enable it under **Settings → AI assistants**.
+- **MCP is disabled**: ask an administrator to enable it under **Settings → Integrations**.
 - **Sign-in is off**: use an access token, or ask an administrator to set an HTTPS public URL and select **Sign-in and access tokens**.
 - **Connection request expired**: the Connect page was open for more than 10 minutes, or was already used. Start again from the assistant.
 - **Discovery returns HTML**: your proxy sends `/.well-known/` or `/oauth/` to another site or to a cached app page. Route the whole hostname to OpenFarm.
