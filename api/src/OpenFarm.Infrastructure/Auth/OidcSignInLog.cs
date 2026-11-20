@@ -4,7 +4,7 @@ namespace OpenFarm.Infrastructure.Auth;
 
 /// <summary>
 /// Every refused OIDC sign-in redirects to the same generic login message, so this names the cause for the administrator.
-/// Reasons are fixed codes: never pass claim values. Fixes: docs/content/administration/account-provisioning.md.
+/// Reasons are fixed codes: never pass claim values. Fixes: docs/content/administration/sso-reference.md.
 /// </summary>
 public static partial class OidcSignInLog
 {

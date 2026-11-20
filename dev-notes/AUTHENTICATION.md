@@ -47,7 +47,7 @@ A role change takes effect at the next sign-in, not mid-session: external sessio
 Mapped groups are provisioning targets, so they cannot be renamed or removed while JIT is on.
 Administrators can disable or remove JIT accounts. Removal deletes the identity link, allowing a later JIT enrollment if provider access remains allowed.
 Disabling reserves the identity and revokes browser sessions, connected apps, personal tokens, and pending linking proofs.
-Operator configuration: `docs/content/administration/account-provisioning.md`.
+Operator configuration: `docs/content/administration/account-provisioning.md` (steps) and `docs/content/administration/sso-reference.md` (rules, troubleshooting).
 
 ## Users & Groups
 
