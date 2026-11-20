@@ -50,15 +50,11 @@ public sealed class AuthenticationConfiguration
             return _values!;
         }
     }
-    public OidcSettings Oidc
-    {
-        get
-        {
-            var value = RecoveryMode ? Values with { OidcEnabled = false, InternalAuthenticationEnabled = true, JitEnabled = false } : Values;
-            return new(value);
-        }
-    }
-    public ProvisioningSettings Provisioning => new(RecoveryMode ? Values with { JitEnabled = false } : Values, Oidc);
+    private OidcSettings? _oidc;
+    private ProvisioningSettings? _provisioning;
+    public OidcSettings Oidc => _oidc ??= new(RecoveryMode
+        ? Values with { OidcEnabled = false, InternalAuthenticationEnabled = true, JitEnabled = false } : Values);
+    public ProvisioningSettings Provisioning => _provisioning ??= new(RecoveryMode ? Values with { JitEnabled = false } : Values, Oidc);
 
     public AuthenticationConfiguration(OpenFarmDbContext db, IDataProtectionProvider protection, IConfiguration deployment)
     {
@@ -70,7 +66,7 @@ public sealed class AuthenticationConfiguration
     public AuthenticationSettingsValues Unprotect(AuthenticationSettingsRecord saved) =>
         JsonSerializer.Deserialize<AuthenticationSettingsValues>(_protector!.Unprotect(saved.ProtectedConfiguration))
         ?? throw new InvalidOperationException("Cannot read saved authentication settings.");
-    private void Load(AuthenticationSettingsRecord saved) { _values = Unprotect(saved); Revision = saved.Revision; }
+    private void Load(AuthenticationSettingsRecord saved) { _values = Unprotect(saved); Revision = saved.Revision; _oidc = null; _provisioning = null; }
 
     public async Task InitializeAsync(CancellationToken ct)
     {

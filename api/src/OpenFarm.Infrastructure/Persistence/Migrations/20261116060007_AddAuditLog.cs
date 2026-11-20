@@ -84,6 +84,7 @@ namespace OpenFarm.Infrastructure.Persistence.Migrations
                   "CredentialLabel" = "Details"->'Via'->>'Label';
                 UPDATE "AspNetRoleClaims" SET "ClaimValue" = 'audit-log:list' WHERE "ClaimType" = 'openfarm.permission' AND "ClaimValue" = 'activity-log:list';
                 UPDATE "AspNetUserClaims" SET "ClaimValue" = 'audit-log:list' WHERE "ClaimType" = 'openfarm.permission' AND "ClaimValue" = 'activity-log:list';
+                UPDATE "PersonalAccessTokens" SET "Permissions" = array_replace("Permissions", 'activity-log:list', 'audit-log:list') WHERE 'activity-log:list' = ANY("Permissions");
                 """);
 
             migrationBuilder.CreateIndex(

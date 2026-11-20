@@ -332,6 +332,10 @@ const routes: RouteObject[] = [
             ],
           },
           {
+            path: '/activity-log',
+            element: <Navigate to="/audit-log" replace />,
+          },
+          {
             path: '/audit-log/:id',
             element: <AuditEntryPage />,
             handle: { title: 'Audit entry' },
@@ -364,6 +368,10 @@ const routes: RouteObject[] = [
                 path: 'authentication',
                 element: <AuthenticationSettingsPage />,
                 handle: { title: 'Authentication' },
+              },
+              {
+                path: 'integrations/ai-assistants',
+                element: <Navigate to="/settings/integrations" replace />,
               },
               {
                 path: 'integrations',

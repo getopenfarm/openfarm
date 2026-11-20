@@ -49,7 +49,6 @@ internal static class AuditCapture
         ["PrinterModelCost"] = Split("Brand ModelCode PrinterPurchasePrice PrinterUpfrontCost LifetimeServiceCost LifetimePrintingHours AveragePrintingWatts"),
         ["ApplicationUser"] = Split("UserName Email DisplayName IsEnabled"),
         ["ApplicationRole"] = Split("Name Description"),
-        ["IdentityUserRole<Guid>"] = Split("UserId RoleId"),
         ["PersonalAccessToken"] = Split("Name Permissions ExpiresAtUtc RevokedAtUtc"),
         ["ConnectionSecret"] = Split("PrinterSerialNumber EncryptedAccessCode"),
         ["IdentityUserRole`1"] = Split("UserId RoleId"),
@@ -82,11 +81,20 @@ internal static class AuditCapture
             .ToDictionary(g => g.Key, g => g.First());
         var explicitEntries = tracked.Where(e => e.Entity is ActivityLogEntry && e.State == EntityState.Added)
             .Select(e => (ActivityLogEntry)e.Entity).ToList();
+        // Most saves (telemetry, sync) touch no audited type: skip the name lookups and field scans.
+        if (explicitEntries.Count == 0 && !tracked.Any(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted
+            && Fields.ContainsKey(TypeName(e)))) return [];
         var generated = new List<ActivityLogEntry>();
+        var names = new Dictionary<Guid, string?>();
+        string? NameOf(Guid userId)
+        {
+            if (!names.TryGetValue(userId, out var found))
+                names[userId] = found = db.Users.AsNoTracking().Where(u => u.Id == userId)
+                    .Select(u => u.DisplayName ?? u.UserName ?? u.Email).FirstOrDefault();
+            return found;
+        }
         var actorName = context?.ActorName;
-        if (actorName is null && context?.ActorId is { } actorId)
-            actorName = db.Users.AsNoTracking().Where(u => u.Id == actorId)
-                .Select(u => u.DisplayName ?? u.UserName ?? u.Email).FirstOrDefault();
+        if (actorName is null && context?.ActorId is { } actorId) actorName = NameOf(actorId);
 
         foreach (var entry in tracked.Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
         {
@@ -188,10 +196,10 @@ internal static class AuditCapture
         {
             audit.AttributeInitiator(context?.InitiatedByUserId ?? (audit.ActorType == ActorType.System ? context?.ActorId : null));
             if (audit.Details?.InitiatedByUserId is { } initiator)
-                audit.AttributeInitiator(initiator, db.Users.AsNoTracking().Where(u => u.Id == initiator).Select(u => u.DisplayName ?? u.UserName ?? u.Email).FirstOrDefault());
+                audit.AttributeInitiator(initiator, NameOf(initiator));
             var capturedName = audit.ActorId == context?.ActorId ? actorName : null;
             if (capturedName is null && audit.ActorId is { } id)
-                capturedName = db.Users.AsNoTracking().Where(u => u.Id == id).Select(u => u.DisplayName ?? u.UserName ?? u.Email).FirstOrDefault();
+                capturedName = NameOf(id);
             roots.TryGetValue((audit.EntityType, audit.EntityId), out var entity);
             var label = entity is null ? null : LabelFields.Where(f => entity.Metadata.FindProperty(f) is not null)
                 .Select(f => entity.Property(f).CurrentValue?.ToString()).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));

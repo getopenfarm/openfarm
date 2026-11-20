@@ -173,7 +173,6 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
         return new(token.Token, token.ExpiresAtUtc, session.UserId, credential, session.ExpiresAtUtc);
     }
 
-    /// <summary>Browser sessions only: an app's session id never authenticates the REST API or the hub.</summary>
     /// <summary>
     /// True when this browser session began with a password sign-in within <see cref="RecentSignInWindow"/>. Only the
     /// password login creates a non-OIDC browser session, and refresh never moves <see cref="BrowserSession.CreatedAtUtc"/>.
@@ -185,6 +184,7 @@ public sealed class BrowserSessionService(OpenFarmDbContext db, JwtTokenService 
             && s.ClientId == null && s.OidcConfigurationIdentity == null && s.RevokedAtUtc == null && s.CreatedAtUtc >= since, ct);
     }
 
+    /// <summary>Browser sessions only: an app's session id never authenticates the REST API or the hub.</summary>
     public async Task<bool> IsActiveAsync(Guid userId, Guid sessionId, CancellationToken ct)
     {
         var now = time.GetUtcNow();

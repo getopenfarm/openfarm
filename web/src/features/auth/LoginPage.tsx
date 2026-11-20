@@ -63,7 +63,9 @@ export function LoginPage() {
     !sso ||
     (!!ssoError && internalOn) ||
     (localOnly && (providerDown || params.get('local') === '1'));
-  const [open, setOpen] = useState(defaultOpen);
+  // Null until the visitor toggles, so the default follows the providers once they load.
+  const [toggled, setOpen] = useState<boolean | null>(null);
+  const open = toggled ?? defaultOpen;
   const methodName = internalOn ? 'username and password' : 'local sign-in';
   const trigger = (
     <CollapsibleTrigger asChild>
