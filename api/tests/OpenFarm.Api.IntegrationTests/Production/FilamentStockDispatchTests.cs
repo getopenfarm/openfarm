@@ -54,6 +54,12 @@ public class FilamentStockDispatchTests(ProductionTestFactory factory) : Product
             (await WaitForAssignmentAsync(run.Id)).PrinterId.Should().Be(fullPrinter.Id);
         }
         finally { await worker.StopAsync(default); }
+
+        // This fixture has no telemetry worker. Complete the job so the next dispatcher startup
+        // cannot requeue the unconfirmed assignment and offer it to another test's printer.
+        await ReplayAsync(fullPrinter.Id, "RUNNING");
+        await ReplayAsync(fullPrinter.Id, "FINISH");
+        (await JobsAsync(run.Id)).Single().Status.Should().Be(PrintJobStatus.Completed);
     }
 
     [Fact]
