@@ -90,10 +90,9 @@ public static class OidcAuthentication
                 options.SaveTokens = false;
                 options.GetClaimsFromUserInfoEndpoint = false;
                 options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.UseIfAvailable;
+                // The floor only: OnRedirectToIdentityProvider requests the saved list (this plus the extras) per sign-in.
                 options.Scope.Clear();
-                options.Scope.Add("openid");
-                options.Scope.Add("profile");
-                options.Scope.Add("email");
+                foreach (var scope in OidcSettings.BaseScopes) options.Scope.Add(scope);
                 options.RemoteAuthenticationTimeout = TimeSpan.FromMinutes(5);
                 // A GET callback permits Lax cookies, including the existing refresh cookie used for linking.
                 options.CorrelationCookie.SameSite = SameSiteMode.Lax;
@@ -111,6 +110,9 @@ public static class OidcAuthentication
                             ?? throw new InvalidOperationException("OIDC needs a configured public URL.");
                         settings.ValidatePublicUrl(origin);
                         context.ProtocolMessage.RedirectUri = origin + CallbackPath;
+                        // A provider returns a scope mapping's claims (such as entitlements) only for a requested scope.
+                        // The list comes from the saved settings, so a save applies to the next sign-in without a restart.
+                        context.ProtocolMessage.Scope = string.Join(' ', settings.Scopes);
                         context.Properties.Items["openfarm.oidc.configuration"] = settings.SessionIdentity;
                         context.Properties.Items["openfarm.oidc.revision"] = context.HttpContext.RequestServices
                             .GetRequiredService<AuthenticationConfiguration>().Revision.ToString();
@@ -220,9 +222,13 @@ public static class OidcAuthentication
         OpenFarm.Application.Auth.LoginResult? result;
         try
         {
+            // Names only, for the empty-groups diagnostic: a value could be personal data.
+            var claimNames = context.Principal!.Claims.Select(c => c.Type).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Order(StringComparer.OrdinalIgnoreCase).Take(40).Select(n => Loggable(n.Length > 64 ? n[..64] : n)).ToArray();
             var profile = new ExternalProfile(Claim("preferred_username"), Claim("email"), Claim("name"),
                 string.Equals(Claim("email_verified"), "true", StringComparison.OrdinalIgnoreCase),
-                context.Principal!.FindAll(http.RequestServices.GetRequiredService<ProvisioningSettings>().GroupsClaim).Select(c => c.Value).ToArray());
+                context.Principal!.FindAll(http.RequestServices.GetRequiredService<ProvisioningSettings>().GroupsClaim).Select(c => c.Value).ToArray(),
+                claimNames);
             var providerSessionId = Claim("sid");
             if (providerSessionId is { Length: > 255 } || providerSessionId is not null && string.IsNullOrWhiteSpace(providerSessionId))
                 throw new ArgumentException("Invalid provider session identifier.");

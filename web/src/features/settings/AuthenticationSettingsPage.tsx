@@ -40,6 +40,9 @@ import {
 } from './SettingsParts';
 
 const key = '/api/v1/admin/settings/authentication';
+// Mirrors OidcSettings.ParseScopes (RFC 6749 scope tokens); the server is the authority, this only gives a clear message.
+const maxAdditionalScopes = 10;
+const scopeToken = /^[\x21\x23-\x5B\x5D-\x7E]+$/;
 // Mirrors ProvisioningSettings.IdentityClaims: the server is the authority, this only gives a clear message.
 const identityClaims = new Set([
   'sub',
@@ -86,8 +89,22 @@ const schema = z
       )
       .max(50),
     groupsClaim: z.string().trim().max(256),
+    additionalScopes: z.string().trim(),
   })
   .superRefine((value, ctx) => {
+    const scopes = value.additionalScopes.split(' ').filter(Boolean);
+    if (
+      value.oidcEnabled &&
+      value.jitEnabled &&
+      (scopes.length > maxAdditionalScopes ||
+        scopes.some((s) => s.length > 128 || !scopeToken.test(s)) ||
+        scopes.includes('offline_access'))
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['additionalScopes'],
+        message: `Enter up to ${maxAdditionalScopes} scope names, separated by spaces. ASCII only, no quotes or backslashes. Not offline_access.`,
+      });
     if (
       value.oidcEnabled &&
       value.jitEnabled &&
@@ -176,6 +193,7 @@ function defaults(data: AuthenticationSettingsResponse): Values {
       group: m.group ?? '',
     })),
     groupsClaim: data.groupsClaim ?? 'groups',
+    additionalScopes: data.additionalScopes ?? '',
   };
 }
 
@@ -199,6 +217,7 @@ function activeValues(
     defaultGroup: jit ? draft.defaultGroup : saved.defaultGroup,
     groupMappings: jit ? draft.groupMappings : saved.groupMappings,
     groupsClaim: jit ? draft.groupsClaim : saved.groupsClaim,
+    additionalScopes: jit ? draft.additionalScopes : saved.additionalScopes,
   };
 }
 
@@ -289,6 +308,7 @@ function AuthenticationForm({
               group: m.group,
             })),
             groupsClaim: draft.groupsClaim,
+            additionalScopes: draft.additionalScopes,
           },
         }),
       }),
@@ -349,7 +369,8 @@ function AuthenticationForm({
       | 'authority'
       | 'clientId'
       | 'clientCredential'
-      | 'groupsClaim',
+      | 'groupsClaim'
+      | 'additionalScopes',
     label: string,
     help?: string,
     type = 'text',
@@ -580,6 +601,11 @@ function AuthenticationForm({
                 'groupsClaim',
                 'Groups claim',
                 'ID token claim that lists the user’s groups or roles, e.g. groups or entitlements.',
+              )}
+              {input(
+                'additionalScopes',
+                'Additional scopes',
+                'Space-separated. Requested with openid profile email. A provider returns a scope mapping’s claims only for a requested scope.',
               )}
             </SettingsRows>
           )}

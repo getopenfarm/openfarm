@@ -13,6 +13,11 @@ public sealed class OidcSettings
     public string? ClientId { get; }
     public string? ClientSecret { get; }
     public Guid[] RecoveryUserIds { get; }
+    /// <summary>What every sign-in needs: the subject, and the profile and email claims that provisioning reads.</summary>
+    public static readonly string[] BaseScopes = ["openid", "profile", "email"];
+    public const int MaxAdditionalScopes = 10;
+    /// <summary>Requested at every sign-in: <see cref="BaseScopes"/>, then the configured extras.</summary>
+    public string[] Scopes { get; }
     // Bind external identities to the issuer, not to an email or a mutable display name.
     public string ProviderKey => "oidc:" + Hash(Authority!);
     public string SessionIdentity => Hash($"{Authority}|{ClientId}");
@@ -27,6 +32,7 @@ public sealed class OidcSettings
         ClientId = value.ClientId;
         ClientSecret = value.ClientSecret;
         RecoveryUserIds = value.RecoveryUserIds;
+        Scopes = ParseScopes(value.AdditionalScopes);
         if (!InternalAuthenticationEnabled && (!Enabled || RecoveryUserIds.Length == 0))
             throw new InvalidOperationException("Disabling internal authentication requires OIDC and a recovery administrator.");
         if (DisplayName.Length > 80)
@@ -38,6 +44,24 @@ public sealed class OidcSettings
             || string.IsNullOrWhiteSpace(ClientId) || string.IsNullOrWhiteSpace(ClientSecret))
             throw new InvalidOperationException("OIDC needs an HTTPS authority, client ID, and client secret (HTTP is allowed only on loopback).");
     }
+
+    /// <summary>
+    /// The base scopes followed by the extras, without duplicates. Each extra must be an RFC 6749 scope token.
+    /// offline_access is refused: OpenFarm asks for no refresh token and keeps no provider token.
+    /// Throws <see cref="ArgumentException"/>, unlike the rest of this class, so a settings save shows this message
+    /// instead of the generic provider-settings one.
+    /// </summary>
+    public static string[] ParseScopes(string? additional)
+    {
+        var extras = (additional ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (extras.Length > MaxAdditionalScopes || extras.Any(s => s.Length > 128 || !s.All(IsScopeCharacter))
+            || extras.Contains("offline_access", StringComparer.Ordinal))
+            throw new ArgumentException($"Additional scopes: up to {MaxAdditionalScopes} names, separated by spaces. ASCII only, no quotes or backslashes. offline_access is not allowed.");
+        return [.. BaseScopes.Concat(extras).Distinct(StringComparer.Ordinal)];
+    }
+
+    // scope-token = 1*( %x21 / %x23-5B / %x5D-7E ) (RFC 6749 section 3.3).
+    private static bool IsScopeCharacter(char c) => c is '!' or (>= '#' and <= '[') or (>= ']' and <= '~');
 
     public bool AllowsPassword(Guid userId) => InternalAuthenticationEnabled || RecoveryUserIds.Contains(userId);
 

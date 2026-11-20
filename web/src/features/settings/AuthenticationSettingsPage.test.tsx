@@ -30,6 +30,7 @@ function setup({
     defaultGroup: 'Viewers',
     groupMappings: [] as { externalGroup: string; group: string }[],
     groupsClaim: 'groups',
+    additionalScopes: '',
     recoveryAccounts: [{ id: 'admin-id', username: 'admin' }],
     groups: [
       { id: 'administrators', name: 'Administrators', isProtected: true },
@@ -359,6 +360,24 @@ it('saves a custom groups claim and rejects identity claims', async () => {
   await user.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0].settings).toMatchObject({ groupsClaim: 'entitlements' });
+});
+
+it('saves additional scopes and rejects offline_access', async () => {
+  const user = userEvent.setup();
+  const { writes } = setup({ configured: true });
+  const scopes = await screen.findByLabelText('Additional scopes');
+  expect(scopes).toHaveValue('');
+  await user.type(scopes, 'entitlements offline_access');
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByText(/Not offline_access/)).toBeInTheDocument();
+  expect(writes).toHaveLength(0);
+  await user.clear(scopes);
+  await user.type(scopes, 'entitlements');
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0].settings).toMatchObject({
+    additionalScopes: 'entitlements',
+  });
 });
 
 it('warns when disabling saved OIDC and saves disabled provisioning without hidden draft errors', async () => {

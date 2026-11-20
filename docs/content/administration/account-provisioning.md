@@ -114,31 +114,43 @@ A change in authentik reaches OpenFarm at the user's next sign-in. A browser ses
 To apply it sooner, revoke the user's sessions under **Users & Groups**, or disable the account.
 
 If the ID token has no values in the Groups claim, the user gets the default group. OpenFarm removes the groups the mapping granted earlier.
-The server log then has one `OidcGroupsClaimEmpty` entry that names the claim. It also appears for a user who has no mapped values, so it is not always an error.
+The server log then has one `OidcGroupsClaimEmpty` entry. It names the claim OpenFarm read, the claim names the ID token contained, and the scopes OpenFarm requested. It never contains claim values.
+The entry also appears for a user who has no mapped values, so it is not always an error.
 Check the claim for a test user in authentik before rollout. Gate who may sign in with a policy or group binding on the OpenFarm application in authentik.
+
+#### Read the `OidcGroupsClaimEmpty` entry
+
+| In the entry | Cause | Fix |
+| --- | --- | --- |
+| The Groups claim is not under **Claims present** | The provider did not send it. The scope is not requested, the scope mapping is not on the provider, the provider does not include claims in the ID token, or the mapping expression failed. | Add the scope under **Additional scopes**. Select the mapping on the provider. Turn on **Include claims in id_token**. Check the provider's events for a mapping error. |
+| No entry, but the user has only the default group | The claim has values, and none equals a mapping row. | Compare the values with the mapping rows. Matching is exact and case-sensitive. A trailing space does not match. |
 
 ### Use entitlements instead of groups
 
 Entitlements are authentik's per-application roles. Use them to keep OpenFarm roles out of your shared group list.
-Set **Groups claim** to `entitlements`. OpenFarm then ignores `groups`.
+authentik returns the claims of a scope mapping only when the client requests the scope of that mapping, and the mapping is on the provider.
+OpenFarm always requests `openid`, `profile`, and `email`. It requests any other scope that you list under **Additional scopes**.
+OpenFarm refuses `offline_access`, because it keeps no provider tokens.
 
 1. Open the OpenFarm application in authentik. On **Application entitlements**, create one entitlement per role, for example `operator`.
-   Bind the users or groups that need it.
-2. Open **Customization → Property Mappings** and create a **Scope Mapping**. Set **Scope name** to `profile`.
-   OpenFarm requests only `openid`, `profile`, and `email`, so a mapping with another scope name is never returned.
+2. Bind a user or group to each entitlement. A binding on the application does not bind its entitlements.
+3. Open **Customization → Property Mappings** and create a **Scope Mapping**. Set **Scope name** to `entitlements`.
    ```python
    return {
        "entitlements": [e.name for e in request.user.app_entitlements(provider.application)],
    }
    ```
-3. Open the OpenFarm OAuth2/OIDC provider and add this mapping. Keep the default `profile` mapping selected too.
-   OpenFarm needs its `preferred_username`, `email`, and `name` claims. authentik merges list claims from several mappings.
-4. In **Settings → Authentication**, set **Groups claim** to `entitlements`. Add a mapping row for each entitlement name, for example `operator` → Operators.
-5. Check the ID token for a test user. It must list the entitlement names under `entitlements`.
+   authentik's documentation lists `entitlements` as a default scope. If your version already has a mapping with that name, select it instead.
+4. Open the OpenFarm OAuth2/OIDC provider. Under **Advanced protocol settings → Scopes**, select this mapping. Keep the default `profile` and `email` mappings selected.
+   Keep **Include claims in id_token** on. OpenFarm reads the ID token only.
+5. In **Settings → Authentication**, set **Additional scopes** to `entitlements` and **Groups claim** to `entitlements`.
+   Add a mapping row for each entitlement name. Names are case-sensitive.
+6. Sign in again with a test user. If the user does not get the group, [read the log entry](#read-the-oidcgroupsclaimempty-entry).
 
-The expression follows authentik's integration guides. Confirm it against your authentik version.
+The expression follows authentik's [application entitlements documentation](https://docs.goauthentik.io/add-secure-apps/applications/manage_apps/#application-entitlements). Confirm it against your authentik version.
 
-Other providers work the same way. Set **Groups claim** to the top-level claim that lists the user's groups or roles, for example `roles`.
+Other providers work the same way. List the scope that returns the claim under **Additional scopes**. Set **Groups claim** to the top-level claim that lists the user's groups or roles, for example `roles`.
+Some providers refuse an unknown scope. Add only scopes that the provider defines.
 Nested claims, such as Keycloak's `realm_access.roles`, are not supported.
 Identity claims such as `sub`, `email`, and `name` are refused, because a user can edit some of them at the provider.
 

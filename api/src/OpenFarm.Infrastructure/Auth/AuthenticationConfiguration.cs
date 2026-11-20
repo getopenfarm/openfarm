@@ -25,6 +25,12 @@ public sealed record AuthenticationSettingsValues
     public GroupMapping[] GroupMappings { get; init; } = [];
     /// <summary>The one ID-token claim that lists the user's provider groups or roles. Blobs saved before this field read as "groups".</summary>
     public string GroupsClaim { get; init; } = "groups";
+    /// <summary>
+    /// Scopes requested besides openid, profile and email, space-separated like the OIDC scope parameter. A provider returns a
+    /// scope mapping's claims only for a requested scope, so a claim such as authentik's entitlements needs its scope here.
+    /// Blobs saved before this field read as "".
+    /// </summary>
+    public string AdditionalScopes { get; init; } = "";
 }
 
 /// <summary>One database snapshot per request. The fixed-value constructor supports isolated protocol hosts.</summary>

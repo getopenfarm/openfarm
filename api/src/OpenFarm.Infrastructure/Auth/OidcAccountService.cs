@@ -105,7 +105,7 @@ public sealed class OidcAccountService(OpenFarmDbContext db, UserManager<Applica
         await LockUserAsync(user.Id, ct);
         await db.Entry(user).ReloadAsync(ct);
         if (db.Entry(user).State == EntityState.Detached || !user.IsEnabled) return Reject("account_disabled_or_removed");
-        if (profile is not null && !await provisioning.SyncGroupsAsync(user, profile.Groups, ct)) return null; // logs its own refusal reason; nothing is committed
+        if (profile is not null && !await provisioning.SyncGroupsAsync(user, profile, ct)) return null; // logs its own refusal reason; nothing is committed
         var now = time.GetUtcNow();
         var authorizationTime = authorizationStartedAt ?? now;
         if (await db.OidcLogoutReceipts.AnyAsync(r => r.Provider == settings.SessionIdentity && r.ExpiresAtUtc > now

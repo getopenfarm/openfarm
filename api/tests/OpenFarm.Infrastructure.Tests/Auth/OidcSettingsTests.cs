@@ -80,6 +80,41 @@ public class OidcSettingsTests
         ((Action)(() => new OidcSettings(Enabled).ValidatePublicUrl(value))).Should().Throw<InvalidOperationException>();
 
     [Fact]
+    public void Scopes_DefaultToTheBaseScopes_SoSettingsSavedBeforeTheFieldKeepWorking() =>
+        new OidcSettings(new()).Scopes.Should().Equal("openid", "profile", "email");
+
+    [Theory]
+    [InlineData("entitlements", new[] { "openid", "profile", "email", "entitlements" })]
+    [InlineData("  entitlements   groups ", new[] { "openid", "profile", "email", "entitlements", "groups" })]
+    [InlineData("profile entitlements entitlements", new[] { "openid", "profile", "email", "entitlements" })]
+    [InlineData("goauthentik.io/api urn:x:y", new[] { "openid", "profile", "email", "goauthentik.io/api", "urn:x:y" })]
+    [InlineData("", new[] { "openid", "profile", "email" })]
+    [InlineData(null, new[] { "openid", "profile", "email" })]
+    public void Scopes_AppendTheExtrasToTheBaseScopes_WithoutDuplicates(string? extras, string[] expected) =>
+        new OidcSettings(new() { AdditionalScopes = extras! }).Scopes.Should().Equal(expected);
+
+    [Theory]
+    [InlineData("offline_access")]
+    [InlineData("entitlements offline_access")]
+    [InlineData("has\"quote")]
+    [InlineData("back\\slash")]
+    [InlineData("tab\tseparated")]
+    [InlineData("new\nline")]
+    [InlineData("café")]
+    public void Scopes_RefuseOfflineAccessAndNamesOutsideTheScopeTokenCharacters(string extras) =>
+        ((Action)(() => _ = new OidcSettings(new() { AdditionalScopes = extras }))).Should().Throw<ArgumentException>().WithMessage("Additional scopes*");
+
+    [Fact]
+    public void Scopes_AllowTenExtrasAndRefuseEleven_AndNamesOver128Characters()
+    {
+        string Names(int count) => string.Join(' ', Enumerable.Range(0, count).Select(i => "scope" + i));
+        new OidcSettings(new() { AdditionalScopes = Names(OidcSettings.MaxAdditionalScopes) }).Scopes.Should().HaveCount(3 + OidcSettings.MaxAdditionalScopes);
+        ((Action)(() => _ = new OidcSettings(new() { AdditionalScopes = Names(OidcSettings.MaxAdditionalScopes + 1) }))).Should().Throw<ArgumentException>();
+        new OidcSettings(new() { AdditionalScopes = new string('a', 128) }).Scopes.Should().HaveCount(4);
+        ((Action)(() => _ = new OidcSettings(new() { AdditionalScopes = new string('a', 129) }))).Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
     public void GroupsClaim_DefaultsToGroups_SoSettingsSavedBeforeTheFieldKeepWorking() =>
         new AuthenticationSettingsValues().GroupsClaim.Should().Be("groups");
 

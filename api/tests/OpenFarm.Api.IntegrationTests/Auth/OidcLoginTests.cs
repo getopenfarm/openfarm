@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -248,6 +250,36 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         (await SignInAsync("entitlements")).Should().Equal("Operators");
         // The same value under another claim name is ignored, so the user falls back to the default group.
         (await SignInAsync("groups")).Should().Equal("Viewers");
+    }
+
+    [Theory]
+    [InlineData("", false, "openid profile email")]
+    [InlineData("entitlements", false, "openid profile email entitlements")]
+    [InlineData("entitlements groups", true, "openid profile email entitlements groups")]
+    public async Task Challenge_RequestsTheBaseScopesThenTheConfiguredExtras(string additionalScopes, bool par, string expected)
+    {
+        // A provider returns a scope mapping's claims only for a requested scope, so the extras must reach the authorize request.
+        await using var kit = new OidcKit(factory, jit: true, par: par, additionalScopes: additionalScopes);
+        using var browser = kit.CreateClient();
+        var challenge = await browser.GetAsync("/api/v1/auth/sso/login");
+        challenge.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        // With PAR the browser carries only a request_uri; the provider got the parameters on its push endpoint.
+        var scope = par ? kit.Provider.PushedParameters!["scope"] : QueryHelpers.ParseQuery(challenge.Headers.Location!.Query)["scope"];
+        scope.ToString().Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task Jit_LogsWhichClaimNamesArrived_ButNeverTheirValues_WhenTheGroupsClaimIsEmpty()
+    {
+        var logs = new LogSink();
+        await using var kit = new OidcKit(factory, jit: true, mappings: [new("farm-admins", "Administrators")],
+            groupsClaim: "entitlements", additionalScopes: "entitlements", logs: logs);
+        var subject = "jit-log-" + Guid.NewGuid().ToString("N");
+        // The fake provider sends the groups under "groups" while OpenFarm reads "entitlements": the wanted claim is absent.
+        (await SignInWithGroupsAsync(kit, subject, "private-group-value")).Should().StartWith("/auth/complete");
+        var message = logs.Messages.Single(m => m.Contains("has no values in the groups claim"));
+        message.Should().Contain("'entitlements'").And.Contain("Scopes requested: openid, profile, email, entitlements");
+        message.Should().MatchRegex(@"Claims present: .*\bgroups\b").And.NotContain("private-group-value");
     }
 
     [Fact]
@@ -757,7 +789,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
 
         public OidcKit(CustomWebApplicationFactory parent, bool required = false, bool jit = false, bool par = false,
             string authority = FakeProvider.Issuer, string origin = "https://farm.example", GroupMapping[]? mappings = null,
-            string groupsClaim = "groups")
+            string groupsClaim = "groups", string additionalScopes = "", LogSink? logs = null)
         {
             if (required)
             {
@@ -778,9 +810,12 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
                         JitEnabled = jit,
                         GroupMappings = mappings ?? [],
                         GroupsClaim = groupsClaim,
+                        AdditionalScopes = additionalScopes,
                         InternalAuthenticationEnabled = !required,
                         RecoveryUserIds = required ? [RecoveryId] : [],
                     }));
+                    // The app logs through Serilog, so a plain logger provider would see nothing: replace the factory.
+                    if (logs is not null) services.AddSingleton<ILoggerFactory>(_ => LoggerFactory.Create(b => b.AddProvider(logs)));
                     services.PostConfigure<OpenIdConnectOptions>(OidcAuthentication.Scheme, options =>
                 {
                     var configuration = new OpenIdConnectConfiguration
@@ -850,6 +885,18 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
             await App.DisposeAsync();
             Provider.Dispose();
         }
+    }
+
+    private sealed class LogSink : ILoggerProvider, ILogger
+    {
+        private readonly ConcurrentQueue<string> _messages = new();
+        public string[] Messages => [.. _messages];
+        public ILogger CreateLogger(string categoryName) => this;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            _messages.Enqueue(formatter(state, exception));
+        public void Dispose() { }
     }
 
     private sealed class FakeProvider : HttpMessageHandler

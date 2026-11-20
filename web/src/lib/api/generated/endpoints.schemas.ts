@@ -332,6 +332,7 @@ export interface AuthenticationSettingsResponse {
   defaultGroup?: string;
   groupMappings?: GroupMapping[];
   groupsClaim?: string;
+  additionalScopes?: string;
   recoveryAccounts?: AuthenticationRecoveryAccount[];
   groups?: GroupSummary[];
   /** @nullable */
@@ -357,6 +358,7 @@ export interface AuthenticationSettingsValues {
   defaultGroup?: string;
   groupMappings?: GroupMapping[];
   groupsClaim?: string;
+  additionalScopes?: string;
 }
 
 export interface UpdateAuthenticationSettingsRequest {

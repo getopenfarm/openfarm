@@ -11,7 +11,7 @@ public sealed record AuthenticationRecoveryAccount(Guid Id, string Username);
 public sealed record AuthenticationSettingsResponse(Guid Revision, bool OidcEnabled, bool InternalAuthenticationEnabled, string DisplayName, string? Authority,
     string? ClientId, bool ClientCredentialConfigured, Guid[] RecoveryUserIds, bool JitEnabled,
     bool RequireVerifiedEmail,
-    string DefaultGroup, GroupMapping[] GroupMappings, string GroupsClaim, AuthenticationRecoveryAccount[] RecoveryAccounts,
+    string DefaultGroup, GroupMapping[] GroupMappings, string GroupsClaim, string AdditionalScopes, AuthenticationRecoveryAccount[] RecoveryAccounts,
     GroupSummary[] Groups, string? CallbackUrl, string? LogoutUrl, bool RecoveryMode);
 public sealed record UpdateAuthenticationSettingsRequest(Guid Revision, AuthenticationSettingsValues Settings);
 
@@ -37,7 +37,7 @@ public sealed class AuthenticationSettingsService(OpenFarmDbContext db, Authenti
         var previous = configuration.Unprotect(saved);
         var value = input.Settings;
         if (value.RecoveryUserIds is null
-            || value.DisplayName is null || value.DefaultGroup is null || value.GroupMappings is null || value.GroupsClaim is null || value.Authority?.Length > 2048
+            || value.DisplayName is null || value.DefaultGroup is null || value.GroupMappings is null || value.GroupsClaim is null || value.AdditionalScopes is null || value.Authority?.Length > 2048
             || value.ClientId?.Length > 256 || value.ClientSecret?.Length > 4096)
             throw new ArgumentException("Enter valid authentication settings.");
         if ((previous.Authority != value.Authority || previous.ClientId != value.ClientId)
@@ -93,6 +93,7 @@ public sealed class AuthenticationSettingsService(OpenFarmDbContext db, Authenti
                     value.JitEnabled,
                     value.GroupMappings,
                     value.GroupsClaim,
+                    value.AdditionalScopes,
                     ClientCredentialChanged = previous.ClientSecret != value.ClientSecret
                 }))));
             await db.SaveChangesAsync(ct);
@@ -115,7 +116,7 @@ public sealed class AuthenticationSettingsService(OpenFarmDbContext db, Authenti
         return new(revision, value.OidcEnabled, value.InternalAuthenticationEnabled, value.DisplayName, value.Authority, value.ClientId,
             !string.IsNullOrEmpty(value.ClientSecret), value.RecoveryUserIds, value.JitEnabled,
             value.RequireVerifiedEmail,
-            value.DefaultGroup, value.GroupMappings, value.GroupsClaim,
+            value.DefaultGroup, value.GroupMappings, value.GroupsClaim, value.AdditionalScopes,
             await RecoveryAccountsAsync(ct), await db.Roles.AsNoTracking()
                 .OrderBy(r => r.Name).Select(r => new GroupSummary(r.Id, r.Name!, r.IsProtected)).ToArrayAsync(ct),
             origin is null ? null : origin + "/api/v1/auth/sso/callback",

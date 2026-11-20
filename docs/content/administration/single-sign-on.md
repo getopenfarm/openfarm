@@ -41,7 +41,8 @@ Authentik's global issuer mode, **Same identifier is used for all providers**, i
 
 OpenFarm exchanges authorization codes on the server and uses PKCE.
 It uses Pushed Authorization Requests (PAR) when the provider advertises support.
-It requests `openid`, `profile`, and `email`; it does not need `offline_access` or retain provider tokens.
+It requests `openid`, `profile`, and `email`, and any [additional scopes](account-provisioning.md#use-entitlements-instead-of-groups) that you list in **Settings → Authentication**.
+It does not use `offline_access` or retain provider tokens.
 
 ## Enable optional OIDC
 

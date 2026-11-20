@@ -8,7 +8,9 @@ using OpenFarm.Infrastructure.Persistence;
 
 namespace OpenFarm.Infrastructure.Auth;
 
-public sealed record ExternalProfile(string? Username, string? Email, string? DisplayName, bool EmailVerified, IReadOnlyList<string>? Groups = null);
+/// <param name="ClaimNames">The names, never the values, of the claims in the ID token: it lets the log say what a provider sent.</param>
+public sealed record ExternalProfile(string? Username, string? Email, string? DisplayName, bool EmailVerified, IReadOnlyList<string>? Groups = null,
+    IReadOnlyList<string>? ClaimNames = null);
 public sealed class ProvisioningConflictException(string message) : ArgumentException(message);
 
 public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManager<ApplicationUser> users, PermissionService permissions,
@@ -75,12 +77,14 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
     /// nothing to commit, when the change would remove the last enabled administrator. Caller owns the transaction and the
     /// administration lock, and commits only when this returns true.
     /// </summary>
-    public async Task<bool> SyncGroupsAsync(ApplicationUser user, IReadOnlyList<string>? claimed, CancellationToken ct)
+    public async Task<bool> SyncGroupsAsync(ApplicationUser user, ExternalProfile profile, CancellationToken ct)
     {
         var mappings = settings.GroupMappings;
+        var claimed = profile.Groups;
         if (!settings.JitEnabled || user.ProvisioningProvider != oidc.ProviderKey
             || (mappings.Length == 0 && user.ProvisionedGroupIds.Length == 0)) return true;
-        if (mappings.Length > 0 && claimed is not { Count: > 0 }) OidcSignInLog.GroupsClaimEmpty(logger, settings.GroupsClaim);
+        if (mappings.Length > 0 && claimed is not { Count: > 0 })
+            OidcSignInLog.GroupsClaimEmpty(logger, settings.GroupsClaim, profile.ClaimNames, oidc.Scopes);
         var defaultId = (await FindDefaultRoleAsync(ct)).Id;
         var mapped = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
         foreach (var name in mappings.Select(m => m.Group).Distinct(StringComparer.OrdinalIgnoreCase))

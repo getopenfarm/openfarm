@@ -37,6 +37,7 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
         DefaultGroup = saved.DefaultGroup,
         GroupMappings = saved.GroupMappings,
         GroupsClaim = saved.GroupsClaim,
+        AdditionalScopes = saved.AdditionalScopes,
     };
 
     [Fact]
@@ -171,6 +172,29 @@ public sealed class AuthenticationSettingsTests(ProductionTestFactory factory) :
         saved = (await ReadAsync(browser))!;
         saved.GroupsClaim.Should().Be("entitlements");
         (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, Values(saved) with { OidcEnabled = false, JitEnabled = false, GroupsClaim = "groups" }))).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task AdditionalScopes_AreSaved_AndOfflineAccessAndMalformedNamesAreRefusedWithAClearMessage()
+    {
+        using var browser = await McpTestClient.BrowserAsync(factory);
+        var server = (await browser.GetFromJsonAsync<ServerSettingsResponse>("/api/v1/admin/settings/server"))!;
+        (await browser.PutAsJsonAsync("/api/v1/admin/settings/server", new { server.Revision, PublicUrl = "https://farm.example" })).EnsureSuccessStatusCode();
+        var saved = (await ReadAsync(browser))!;
+        saved.AdditionalScopes.Should().BeEmpty();
+        var values = Values(saved) with { OidcEnabled = true, Authority = "https://identity.example/application/o/farm/", ClientId = "scope-client", ClientSecret = "scope-client-credential", JitEnabled = true };
+        async Task<HttpResponseMessage> Save(string scopes) =>
+            await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, values with { AdditionalScopes = scopes }));
+        foreach (var rejected in new[] { "offline_access", "entitlements offline_access", "has\"quote", string.Join(' ', Enumerable.Range(0, 11).Select(i => "s" + i)) })
+        {
+            using var response = await Save(rejected);
+            response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity, rejected);
+            (await response.Content.ReadAsStringAsync()).Should().Contain("Additional scopes", "the message names the setting, not the issuer URL");
+        }
+        (await Save("entitlements groups")).EnsureSuccessStatusCode();
+        saved = (await ReadAsync(browser))!;
+        saved.AdditionalScopes.Should().Be("entitlements groups");
+        (await browser.PutAsJsonAsync(Path, new UpdateAuthenticationSettingsRequest(saved.Revision, Values(saved) with { OidcEnabled = false, JitEnabled = false, AdditionalScopes = "" }))).EnsureSuccessStatusCode();
     }
 
     [Fact]
