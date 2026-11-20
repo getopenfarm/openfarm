@@ -9,8 +9,10 @@ using OpenFarm.Infrastructure.Persistence;
 namespace OpenFarm.Infrastructure.Auth;
 
 /// <param name="ClaimNames">The names, never the values, of the claims in the ID token: it lets the log say what a provider sent.</param>
+/// <param name="GroupsClaimSent">The ID token has the Groups claim, even as an empty list. Parsed claims cannot tell an empty list
+/// from a missing claim (an empty JSON array yields no claim), and the two have different fixes.</param>
 public sealed record ExternalProfile(string? Username, string? Email, string? DisplayName, bool EmailVerified, IReadOnlyList<string>? Groups = null,
-    IReadOnlyList<string>? ClaimNames = null);
+    IReadOnlyList<string>? ClaimNames = null, bool GroupsClaimSent = false);
 public sealed class ProvisioningConflictException(string message) : ArgumentException(message);
 
 public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManager<ApplicationUser> users, PermissionService permissions,
@@ -84,7 +86,10 @@ public sealed class ExternalProvisioningService(OpenFarmDbContext db, UserManage
         if (!settings.JitEnabled || user.ProvisioningProvider != oidc.ProviderKey
             || (mappings.Length == 0 && user.ProvisionedGroupIds.Length == 0)) return true;
         if (mappings.Length > 0 && claimed is not { Count: > 0 })
-            OidcSignInLog.GroupsClaimEmpty(logger, settings.GroupsClaim, profile.ClaimNames, oidc.Scopes);
+        {
+            if (profile.GroupsClaimSent) OidcSignInLog.GroupsClaimEmpty(logger, settings.GroupsClaim);
+            else OidcSignInLog.GroupsClaimMissing(logger, settings.GroupsClaim, profile.ClaimNames, oidc.Scopes);
+        }
         var defaultId = (await FindDefaultRoleAsync(ct)).Id;
         var mapped = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
         foreach (var name in mappings.Select(m => m.Group).Distinct(StringComparer.OrdinalIgnoreCase))

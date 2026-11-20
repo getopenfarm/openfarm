@@ -269,7 +269,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
     }
 
     [Fact]
-    public async Task Jit_LogsWhichClaimNamesArrived_ButNeverTheirValues_WhenTheGroupsClaimIsEmpty()
+    public async Task Jit_LogsWhichClaimNamesArrived_ButNeverTheirValues_WhenTheGroupsClaimIsMissing()
     {
         var logs = new LogSink();
         await using var kit = new OidcKit(factory, jit: true, mappings: [new("farm-admins", "Administrators")],
@@ -277,9 +277,25 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         var subject = "jit-log-" + Guid.NewGuid().ToString("N");
         // The fake provider sends the groups under "groups" while OpenFarm reads "entitlements": the wanted claim is absent.
         (await SignInWithGroupsAsync(kit, subject, "private-group-value")).Should().StartWith("/auth/complete");
-        var message = logs.Messages.Single(m => m.Contains("has no values in the groups claim"));
+        var message = logs.Messages.Single(m => m.Contains("has no groups claim"));
         message.Should().Contain("'entitlements'").And.Contain("Scopes requested: openid, profile, email, entitlements");
         message.Should().MatchRegex(@"Claims present: .*\bgroups\b").And.NotContain("private-group-value");
+        logs.Messages.Should().NotContain(m => m.Contains("lists no values"));
+    }
+
+    [Fact]
+    public async Task Jit_LogsAnEmptyGroupsClaimApartFromAMissingOne()
+    {
+        var logs = new LogSink();
+        await using var kit = new OidcKit(factory, jit: true, mappings: [new("operator", "Operators")],
+            groupsClaim: "entitlements", additionalScopes: "entitlements", logs: logs);
+        // authentik sends "entitlements": [] for a user bound to no entitlement; the parsed claims cannot show it.
+        kit.Provider.GroupsClaim = "entitlements";
+        kit.Provider.SendEmptyGroupsClaim = true;
+        var subject = "jit-empty-" + Guid.NewGuid().ToString("N");
+        (await SignInWithGroupsAsync(kit, subject)).Should().StartWith("/auth/complete");
+        logs.Messages.Should().ContainSingle(m => m.Contains("has the groups claim 'entitlements', but it lists no values"));
+        logs.Messages.Should().NotContain(m => m.Contains("has no groups claim"));
     }
 
     [Fact]
@@ -907,6 +923,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
         private readonly Dictionary<string, (string Subject, string Nonce, string Challenge, string? Invalid, DateTime Issued)> _codes = [];
         public string? SessionId { get; set; }
         public string GroupsClaim { get; set; } = "groups";
+        public bool SendEmptyGroupsClaim { get; set; }
         public bool Unavailable { get; set; }
         public int Exchanges { get; private set; }
         public int Pushes { get; private set; }
@@ -969,6 +986,7 @@ public class OidcLoginTests(CustomWebApplicationFactory factory) : IClassFixture
                 claims,
                 notBefore: now.AddHours(-1), expires: proof.Invalid == "expired" ? now.AddMinutes(-10) : now.AddMinutes(5),
                 signingCredentials: new SigningCredentials(Key, SecurityAlgorithms.RsaSha256));
+            if (SendEmptyGroupsClaim && Profile is { Groups: null or { Count: 0 } }) token.Payload[GroupsClaim] = Array.Empty<string>();
             var encoded = new JwtSecurityTokenHandler().WriteToken(token);
             if (proof.Invalid == "signature") encoded = encoded[..(encoded.LastIndexOf('.') + 1)] + Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(256));
             return new(HttpStatusCode.OK)

@@ -114,15 +114,20 @@ A change in authentik reaches OpenFarm at the user's next sign-in. A browser ses
 To apply it sooner, revoke the user's sessions under **Users & Groups**, or disable the account.
 
 If the ID token has no values in the Groups claim, the user gets the default group. OpenFarm removes the groups the mapping granted earlier.
-The server log then has one `OidcGroupsClaimEmpty` entry. It names the claim OpenFarm read, the claim names the ID token contained, and the scopes OpenFarm requested. It never contains claim values.
-The entry also appears for a user who has no mapped values, so it is not always an error.
+The server log then has one entry. It never contains claim values:
+
+- `OidcGroupsClaimMissing`: the ID token has no such claim. The entry names the claim OpenFarm read, the claim names the ID token contained, and the scopes OpenFarm requested.
+- `OidcGroupsClaimEmpty`: the ID token has the claim, but the list is empty.
+
+An entry also appears for a user who legitimately has no groups or entitlements, so it is not always an error.
 Check the claim for a test user in authentik before rollout. Gate who may sign in with a policy or group binding on the OpenFarm application in authentik.
 
-#### Read the `OidcGroupsClaimEmpty` entry
+#### Read the group claim log entry
 
-| In the entry | Cause | Fix |
+| Entry | Cause | Fix |
 | --- | --- | --- |
-| The Groups claim is not under **Claims present** | The provider did not send it. The scope is not requested, the scope mapping is not on the provider, the provider does not include claims in the ID token, or the mapping expression failed. | Add the scope under **Additional scopes**. Select the mapping on the provider. Turn on **Include claims in id_token**. Check the provider's events for a mapping error. |
+| `OidcGroupsClaimMissing` | The provider did not send the claim. The scope is not requested, the scope mapping is not on the provider, the provider does not include claims in the ID token, the mapping expression failed, or **Groups claim** has the wrong name. | Add the scope under **Additional scopes**. Select the mapping on the provider. Turn on **Include claims in id_token**. Check the provider's events for a mapping error. Compare **Groups claim** with **Claims present**. |
+| `OidcGroupsClaimEmpty` | The provider sent the claim, but lists nothing for this user. With entitlements: the user, and every group of the user, is bound to no entitlement of the OpenFarm application. | Add the user to a provider group. With entitlements, bind the user or one of their groups on the entitlement itself. A binding on the application does not count. |
 | No entry, but the user has only the default group | The claim has values, and none equals a mapping row. | Compare the values with the mapping rows. Matching is exact and case-sensitive. A trailing space does not match. |
 
 ### Use entitlements instead of groups
@@ -134,20 +139,23 @@ OpenFarm refuses `offline_access`, because it keeps no provider tokens.
 
 1. Open the OpenFarm application in authentik. On **Application entitlements**, create one entitlement per role, for example `operator`.
 2. Bind a user or group to each entitlement. A binding on the application does not bind its entitlements.
-3. Open **Customization → Property Mappings** and create a **Scope Mapping**. Set **Scope name** to `entitlements`.
-   ```python
-   return {
-       "entitlements": [e.name for e in request.user.app_entitlements(provider.application)],
-   }
-   ```
-   authentik's documentation lists `entitlements` as a default scope. If your version already has a mapping with that name, select it instead.
-4. Open the OpenFarm OAuth2/OIDC provider. Under **Advanced protocol settings → Scopes**, select this mapping. Keep the default `profile` and `email` mappings selected.
-   Keep **Include claims in id_token** on. OpenFarm reads the ID token only.
-5. In **Settings → Authentication**, set **Additional scopes** to `entitlements` and **Groups claim** to `entitlements`.
+3. Open the OpenFarm OAuth2/OIDC provider. Under **Advanced protocol settings → Scopes**, add authentik's built-in application entitlements mapping (scope name `entitlements`) to **Selected Scopes**.
+   Keep the default `profile` and `email` mappings selected. Keep **Include claims in id_token** on. OpenFarm reads the ID token only.
+   A provider does not always have this mapping selected. Without it, authentik ignores the `entitlements` scope.
+4. In **Settings → Authentication**, set **Additional scopes** to `entitlements` and **Groups claim** to `entitlements`.
+   The scope tells authentik what to send. The claim tells OpenFarm where to read it. They have the same name only for entitlements.
    Add a mapping row for each entitlement name. Names are case-sensitive.
-6. Sign in again with a test user. If the user does not get the group, [read the log entry](#read-the-oidcgroupsclaimempty-entry).
+5. Sign in again with a test user. If the user does not get the group, [read the log entry](#read-the-group-claim-log-entry).
 
-The expression follows authentik's [application entitlements documentation](https://docs.goauthentik.io/add-secure-apps/applications/manage_apps/#application-entitlements). Confirm it against your authentik version.
+If your authentik version has no mapping with scope name `entitlements`, create one. Open **Customization → Property Mappings** and create a **Scope Mapping**. Set **Scope name** to `entitlements`, then select it in step 3:
+
+```python
+return {
+    "entitlements": [e.name for e in request.user.app_entitlements(provider.application)],
+}
+```
+
+See authentik's [application entitlements documentation](https://docs.goauthentik.io/add-secure-apps/applications/manage_apps/#application-entitlements) and [property mappings documentation](https://docs.goauthentik.io/add-secure-apps/providers/property-mappings/).
 
 Other providers work the same way. List the scope that returns the claim under **Additional scopes**. Set **Groups claim** to the top-level claim that lists the user's groups or roles, for example `roles`.
 Some providers refuse an unknown scope. Add only scopes that the provider defines.

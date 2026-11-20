@@ -362,6 +362,19 @@ it('saves a custom groups claim and rejects identity claims', async () => {
   expect(writes[0].settings).toMatchObject({ groupsClaim: 'entitlements' });
 });
 
+it('hints at a scope when the groups claim is not groups and no scope is listed', async () => {
+  const user = userEvent.setup();
+  setup({ configured: true });
+  const hint = /Most providers send the entitlements claim/;
+  const claim = await screen.findByLabelText('Groups claim');
+  expect(screen.queryByText(hint)).not.toBeInTheDocument();
+  await user.clear(claim);
+  await user.type(claim, 'entitlements');
+  expect(screen.getByText(hint)).toBeInTheDocument();
+  await user.type(screen.getByLabelText('Additional scopes'), 'entitlements');
+  expect(screen.queryByText(hint)).not.toBeInTheDocument();
+});
+
 it('saves additional scopes and rejects offline_access', async () => {
   const user = userEvent.setup();
   const { writes } = setup({ configured: true });

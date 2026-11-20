@@ -205,13 +205,5 @@ Then use a tested recovery administrator to correct the settings.
 
 ## References
 
-- [Authentik Portainer integration](https://integrations.goauthentik.io/hypervisors-orchestrators/portainer/)
-- [Authentik Arcane integration](https://integrations.goauthentik.io/hypervisors-orchestrators/arcane/)
-
 - [Authentik OAuth2/OIDC provider](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/)
 - [Authentik back-channel logout](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/frontchannel_and_backchannel_logout/)
-- [Immich integration](https://integrations.goauthentik.io/media/immich/) for strict redirects and back-channel logout.
-- [Outline integration](https://integrations.goauthentik.io/documentation/outline/) for verified-email requirements.
-
-Use OpenFarm's callback, stable subject mode, and provisioning settings from this guide.
-Other applications' role mappings and logout endpoints are application-specific.

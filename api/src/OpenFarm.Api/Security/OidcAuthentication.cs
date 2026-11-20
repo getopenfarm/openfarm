@@ -15,6 +15,7 @@ public static class OidcAuthentication
     public const string CallbackPath = "/api/v1/auth/sso/callback";
     public const string LinkCookie = "openfarm.oidc.link";
     private const string LinkStarted = "openfarm.link.started";
+    private const string GroupsClaimSent = "openfarm.oidc.groupsClaimSent";
     private static readonly Action<ILogger, string?, Exception?> ChallengeFailed = LoggerMessage.Define<string?>(
         LogLevel.Warning, new EventId(4100, "OidcChallengeFailed"),
         "Could not start OIDC sign-in for issuer {Issuer}. Check provider discovery and connectivity.");
@@ -127,6 +128,13 @@ public static class OidcAuthentication
                         }
                         return Task.CompletedTask;
                     },
+                    OnTokenValidated = context =>
+                    {
+                        // An empty JSON array yields no parsed claim, so only the raw payload tells "sent but empty" from "not sent".
+                        var claim = context.HttpContext.RequestServices.GetRequiredService<ProvisioningSettings>().GroupsClaim;
+                        if (context.SecurityToken?.Payload.ContainsKey(claim) == true) context.HttpContext.Items[GroupsClaimSent] = true;
+                        return Task.CompletedTask;
+                    },
                     OnTicketReceived = CompleteAsync,
                     OnRemoteFailure = context =>
                     {
@@ -228,7 +236,7 @@ public static class OidcAuthentication
             var profile = new ExternalProfile(Claim("preferred_username"), Claim("email"), Claim("name"),
                 string.Equals(Claim("email_verified"), "true", StringComparison.OrdinalIgnoreCase),
                 context.Principal!.FindAll(http.RequestServices.GetRequiredService<ProvisioningSettings>().GroupsClaim).Select(c => c.Value).ToArray(),
-                claimNames);
+                claimNames, http.Items.ContainsKey(GroupsClaimSent));
             var providerSessionId = Claim("sid");
             if (providerSessionId is { Length: > 255 } || providerSessionId is not null && string.IsNullOrWhiteSpace(providerSessionId))
                 throw new ArgumentException("Invalid provider session identifier.");

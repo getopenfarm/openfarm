@@ -278,6 +278,11 @@ function AuthenticationForm({
     form.formState.isDirty,
   );
   const values = form.watch();
+  // `groups` comes from the profile scope, which is always requested; any other claim usually needs its own scope.
+  const needsScopeHint =
+    !!values.groupsClaim?.trim() &&
+    values.groupsClaim.trim() !== 'groups' &&
+    !values.additionalScopes?.trim();
   const groups = data.groups ?? [];
   const mapsProtectedGroup = values.groupMappings.some((row) =>
     groups.some((g) => g.isProtected && g.name === row.group),
@@ -605,7 +610,10 @@ function AuthenticationForm({
               {input(
                 'additionalScopes',
                 'Additional scopes',
-                'Space-separated. Requested with openid profile email. A provider returns a scope mapping’s claims only for a requested scope.',
+                'Space-separated. Requested with openid profile email. A provider returns a scope mapping’s claims only for a requested scope.' +
+                  (needsScopeHint
+                    ? ` Most providers send the ${values.groupsClaim.trim()} claim only for a requested scope. Add that scope, e.g. entitlements.`
+                    : ''),
               )}
             </SettingsRows>
           )}
