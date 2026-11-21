@@ -39,6 +39,21 @@ public class ToolTrayMatcherTests
     }
 
     [Fact]
+    public void DoesNotTakeAPastelForWhite()
+    {
+        // Pink #FFB7EE is 74 from white in RGB but ΔE 42 (clearly another colour).
+        Match([(0, "PETG", "#FFB7EE")]).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void PrefersTheNearPinkTray_OverWhite()
+    {
+        LoadedTray<int>[] trays = [new(0, "PLA", "FFFFFFFF"), new(1, "PLA", "F8B0E8FF")];
+
+        Match([(0, "PLA", "#FFB7EE")], trays).Should().BeEquivalentTo(new Dictionary<int, int> { [0] = 1 });
+    }
+
+    [Fact]
     public void LeavesAToolUnmatched_WhenTwoTraysAreEquallyGood_AndNoneWasSeen()
     {
         LoadedTray<int>[] twins = [new(0, "PLA", "FF0000FF"), new(1, "PLA", "FF0000FF")];

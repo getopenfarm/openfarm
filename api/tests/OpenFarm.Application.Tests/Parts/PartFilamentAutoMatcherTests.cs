@@ -33,6 +33,19 @@ public class PartFilamentAutoMatcherTests
     }
 
     [Fact]
+    public void Apply_PinkWithOnlyWhiteInTheCatalog_SelectsNothing() =>
+        Match(Requirement(color: "#FFB7EE", vendor: "Aliz"), Colour(White, "Aliz", "PLA", "#FFFFFF")).Should().BeNull();
+
+    [Fact]
+    public void Apply_PinkWithANearPinkInTheCatalog_SelectsThePink()
+    {
+        var pink = Guid.NewGuid();
+
+        Match(Requirement(color: "#FFB7EE", vendor: "Aliz"), Colour(White, "Aliz", "PLA", "#FFFFFF"), Colour(pink, "Aliz", "PLA", "#F8B0E8"))
+            .Should().Be(pink);
+    }
+
+    [Fact]
     public void Apply_OtherVendor_SelectsNothing() =>
         Match(Requirement(), Colour(Black, "Aliz", "PLA", "#000000")).Should().BeNull();
 
