@@ -120,12 +120,16 @@ public sealed partial class ProductionDispatchQueryService(OpenFarmDbContext dbC
     public Task<IReadOnlyList<DispatchCandidate>> GetUnassignedCandidatesAsync(CancellationToken cancellationToken, IReadOnlyDictionary<Guid, Guid>? reserved = null) =>
         GetCandidatesAsync(job => job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Unassigned && job.PrinterId == null, cancellationToken, reserved: reserved);
 
-    /// <summary>FR-007c — every Queued job pinned to this exact printer, never matched against any other (research.md R4 step 4).</summary>
-    public Task<IReadOnlyList<DispatchCandidate>> GetPinnedCandidatesAsync(Guid printerId, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// FR-007c — every Queued job pinned to this exact printer, never matched against any other (research.md R4 step 4).
+    /// A job another printer is slicing or sending right now (<paramref name="reserved"/>) is left out even if it was pinned here meanwhile.
+    /// </summary>
+    public Task<IReadOnlyList<DispatchCandidate>> GetPinnedCandidatesAsync(
+        Guid printerId, CancellationToken cancellationToken, IReadOnlyDictionary<Guid, Guid>? reserved = null) =>
         GetCandidatesAsync(
             job => job.Status == PrintJobStatus.Queued && job.AssignmentMode == AssignmentMode.Pinned
                 && job.PinnedPrinterId == printerId && job.PrinterId == null,
-            cancellationToken);
+            cancellationToken, reserved: reserved);
 
     public async Task<IReadOnlyList<DispatchCandidate>> GetBackfillRetryCandidatesAsync(
         Guid printerId, CancellationToken ct, IReadOnlyDictionary<Guid, Guid>? reserved = null)

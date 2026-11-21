@@ -1,5 +1,6 @@
 using OpenFarm.Infrastructure.Printers.Bambu;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -29,6 +30,9 @@ public sealed class FeedMappingRecorder : IPrinterConnectorFactory
 
     /// <summary>Runs after the connector reported <see cref="PrintSendStage.Starting"/>; throwing fails the send once the start command may have left.</summary>
     public Func<string, Task>? AfterStart { get; set; }
+
+    /// <summary>Runs on each send progress report, before the send goes on: holding it holds the send at that stage (slicing: the job is still undispatched in the database).</summary>
+    public Func<Guid, Guid, PrintSendStage, Task>? OnSendProgress { get; set; }
 
     /// <summary>The send progress dispatch pushed to the hub, per job.</summary>
     public ConcurrentQueue<(Guid JobId, PrintSendStage Stage, int? Percent, int Attempt)> SendProgress { get; } = [];
@@ -84,10 +88,11 @@ public sealed class SendProgressRecorder(IProductionEventPublisher inner, FeedMa
 
     public Task NotificationsChangedAsync(CancellationToken cancellationToken) => inner.NotificationsChangedAsync(cancellationToken);
 
-    public Task PrintJobSendProgressAsync(Guid printJobId, Guid printerId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken)
+    public async Task PrintJobSendProgressAsync(Guid printJobId, Guid printerId, PrintSendStage stage, int? percent, int attempt, string? failure, CancellationToken cancellationToken)
     {
         recorder.SendProgress.Enqueue((printJobId, stage, percent, attempt));
-        return inner.PrintJobSendProgressAsync(printJobId, printerId, stage, percent, attempt, failure, cancellationToken);
+        if (recorder.OnSendProgress is { } hold) await hold(printJobId, printerId, stage);
+        await inner.PrintJobSendProgressAsync(printJobId, printerId, stage, percent, attempt, failure, cancellationToken);
     }
 }
 
@@ -516,6 +521,16 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
         await db.SaveChangesAsync();
     }
 
+    /// <summary>For a test that must know which printers can take its unassigned job: nothing earlier tests left idle or queued is in play any more.</summary>
+    private async Task ClearFarmAsync()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OpenFarmDbContext>();
+        foreach (var job in await db.PrintJobs.Where(j => j.Status == PrintJobStatus.Queued).ToListAsync()) job.MarkCancelled();
+        foreach (var printer in await db.Printers.Where(p => p.Status == PrinterStatus.Idle).ToListAsync()) printer.ObserveStatus("FAILED");
+        await db.SaveChangesAsync();
+    }
+
     [Theory]
     [InlineData(3, true)]
     [InlineData(1, false)]
@@ -590,6 +605,56 @@ public class AmsFeedDispatchTests(AmsFeedFactory factory) : ProductionTestContex
             await worker.StopAsync(default);
             Recorder.BeforeSend = null;
             await RetireAsync(printerIds, run.Id);
+        }
+    }
+
+    [Fact]
+    public async Task AJobBeingSliced_PinnedToAnotherPrinterMeanwhile_IsSentOnce_ToThePinnedPrinter()
+    {
+        await ClearFarmAsync();
+        var client = await ClientAsync();
+        var part = await PartAsync();
+        var printers = new[] { await PrinterAsync(), await PrinterAsync() };
+        var run = await RunAsync(client, part.Id);
+        var jobId = (await JobsAsync(run.Id)).Single().Id;
+
+        // Whichever printer takes the job holds it while slicing (still undispatched in the database); the operator then pins it to the other printer.
+        var holder = new TaskCompletionSource<Guid>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Recorder.OnSendProgress = async (id, printerId, stage) =>
+        {
+            if (id != jobId || stage != PrintSendStage.Slicing) return;
+            holder.TrySetResult(printerId);
+            await release.Task;
+        };
+        using var worker = Worker();
+        await worker.StartAsync(default);
+        try
+        {
+            var holdingId = await holder.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var holding = printers.Single(p => p.Id == holdingId);
+            var other = printers.Single(p => p.Id != holding.Id);
+            var pinned = await client.PostAsJsonAsync($"/api/v1/print-jobs/{jobId}/pin", new { printerId = other.Id });
+            pinned.StatusCode.Should().Be(HttpStatusCode.OK, await pinned.Content.ReadAsStringAsync());
+            worker.RequestDispatchAttempt(other.Id); // the pin asks the host's own dispatcher, not this worker
+
+            await Task.Delay(1000);
+            Recorder.SendProgress.Count(p => p.JobId == jobId && p.Stage == PrintSendStage.Slicing)
+                .Should().Be(1, "the pinned printer must not take a job another printer is slicing");
+
+            // The first printer finds the job pinned elsewhere once its slicing is done and lets go; the pinned printer takes it.
+            release.SetResult();
+            var job = await WaitForJobAsync(run.Id, WasSent);
+
+            job.PrinterId.Should().Be(other.Id);
+            Recorder.Started.Count(s => printers.Any(p => p.SerialNumber == s.SerialNumber)).Should().Be(1);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await worker.StopAsync(default);
+            Recorder.OnSendProgress = null;
+            await RetireAsync(printers.Select(p => p.Id).ToArray(), run.Id);
         }
     }
 }

@@ -249,6 +249,10 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
     /// </summary>
     private async Task<Func<Task<bool>>?> ProcessDispatchAttemptAsync(Guid printerId, CancellationToken cancellationToken)
     {
+        // Sampled before deciding: reservations are only added behind the gate, so a set seen now covers every one that could hide a
+        // job from this decision. Registered up front, because a send ending mid-decision wakes only those already registered.
+        if (!_reserved.IsEmpty) _mayHaveSkipped[printerId] = 0;
+
         var scope = _scopeFactory.CreateScope();
         Func<Task<bool>>? send = null;
         try
@@ -260,11 +264,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             if (send is null) scope.Dispose();
         }
 
-        if (send is null)
-        {
-            if (!_reserved.IsEmpty) _mayHaveSkipped[printerId] = 0;
-            return null;
-        }
+        if (send is null) return null;
+        _mayHaveSkipped.TryRemove(printerId, out _);
 
         return async () =>
         {
@@ -317,7 +318,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         var loadedMaterials = await queryService.ResolveLoadedMaterialsAsync(printer, cancellationToken);
         var candidates = await queryService.FilterReadyAsync(printer.Id, await queryService.GetUnassignedCandidatesAsync(cancellationToken, _reserved), cancellationToken);
-        var pinnedCandidates = await queryService.FilterReadyAsync(printer.Id, await queryService.GetPinnedCandidatesAsync(printer.Id, cancellationToken), cancellationToken);
+        var pinnedCandidates = await queryService.FilterReadyAsync(printer.Id, await queryService.GetPinnedCandidatesAsync(printer.Id, cancellationToken, _reserved), cancellationToken);
         var jobId = ProductionDispatchMatcher.SelectNextJob(nozzlesMm, loadedMaterials, candidates, pinnedCandidates);
         if (jobId is null)
         {
@@ -356,7 +357,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
         }
 
         var job = await jobRepository.GetByIdAsync(jobId.Value, cancellationToken);
-        if (job is null || job.Status != PrintJobStatus.Queued || job.PrinterId is not null
+        if (job is null || job.Status != PrintJobStatus.Queued || job.PrinterId is not null || _reserved.ContainsKey(job.Id)
             || (job.AssignmentMode == AssignmentMode.Pinned && job.PinnedPrinterId != printer.Id))
         {
             // Lost a race against another dispatch decision (or a manual pin/cancel) between the
@@ -550,7 +551,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
 
         // Slicing and sending take minutes; the caller runs this after the gate is open so other printers decide meanwhile.
         // Until it returns the job is reserved for this printer, which keeps every other decision away from it.
-        _reserved[job.Id] = printer.Id;
+        if (!_reserved.TryAdd(job.Id, printer.Id)) return null;
         return async () =>
         {
             var sent = false;
@@ -567,7 +568,7 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
             finally
             {
                 // Persisted state (dispatched, or reverted and blocked) is final by now, so releasing the reservation leaves no gap.
-                _reserved.TryRemove(job.Id, out _);
+                _reserved.TryRemove(new KeyValuePair<Guid, Guid>(job.Id, printer.Id));
 
                 // Whatever stopped this attempt, pages showing its progress go back to the job's own state.
                 if (!sent)
@@ -665,7 +666,8 @@ public sealed partial class ProductionDispatchBackgroundService : BackgroundServ
                 ? await freshScope.ServiceProvider.GetRequiredService<IPartRepository>().GetByIdAsync(dispatchPart.Id, cancellationToken)
                 : job.GetProductionPart();
             if (!demandAllowed
-                || persistedJob is not null && (persistedJob.Status != PrintJobStatus.Queued || persistedJob.DispatchedAtUtc is not null)
+                || persistedJob is not null && (persistedJob.Status != PrintJobStatus.Queued || persistedJob.DispatchedAtUtc is not null
+                    || persistedJob.AssignmentMode == AssignmentMode.Pinned && persistedJob.PinnedPrinterId != printer.Id)
                 || currentPrinter is null || !currentPrinter.IsReachable || currentPrinter.Status != PrinterStatus.Idle || currentPart is null
                 || revisionMode == RevisionMode.FollowLatest && (currentPart.RevisionHash != dispatchPart.RevisionHash || currentPart.UpdatedAtUtc != dispatchPart.UpdatedAtUtc
                     || !job.HasFilamentRequirementOverride && !ProductionJobRequirements.FromPart(currentPart).SequenceEqual(materialRequirements)))
